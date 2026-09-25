@@ -383,7 +383,35 @@ o documento de contrato vem depois do código, nunca antes.
   ("lido só dentro do config é lido por ninguém") estava errada depois desta
   mudança, e está corrigida no código e na regra.
 
-**Próximo, na nova ordem: o soft wrap com a linha atual marcada.**
+### Soft wrap + linha atual · **completo** (item 2 da direção)
+
+- ✅ **O wrap vem ligado por padrão**, como no Zed, e `soft_wrap = false` desliga.
+  Uma linha de 121 caracteres num terminal de 60 era **o defeito de leitura mais
+  visível do produto**: 59 caracteres e um `…`, sem comando que levasse ao resto.
+- ✅ **A janela passou a contar linhas visuais**, e com ela três casos que só
+  existem por causa da quebra: o número da linha aparece **uma vez** (e não quatro
+  numa linha quebrada), o marcador do caret **acompanha** a linha visual, e
+  seleção/realce são **recortados** para a linha de tela antes de pintar.
+- ✅ **`layout.Wrap` + `layout.RowFor` + `layout.Offset`**, com as três unidades
+  (byte, escalar, célula) convertidas em um lugar só. Os testes dessa área pegaram
+  **três bugs** que eram a mesma classe que o projeto já contabiliza: índice de
+  `range` como offset de byte (cortava multibyte), offset absoluto em função que
+  recebe fatia, e o caret sumindo em linha vazia / pulando no fim de linha
+  quebrada.
+- ✅ **A linha atual tem duas pistas**: o marcador `>` da gutter (texto, sobrevive
+  sem cor) e o fundo do token `line_highlight`, **vazio por padrão** — decoração é
+  decoração. Um teste caça o defeito clássico de um estilo feito a partir de nada,
+  que é virar preto.
+- ✅ **A divergência de default está nomeada (B19)**, e o harness ganhou
+  `conformance.DivergentByDecision`: remove o **caminho** `config.soft_wrap`, não a
+  chave `config` inteira — tirar a chave pararia a suíte de verificar os outros
+  sete campos, que é como uma suíte de paridade vira decorativa.
+- ✅ O contrato está em `docs/ui-ux/layout.md`, com **cada regra ligada ao teste que
+  a verifica** — no mesmo commit da entrega.
+
+**Próximo, na nova ordem: o status como superfície de informação** — modo da
+linguagem, contagem de erros, branch e estado do LSP, que são quatro dados que já
+existem no modelo e nenhum tem onde aparecer.
 
 ## Camada de documentação do Prumo
 

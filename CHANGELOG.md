@@ -10,6 +10,20 @@
   o cursor do componente pisca, e um golden não pode depender do relógio.
 
 ### Added
+- **Soft wrap ligado por padrão, com a linha atual marcada:** uma linha de 121
+  caracteres num terminal de 60 aparece **inteira**, partida em linhas de tela, em
+  vez de mostrar 59 caracteres e um `…` sem caminho para o resto. A quebra é por
+  palavra quando dá e por cluster quando a palavra não cabe (URL, caminho,
+  identificador); o número da linha aparece uma vez; a seleção e o realce
+  atravessam a quebra; e a linha atual tem duas pistas — o marcador de texto na
+  gutter e, para quem quiser, o fundo do token `line_highlight`.
+
+### Changed
+- **`[editor].soft_wrap` passa a valer alguma coisa** (vem ligado, como no Zed).
+  É uma decisão de produto, não uma paridade: o oráculo entrega desligado, e a
+  diferença está registrada como `B19` no ledger de paridade.
+
+### Added
 - **Camada de tokens semânticos no tema** (`[tokens]`): um tema passa a nomear
   **intenções** — `surface`, `panel`, `text`, `text_muted`, `accent`, `success`,
   `warning`, `error`, `focus` — em vez de repetir cores. É o modelo do Zed, e é o
