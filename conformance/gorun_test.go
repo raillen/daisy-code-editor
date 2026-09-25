@@ -117,7 +117,12 @@ func TestGoRunRejectsUnknownActions(t *testing.T) {
 	c := &Case{
 		Files: []CaseFile{{Path: "a.txt", Content: "x"}},
 		Open:  "a.txt",
-		Steps: []Step{{Kind: StepAction, Action: "toggle_terminal"}},
+		// A ação precisa ser uma que o Go **não** trate — e a escolha é o teste
+		// mais honesto possível: `toggle_terminal` morava aqui, e este teste
+		// começou a falhar no dia em que o painel ganhou tratamento. Um teste que
+		// fixa "isto está morto" quebra quando a coisa deixa de estar morta, e
+		// isso é informação, não problema.
+		Steps: []Step{{Kind: StepAction, Action: "split_vertical"}},
 	}
 	if _, err := GoRun(context.Background(), c, t.TempDir()); err == nil {
 		t.Fatal("ação não implementada foi aceita em silêncio")

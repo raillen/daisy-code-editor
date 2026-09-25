@@ -14,6 +14,7 @@ package tui
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -27,6 +28,7 @@ import (
 	"github.com/ori-team/oride/internal/keymap"
 	"github.com/ori-team/oride/internal/search"
 	"github.com/ori-team/oride/internal/syntax"
+	"github.com/ori-team/oride/internal/term"
 	"github.com/ori-team/oride/internal/tui/component"
 	"github.com/ori-team/oride/internal/tui/editorview"
 	"github.com/ori-team/oride/internal/tui/findbar"
@@ -36,6 +38,7 @@ import (
 	"github.com/ori-team/oride/internal/tui/overlay"
 	"github.com/ori-team/oride/internal/tui/statusbar"
 	"github.com/ori-team/oride/internal/tui/tabs"
+	"github.com/ori-team/oride/internal/tui/terminal"
 	"github.com/ori-team/oride/internal/tui/theme"
 	"github.com/ori-team/oride/internal/tui/tree"
 )
@@ -72,6 +75,14 @@ type Model struct {
 	// in a Cmd, not while rendering, because a keystroke must not pay for the
 	// whole file.
 	highlight highlightCache
+
+	// pty is the shell behind the terminal panel, or nil when none was started.
+	//
+	// A handle, e não um processo criado aqui: o modelo não cria processo
+	// nenhum, porque o harness de conformidade roda o mesmo modelo sem terminal e
+	// sem shell. Quem cria é a raiz de composição, numa `Cmd`, e o resultado volta
+	// por mensagem — o mesmo caminho do realce.
+	pty *term.Terminal
 
 	// query and replace are the search bar's text fields, from the component
 	// `textinput`. As strings canônicas continuam no modelo — é de lá que o dump
@@ -213,7 +224,40 @@ func (m Model) Init() tea.Cmd { return nil }
 // be able to ask for it.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
-	return next, tea.Batch(cmd, next.clipboardWrite(), next.highlightRoles())
+	// O foco do modelo e a superfície da apresentação são **a mesma** informação
+	// em dois lugares, e uma ação move o do modelo: `Ctrl+`` leva para o
+	// terminal, e sem esta linha a apresentação continuaria no editor — o painel
+	// seguraria o teclado do shell enquanto a barra de status promete outra
+	// coisa. É o caminho inverso do que `moveFocus` faz, e ele precisa existir
+	// tanto quanto o outro.
+	next.syncSurface()
+	return next, tea.Batch(cmd, next.clipboardWrite(), next.highlightRoles(), next.terminalCmd())
+}
+
+// syncSurface follows the model's focus into the presentation.
+//
+// Um método, e não uma linha no `handleKey`: qualquer caminho que mude o foco
+// sem passar pela tecla — a paleta, o painel, uma ação disparada por outra ação —
+// precisa que a apresentação acompanhe, e o ponto único depois do despacho é o
+// lugar onde isso é garantido.
+func (m *Model) syncSurface() {
+	switch m.application.Focus {
+	case app.FocusTree:
+		m.surface = focus.Tree
+	case app.FocusTerminal:
+		m.surface = focus.Terminal
+	case app.FocusSCM:
+		m.surface = focus.SCM
+	case app.FocusEditor:
+		// O editor do modelo cobre também as três superfícies de **chrome** —
+		// menu, abas e barra de status — porque o modelo não as distingue.
+		// Escrever "editor" aqui apagaria o passo do Tab entre elas, e o
+		// perímetro de foco encolheria sem ninguém notar.
+		switch m.surface {
+		case focus.Tree, focus.Terminal, focus.SCM:
+			m.surface = focus.Editor
+		}
+	}
 }
 
 // update is the message switch, without the highlighting that follows every one.
@@ -238,9 +282,76 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case highlightedMsg:
 		m.keepHighlight(message)
 		return m, nil
+
+	case terminalReadyMsg:
+		m.pty = message.pty
+		m.application.TerminalAttached = message.pty != nil
+		if message.err != nil {
+			// Falha fechada: sem shell, o editor continua. Um painel que impede
+			// abrir porque o shell não subiu seria um editor quebrado por um
+			// detalhe do ambiente.
+			m.application.Status = "terminal indisponível: " + message.err.Error()
+		}
+		return m, nil
 	}
 	return m, nil
 }
+
+// terminalReadyMsg is a shell coming up, or the reason it did not.
+type terminalReadyMsg struct {
+	pty *term.Terminal
+	err error
+}
+
+// terminalPollMsg é o "houve leitura" do painel.
+//
+// A mensagem existe porque um PTY **notifica**: o shell escreve por um lado que o
+// runtime não vê, e sem um sinal o painel ficaria com a saída do comando anterior
+// até a próxima tecla. As linhas **não** viajam na mensagem: quem as tem é o
+// handle, e copiá-las seria um segundo lugar com o mesmo scrollback.
+type terminalPollMsg struct{}
+
+// terminalCmd schedules the shell when the panel needs one, or a refresh of the
+// rows when it already has it.
+//
+// Uma `Cmd` só, com os dois casos: pedir a criação e pedir a leitura ao mesmo tempo
+// seria dois comandos disputando o mesmo campo, e o que chegasse por último
+// decidiria se existe terminal.
+func (m Model) terminalCmd() tea.Cmd {
+	if !m.application.ShowTerminal {
+		return nil
+	}
+
+	shell := m.application.Config.Terminal.Shell
+	workspace := m.application.Workspace
+	height := m.application.TerminalHeight
+
+	if m.pty == nil {
+		return func() tea.Msg {
+			// A PTY nasce aqui, e não no modelo: um processo criado no caminho do
+			// Updateabriria um shell a cada tecla num harness headless.
+			pty, err := term.Spawn(workspace, terminalColumns, uint16(height), shell)
+			return terminalReadyMsg{pty: pty, err: err}
+		}
+	}
+
+	pty := m.pty
+	return func() tea.Msg {
+		// A espera é do componente, não nossa: `Poll` esvazia o canal do leitor, e
+		// perguntar antes de haver leitura seria um laço que nunca para. O atraso
+		// curto é o que impede que o painel fique colado no processador com o
+		// painel aberto.
+		pty.Poll()
+		time.Sleep(terminalPollInterval)
+		return terminalPollMsg{}
+	}
+}
+
+// The panel's shell geometry and how often it is read.
+const (
+	terminalColumns      = 80
+	terminalPollInterval = 40 * time.Millisecond
+)
 
 // keepHighlight stores the roles that still describe the document on screen.
 //
@@ -344,6 +455,24 @@ func (m *Model) handleKey(key tea.KeyPressMsg) {
 	// aviso.
 	chord := key.Keystroke()
 
+	// Esc devolve o foco ao editor **com ou sem shell**: o painel promises
+	// "Esc=editor" na barra de status, e um Esc que não faz nada quando a PTY
+	// ainda não subiu seria a mesma teimosia de um painel que não fecha.
+	if m.surface == focus.Terminal && (chord == "escape" || chord == "esc") {
+		m.surface = focus.Editor
+		m.application.Focus = app.FocusEditor
+		return
+	}
+
+	// O terminal tem o teclado antes de qualquer outra coisa: com o foco nele, a
+	// tecla é **do shell** — é o que o painel promete na barra de status. Sem
+	// esta ordem, digitar no painel editava o documento por trás.
+	if m.surface == focus.Terminal && m.pty != nil {
+		if m.writeToShell(key, chord) {
+			return
+		}
+	}
+
 	// The focused surface gets the key first. Before this, the arrows moved the
 	// document caret whatever the focus was, and the tree could be looked at but
 	// not walked.
@@ -380,6 +509,69 @@ func (m *Model) handleKey(key tea.KeyPressMsg) {
 	if text != "" {
 		_ = m.application.ApplyText(text)
 	}
+}
+
+// writeToShell sends one keystroke to the shell, and reports whether it did.
+//
+// Esc volta para o editor — é a única tecla que **não** vai para o shell, e é o
+// que a barra de status promete ("Esc=editor"). Ctrl+C também não: no shell, ele
+// interrompe o que estiver rodando, e roubar a tecla para o editor transformaria
+// um comando longo em algo que não se interrompe.
+func (m *Model) writeToShell(key tea.KeyPressMsg, chord string) bool {
+	switch chord {
+	case "escape", "esc":
+		m.surface = focus.Editor
+		m.application.Focus = app.FocusEditor
+		return true
+	case "ctrl+c":
+		return true
+	}
+
+	switch chord {
+	case "enter":
+		return m.writeShell("\r") == nil
+	case "backspace":
+		return m.writeShell("\x7f") == nil
+	case "tab":
+		return m.writeShell("\t") == nil
+	case "up", "down", "left", "right", "home", "end", "delete", "pgup", "pgdown", "pagedown", "pageup":
+		// Uma tecla de navegação é enviada como o byte que o shell espera; as
+		// sequências CSI são o trabalho do terminal, que aqui é o próprio shell.
+		if sequence, ok := shellSequences[chord]; ok {
+			return m.writeShell(sequence) == nil
+		}
+		return false
+	}
+
+	if key.Text != "" && isTypable(chord) {
+		return m.writeShell(key.Text) == nil
+	}
+	return false
+}
+
+// writeShell writes bytes to the shell, reporting the failure in the status bar.
+func (m *Model) writeShell(data string) error {
+	writeErr := m.pty.WriteString(data)
+	if writeErr != nil {
+		m.application.Status = "terminal: " + writeErr.Error()
+	}
+	return writeErr
+}
+
+// shellSequences is what a navigation key sends to the shell, as the bytes a
+// line editor reads: o shell que está do outro lado é quem interpreta.
+var shellSequences = map[string]string{
+	"up":       "\x1b[A",
+	"down":     "\x1b[B",
+	"right":    "\x1b[C",
+	"left":     "\x1b[D",
+	"home":     "\x1b[H",
+	"end":      "\x1b[F",
+	"delete":   "\x1b[3~",
+	"pgup":     "\x1b[5~",
+	"pgdown":   "\x1b[6~",
+	"pageup":   "\x1b[5~",
+	"pagedown": "\x1b[6~",
 }
 
 // moveFocus walks the graph and records the result in the model.
@@ -506,27 +698,34 @@ func (m Model) Frame() string {
 func (m Model) bodyRows(regions layout.Regions) []string {
 	editorRows := editorview.Render(regions.Editor.Width, regions.Editor.Height, m.editorView(regions))
 
-	if regions.Tree.Empty() {
-		return editorRows
-	}
-	treeRows := tree.Render(regions.Tree.Width, regions.Tree.Height, m.treeView())
+	if !regions.Tree.Empty() {
+		treeRows := tree.Render(regions.Tree.Width, regions.Tree.Height, m.treeView())
 
-	if regions.TreeOverlaid {
-		for index, treeRow := range treeRows {
-			if index >= len(editorRows) {
-				break
+		if regions.TreeOverlaid {
+			for index, treeRow := range treeRows {
+				if index >= len(editorRows) {
+					break
+				}
+				editorRows[index] = overlayCells(editorRows[index], treeRow, regions.Tree.X)
 			}
-			editorRows[index] = overlayCells(editorRows[index], treeRow, regions.Tree.X)
+		} else {
+			for index := range editorRows {
+				treeRow := ""
+				if index < len(treeRows) {
+					treeRow = treeRows[index]
+				}
+				editorRows[index] = layout.Pad(treeRow, regions.Tree.Width) + editorRows[index]
+			}
 		}
-		return editorRows
 	}
 
-	for index := range editorRows {
-		treeRow := ""
-		if index < len(treeRows) {
-			treeRow = treeRows[index]
+	// O terminal entra por último e em **largura cheia**: ele fica abaixo da
+	// árvore, não ao lado, e por isso não leva o prefixo da árvore — que é
+	// exatamente o defeito que apareceu quando ele entrou antes da composição.
+	if !regions.Terminal.Empty() {
+		for _, row := range terminal.Render(regions.Terminal.Width, regions.Terminal.Height, m.terminalView()) {
+			editorRows = append(editorRows, layout.Pad(row, regions.Terminal.Width))
 		}
-		editorRows[index] = layout.Pad(treeRow, regions.Tree.Width) + editorRows[index]
 	}
 	return editorRows
 }
@@ -576,6 +775,24 @@ func (m Model) treeView() tree.View {
 		Selected: m.application.Tree.SelectedIndex(),
 		Focused:  m.surface == focus.Tree,
 	}
+}
+
+// terminalView is the panel's view, with the rows the shell has written.
+//
+// The rows come from the handle the composition root owns; the model never
+// touches the PTY, so this is the same shape every other surface receives — data,
+// not a process.
+func (m Model) terminalView() terminal.View {
+	view := terminal.View{
+		Focused:  m.surface == focus.Terminal,
+		Attached: m.application.TerminalAttached,
+		Theme:    m.theme,
+	}
+	if m.pty != nil {
+		view.Rows = m.pty.VisibleLines(m.application.TerminalHeight)
+		view.LastError = m.pty.LastError()
+	}
+	return view
 }
 
 // editorView builds the viewport's view, extracting only the visible lines.
@@ -861,9 +1078,11 @@ const overlayNone = app.OverlayNone
 // wants is what the model asks the layout to show.
 func (m Model) wants() layout.Wants {
 	return layout.Wants{
-		ShowTree:   m.application.ShowTree,
-		TreeWidth:  treeWidth,
-		FindHeight: m.findHeight(),
+		ShowTree:       m.application.ShowTree,
+		TreeWidth:      treeWidth,
+		ShowTerminal:   m.application.ShowTerminal,
+		TerminalHeight: m.application.TerminalHeight,
+		FindHeight:     m.findHeight(),
 	}
 }
 

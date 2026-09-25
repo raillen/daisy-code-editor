@@ -33,9 +33,6 @@ var withoutHandler = map[action.Action]string{
 	"open_folder":         "M4 — idem",
 	"tree_new_file":       "M4 — criação de arquivo",
 	"tree_new_dir":        "M4 — idem",
-	"toggle_terminal":     "M4 — painel de terminal",
-	"terminal_grow":       "M4 — idem",
-	"terminal_shrink":     "M4 — idem",
 	"toggle_soft_wrap":    "M4 — soft wrap no editorview",
 	"toggle_comment":      "M4 — comentário de linha",
 	"toggle_md_preview":   "M4 — preview Markdown",
@@ -62,7 +59,6 @@ var withoutHandler = map[action.Action]string{
 var reachableFromThePaletteOnly = map[action.Action]string{
 	"tree_grow":          "M4 — resizing de painel",
 	"tree_shrink":        "M4 — idem",
-	"focus_terminal":     "M4 — idem",
 	"project_replace":    "M4 — idem",
 	"resize_pane_grow":   "M4 — idem",
 	"resize_pane_shrink": "M4 — idem",

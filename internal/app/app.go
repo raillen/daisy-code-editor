@@ -54,6 +54,14 @@ type App struct {
 	// is the tree itself: a panel can be hidden without the workspace being
 	// closed.
 	ShowTree bool
+	// ShowTerminal is whether the embedded terminal panel is visible, and
+	// TerminalHeight how many rows it takes.
+	//
+	// Model state, not presentation: the oracle dumps both, e a conformance case
+	// que abrir o painel sem o desenho é um caso sobre um painel que não existe.
+	ShowTerminal   bool
+	TerminalHeight int
+
 	// Workspace is the directory that reported paths are relative to.
 	//
 	// State dumps replace this prefix with a placeholder, so a fixture recorded
@@ -71,6 +79,13 @@ type App struct {
 	// poder pedir "uma página de 10 linhas" sem escrever no ambiente do processo.
 	// Zero é um valor legítimo (o modelo还没有 medido), e vale como uma linha.
 	EditorHeight int
+
+	// TerminalAttached is whether a shell is running for the panel.
+	//
+	// A PTY é um **processo**, e o modelo não cria processo nenhum: quem cria é a
+	// raiz de composição, numa `Cmd`, e o resultado volta por mensagem. O que o
+	// modelo guarda é a resposta — existe shell ou não — que é estado observável.
+	TerminalAttached bool
 
 	// ClipboardWrite is the OSC 52 sequence a copy produced, waiting for the
 	// terminal.
@@ -375,7 +390,7 @@ func (a *App) state() (Dump, error) {
 		Tree:             a.treeDump(),
 		SCM:              []SCMDump{},
 		LSPFailures:      []string{},
-		TerminalAttached: false,
+		TerminalAttached: a.TerminalAttached,
 		ShouldQuit:       a.Quit,
 		Config: ConfigDump{
 			Theme:           a.Config.Theme,

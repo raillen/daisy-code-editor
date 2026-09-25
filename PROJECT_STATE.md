@@ -287,25 +287,46 @@ outra coisa:
   caso de paridade exercita os seletores, então a suíte está verde — e quando um
   caso existir, a forma do dump tem de acompanhar.
 
-**As 28 teclas restantes não são dispatch faltando: são recurso inteiro**, e cada
-grupo diz o que precisa:
+### Item 4 — Painel de terminal · **completo**
 
-| Grupo | Teclas | O que falta |
-|---|---|---|
-| Painel de terminal | 4 | região já existe no `layout`; falta o estado (`ShowTerminal`), a superfície e a PTY na raiz de composição |
-| SCM + diff | 5 | `internal/git` já tem o status; falta a região, a superfície e os handlers de pull/push |
-| Splits | 6 | o `layout` é de painel único; é trabalho de layout |
-| LSP | 5 | o cliente existe e a app nunca o sobe |
-| Pickers | 4 | a infraestrutura de overlay existe; falta a lista de temas/locales/buffers |
-| Overlays de entrada | 2 | `tree_new_file`/`tree_new_dir` abrem um **prompt** no oráculo — é o `textinput` numa sobreposição nova |
-| Busca no projeto | 2 | o walker existe; falta a sobreposição |
-| Edição | 4 | soft wrap (envolver linhas), `surround`, jump list, undo tree |
-| Comentar linha | 1 | `toggle_comment` usa o comentário de linha da linguagem — **outro campo de configuração sem leitor** |
-| Misc | 1 | `toggle_modal` é o motor Vim do M4, trabalho real |
+- ✅ **Estado no modelo** (`ShowTerminal`, `TerminalHeight`, `TerminalAttached` no
+  dump) e quatro ações religadas: `toggle_terminal`, `focus_terminal`,
+  `terminal_grow`, `terminal_shrink`. **52 tratadas, 25 mortas.**
+- ✅ **`[terminal].shell` e `[terminal].default_height` finalmente têm leitor** — a
+  primeira vez que a tabela inteira do terminal faz alguma coisa.
+- ✅ **A PTY nasce numa `Cmd`, nunca no modelo.** Um processo criado no caminho do
+  `Update` abriria um shell a cada tecla num harness headless; quem cria é a raiz
+  de composição, e a resposta volta por mensagem — o mesmo caminho do realce.
+- ✅ **A superfície é `internal/tui/terminal`**, no mesmo formato das outras: cauda
+  que vence, largura exata, foco marcado em texto, e os três estados distinguíveis
+  — iniciando, encerrado, e o erro do shell ao lado.
+- ✅ **As teclas vão para o shell**, com a conversão que o shell entende: Enter é
+  `\r`, backspace é `DEL`, e as de navegação saem como as sequências CSI que o
+  editor de linha do outro lado lê. `Esc` volta para o editor **com ou sem shell**,
+  e `Ctrl+C` não é roubada — no shell ela interrompe o que estiver rodando.
+- ✅ **Prova de ponta a ponta com um shell de verdade**: o teste cria a PTY, digita
+  `echo oride 1` **por teclado** e espera a saída aparecer no painel. Sem shell no
+  ambiente, ele pula — e diz que pulou.
 
-**Próximo, por valor para quem lê o programa:** o **painel de terminal** (4 teclas) —
-a região já existe no `layout` e `internal/term` já tem a PTY; falta o estado no
-modelo, a superfície que pinta o scrollback, e a PTY nascer na raiz de composição.
+**Dois bugs reais que o painel expôs, e que eram de antes dele:**
+- **O foco do modelo e a superfície da apresentação podiam discordar.** Uma ação
+  muda `App.Focus`; a apresentação só acompanhava na tecla de Tab. Com o painel,
+  `Ctrl+`` punha o foco no terminal do modelo e as teclas continuavam no editor —
+  o painel segurava o teclado do shell enquanto a barra de status prometia outra
+  coisa. Agora `syncSurface` fecha o caminho inverso, **preservando** o passo do Tab
+  entre menu, abas e status, que o modelo não distingue.
+- **O painel entrava antes da composição da árvore** e levava o prefixo dela: 130
+  células numa tela de 100. Ele entra por último, em largura cheia, porque fica
+  *abaixo* da árvore e não ao lado.
+
+**Um teste de conformidade deixou de valer, e isso é informação:** ele usava
+`toggle_terminal` como exemplo de "ação que o Go não implementa". O painel
+ganhou tratamento e o teste começou a falhar — trocar por `split_vertical` deixou a
+intenção explícita, com o motivo escrito.
+
+**Próximo:** SCM + diff (5 teclas, `internal/git` já tem o status), o painel de
+comentário (`toggle_comment`, que consome `[[languages]].line_comment`) ou a regra
+do S4 para `[lsp]` e `[markdown]`.
 
 ## Camada de documentação do Prumo
 

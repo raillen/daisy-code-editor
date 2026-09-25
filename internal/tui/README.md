@@ -32,9 +32,20 @@ linha que a compõe, sem alcançar o modelo.
 | `component` | primitivas compartilhadas, quando a duplicação aparecer medida | não |
 | `focus` | o grafo de foco como dado, sem saber de surfaces | não |
 | `overlay` | as sobreposições, pelo componente `list` | não |
-| `editorview` `tree` `tabs` `statusbar` `menubar` `findbar` | uma superfície cada | não |
+| `editorview` `tree` `tabs` `statusbar` `menubar` `findbar` `terminal` | uma superfície cada | não |
 
 Nenhum importa `app` — a regra `R3` falha o build se um deles passar a importar.
+
+**O terminal é assíncrono porque é um processo.** A PTY nasce numa `Cmd` — nunca no
+caminho do `Update`, que abriria um shell a cada tecla num harness headless — e o
+painel é lido por outra `Cmd` que devolve "houve leitura" sem copiar o scrollback.
+Quem guarda as linhas é o handle; o modelo guarda se existe shell.
+
+**Foco tem dois lados, e os dois precisam fechar.** Uma ação muda `App.Focus`; a
+apresentação só acompanhava na tecla de Tab, e o resultado era o painel do
+terminal segurando o teclado do shell enquanto a barra de status prometia outra
+coisa. `syncSurface` fecha o caminho inverso depois de **todo** despacho — e
+preserva o passo do Tab entre menu, abas e status, que o modelo não distingue.
 
 **O realce é assíncrono, e a cache é por versão.** Os papéis de sintaxe chegam
 numa `Cmd` e são guardados por `(documento, versão, caminho)`: uma tecla não pode

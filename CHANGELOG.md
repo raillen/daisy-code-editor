@@ -31,6 +31,12 @@
   sobre SSH.
 
 ### Fixed
+- **Painel de terminal embutido:** `Ctrl+`` abre o painel no rodapé, o foco vai
+  para ele, e as teclas vão para o shell (Enter, backspace, setas e demais arrive
+  como o shell espera). `Esc` volta para o editor, `Ctrl+C` não é roubada do shell,
+  e o painel cresce e encolhe entre 3 e 40 linhas. A PTY nasce fora do caminho do
+  `Update`, então o modelo continua testável sem terminal — e uma falha ao subir o
+  shell deixa o editor utilizável em vez de trancá-lo.
 - **Regra de aptidão da configuração (S4):** uma regra de arquitetura nova
   (`R8`) falha o build quando um campo de configuração não tem leitor fora do
   pacote `config` e não está na dívida nomeada. Ela encontrou sozinha uma
