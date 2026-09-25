@@ -324,9 +324,34 @@ outra coisa:
 ganhou tratamento e o teste começou a falhar — trocar por `split_vertical` deixou a
 intenção explícita, com o motivo escrito.
 
-**Próximo:** SCM + diff (5 teclas, `internal/git` já tem o status), o painel de
-comentário (`toggle_comment`, que consome `[[languages]].line_comment`) ou a regra
-do S4 para `[lsp]` e `[markdown]`.
+## A direção da interface
+
+[`docs/ui-ux/direction.md`](docs/ui-ux/direction.md) declara a ambição de
+**workbench de IDE dentro de um terminal**: densidade do Zed, painéis do Lapce,
+ergonomia de tecla do Micro e do Helix. O documento diz também **o que recusamos
+copiar** e por quê — botão de fechar por aba, cantos arredondados, moldura por
+painel, ícone de arquivo, minimap, mouse como caminho primário — e fixa o critério
+de toda decisão de layout: **a mediana de um terminal de 80 colunas**. O
+`docs/design.md` foi corrigido, porque ainda declarava a inspiração antiga.
+
+**A ordem que a direção implica, e o que ela destrava:**
+
+1. **Tokens semânticos + tema `no-color`** — a base. `[ui]`/`[syntax]` nomeiam cor
+   direta hoje; sem token, cada decisão visual seguinte é uma cor solta e o
+   `no-color` continua sendo um perfil em vez de um tema.
+2. **Soft wrap + linha atual** — o defeito de leitura mais visível que existe: uma
+   linha de 121 caracteres mostra 59 e um `…`, e `Config.SoftWrap` não tem leitor.
+3. **Status como superfície de informação** — modo, erros, branch e LSP: quatro
+   dados que já existem e nenhum tem onde aparecer.
+4. **Painel inferior com abas** — Terminal │ Problemas │ Busca em um lugar, modelo
+   do Lapce, usando a região que o layout já reserva.
+5. **Git por arquivo na árvore** — o badge existe em `internal/git` e não aparece.
+6. Splits e SCM — caro, e é feature, não UI.
+
+Cada item ganha o seu contrato em `docs/ui-ux/` **no mesmo commit** que o entrega:
+o documento de contrato vem depois do código, nunca antes.
+
+**Próximo, na nova ordem:** os tokens semânticos, e atrás deles o soft wrap.
 
 ## Camada de documentação do Prumo
 
