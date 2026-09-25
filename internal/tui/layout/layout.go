@@ -64,25 +64,29 @@ func (r Region) Empty() bool { return r.Width <= 0 || r.Height <= 0 }
 // parameters of which three are booleans is the arity the contract calls a
 // smell, and this keeps the layout input readable at the call site.
 type Wants struct {
-	ShowTree       bool
-	TreeWidth      int
-	ShowTerminal   bool
-	TerminalHeight int
-	// FindHeight is how many rows the find bar needs, or zero when it is closed.
-	// Asked for rather than assumed, because the bar grows when the replacement
-	// field is revealed and the body has to give up the row.
-	FindHeight int
+	ShowTree  bool
+	TreeWidth int
+	// ShowBottom asks for the bottom panel — Terminal, Problemas e Busca em um
+	// lugar, que é o modelo do Lapce e do Zed.
+	//
+	// Uma região só, com **abas**, em vez de duas superfícies (o terminal embaixo e
+	// a barra de busca acima) disputando as mesmas linhas: o leitor abre a busca e
+	// o terminal some, ou vice-versa, e nenhuma das duas é o que ele pediu.
+	ShowBottom bool
+	// BottomHeight is how many rows the panel takes, **aba inclusive**: a faixa de
+	// abas come uma linha, e é ela que diz o que o painel está mostrando.
+	BottomHeight int
 }
 
 // Regions is where every surface landed for one frame.
 type Regions struct {
-	Class     WidthClass
-	MenuBar   Region
-	Tabs      Region
-	Tree      Region
-	Editor    Region
-	Terminal  Region
-	FindBar   Region
+	Class   WidthClass
+	MenuBar Region
+	Tabs    Region
+	Tree    Region
+	Editor  Region
+	// Bottom is the tabbed panel: Terminal │ Problemas │ Busca.
+	Bottom    Region
 	StatusBar Region
 	// TreeOverlaid says the tree floats over the editor instead of sitting
 	// beside it, which is what the compact class does.
@@ -119,26 +123,17 @@ func Compute(size Size, wants Wants) Regions {
 	}
 	body := Region{X: 0, Y: y, Width: size.Width, Height: bodyHeight}
 
-	// The find bar sits above the terminal and below the editor, so opening it
-	// takes rows from the editor rather than covering the text being searched.
-	if wants.FindHeight > 0 && body.Height > wants.FindHeight {
-		regions.FindBar = Region{
+	// O painel inferior fica entre o editor e a barra de status, e **cresce para
+	// cima**: abrir a busca tira linhas do editor em vez de cobrir o texto que
+	// está sendo procurado.
+	if wants.ShowBottom && wants.BottomHeight > 0 && body.Height > wants.BottomHeight {
+		regions.Bottom = Region{
 			X:      0,
-			Y:      body.Y + body.Height - wants.FindHeight,
+			Y:      body.Y + body.Height - wants.BottomHeight,
 			Width:  body.Width,
-			Height: wants.FindHeight,
+			Height: wants.BottomHeight,
 		}
-		body.Height -= wants.FindHeight
-	}
-
-	if wants.ShowTerminal && wants.TerminalHeight > 0 && body.Height > wants.TerminalHeight {
-		regions.Terminal = Region{
-			X:      0,
-			Y:      body.Y + body.Height - wants.TerminalHeight,
-			Width:  body.Width,
-			Height: wants.TerminalHeight,
-		}
-		body.Height -= wants.TerminalHeight
+		body.Height -= wants.BottomHeight
 	}
 
 	regions.Tree, regions.Editor, regions.TreeOverlaid = splitBody(body, wants)

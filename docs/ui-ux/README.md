@@ -15,7 +15,8 @@ id real, um `:help` que não existia.
 | `focus-graph.md` | o grafo de foco e a captura por sobreposição | teste de foco (M3.2) |
 | `states.md` | o vocabulário de estados observáveis | `TestStateVocabularyMatchesTheDump` (M3.2) |
 | `layout.md` | as classes de largura, a quebra de linha e a linha atual | golden frames + `TestWrap*` e `TestTheCurrentLine*` |
-| `degradation.md` | cor, mouse e keyboard enhancements | golden frames `no-color` (M3.2) |
+| `degradation.md` | cor, mouse, keyboard enhancements e a barra de status | golden frames `no-color` + `TestTheBar*` |
+| `panels.md` | o painel inferior com abas: Terminal, Problemas, Busca | `TestThe*` em `internal/tui/panel` e `internal/tui/layout` |
 
 ## Precedência
 

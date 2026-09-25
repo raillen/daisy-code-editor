@@ -6,6 +6,11 @@ import (
 	"github.com/ori-team/oride/internal/editor"
 )
 
+// overlayFind is the model's name for the search overlay, in the oracle's
+// vocabulary — o dump compara essa string, e `BottomTab` é a mesma informação
+// vista pela tela.
+const overlayFind = "find"
+
 // searchCommands drive the in-buffer search.
 //
 // The matcher and the state already existed and were already compared against the
@@ -23,7 +28,13 @@ func searchCommands() map[action.Action]Handler {
 			// conformance case showed the Rust reporting "find" here, which is
 			// how an earlier version of this file learned it was not a TUI
 			// concern after all.
-			a.Overlay = "find"
+			// A busca é uma **aba** do painel inferior, e não uma superfície
+			// própria: é o que impede que abrir a busca faça o terminal sumir. Os
+			// dois campos (`Overlay` e `BottomTab`) andam juntos — `Overlay` é o que
+			// o dump do oráculo compara, `BottomTab` é o que a tela pinta.
+			a.Overlay = overlayFind
+			a.ShowBottom = true
+			a.BottomTab = BottomTabSearch
 			a.Status = a.Find.Status()
 			return nil
 		}),
@@ -61,7 +72,9 @@ func searchCommands() map[action.Action]Handler {
 			// separate flow, and modelling it as one action made a keystroke do
 			// something the reference does not.
 			a.Find.ShowReplace = true
-			a.Overlay = "find"
+			a.Overlay = overlayFind
+			a.ShowBottom = true
+			a.BottomTab = BottomTabSearch
 			a.Status = a.Find.Status()
 			return nil
 		}),

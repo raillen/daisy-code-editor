@@ -68,20 +68,25 @@ func panelCommands() map[action.Action]Handler {
 		// — a chave que era lida por ninguém desde o port, e que agora tem um
 		// leitor de verdade.
 		action.ToggleTerminal: modelHandler(func(a *App, _ *editor.Document) error {
-			if a.ToggleTerminalPanel() {
-				a.Focus = FocusTerminal
-				a.Status = "terminal: digite · Esc=editor · Ctrl+C no shell · Ctrl+` fecha"
-			} else if a.Focus == FocusTerminal {
-				a.Focus = FocusEditor
-				a.Status = "terminal oculto"
+			if a.ShowBottom && a.BottomTab == BottomTabTerminal {
+				a.ShowBottom = false
+				if a.Focus == FocusTerminal {
+					a.Focus = FocusEditor
+				}
+				a.Status = "painel oculto"
+				return nil
 			}
+			a.EnsureTerminalHeight()
+			a.ShowBottom = true
+			a.BottomTab = BottomTabTerminal
+			a.Focus = FocusTerminal
+			a.Status = "terminal: digite · Esc=editor · Ctrl+C no shell · Ctrl+` fecha"
 			return nil
 		}),
 
 		action.FocusTerminal: modelHandler(func(a *App, _ *editor.Document) error {
-			if !a.ShowTerminal {
-				a.ShowTerminal = true
-			}
+			a.ShowBottom = true
+			a.BottomTab = BottomTabTerminal
 			a.Focus = FocusTerminal
 			a.Status = "foco: terminal · digite · Esc=editor"
 			return nil
@@ -94,6 +99,7 @@ func panelCommands() map[action.Action]Handler {
 		}),
 
 		action.TerminalShrink: modelHandler(func(a *App, _ *editor.Document) error {
+			a.EnsureTerminalHeight()
 			a.ShrinkTerminal(2)
 			a.Status = "terminal height " + itoa(a.TerminalHeight)
 			return nil
@@ -113,31 +119,29 @@ func panelCommands() map[action.Action]Handler {
 	}
 }
 
-// ToggleTerminalPanel shows or hides the terminal panel, and reports whether it
-// is now visible.
-//
-// A primeira vez usa `[terminal].default_height`, que é o que a configuração
-// promete; depois quem manda é o leitor, com grow/shrink. Três linhas é o piso — um
-// painel de duas linhas não é um terminal, é um erro de layout.
-func (a *App) ToggleTerminalPanel() bool {
-	if a.ShowTerminal {
-		a.ShowTerminal = false
-		return false
-	}
+// The bottom panel's tabs, and a default that nenhum caminho pode deixar vazio.
+const (
+	BottomTabTerminal = "terminal"
+	BottomTabProblems = "problems"
+	BottomTabSearch   = "search"
+)
+
+// EnsureTerminalHeight dá ao painel a altura que a configuração pediu, na
+// primeira vez em que o terminal aparece.
+func (a *App) EnsureTerminalHeight() {
 	if a.TerminalHeight < minTerminalHeight {
 		a.TerminalHeight = a.Config.Terminal.DefaultHeight
 	}
 	if a.TerminalHeight < minTerminalHeight {
 		a.TerminalHeight = minTerminalHeight
 	}
-	a.ShowTerminal = true
-	return true
 }
 
 // GrowTerminal makes the panel taller, following the limits the reference uses.
 func (a *App) GrowTerminal(delta int) {
+	a.EnsureTerminalHeight()
 	a.TerminalHeight = min(maxTerminalHeight, max(minTerminalHeight, a.TerminalHeight+delta))
-	a.ShowTerminal = true
+	a.ShowBottom = true
 }
 
 // ShrinkTerminal makes the panel shorter, down to the floor.

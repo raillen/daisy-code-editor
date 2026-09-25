@@ -94,30 +94,45 @@ func TestComputeProtectsTheEditor(t *testing.T) {
 	}
 }
 
-// TestComputeTerminalTakesFromTheBody: the terminal is carved out of the body and
-// the editor keeps what is left, with the status bar untouched.
-func TestComputeTerminalTakesFromTheBody(t *testing.T) {
-	regions := Compute(Size{Width: 100, Height: 40}, Wants{ShowTerminal: true, TerminalHeight: 10})
+// TestComputeBottomPanelTakesFromTheBody: o painel inferior é tirado do corpo e o
+// editor fica com o resto, com a barra de status intocada.
+func TestComputeBottomPanelTakesFromTheBody(t *testing.T) {
+	regions := Compute(Size{Width: 100, Height: 40}, Wants{ShowBottom: true, BottomHeight: 10})
 
-	if regions.Terminal.Height != 10 {
-		t.Fatalf("terminal com %d linhas, esperado 10", regions.Terminal.Height)
+	if regions.Bottom.Height != 10 {
+		t.Fatalf("painel com %d linhas, esperado 10", regions.Bottom.Height)
 	}
-	if regions.Terminal.Y+regions.Terminal.Height != regions.StatusBar.Y {
-		t.Errorf("o terminal não termina onde a statusbar começa: %d+%d vs %d",
-			regions.Terminal.Y, regions.Terminal.Height, regions.StatusBar.Y)
+	if regions.Bottom.Y+regions.Bottom.Height != regions.StatusBar.Y {
+		t.Errorf("o painel não termina onde a statusbar começa: %d+%d vs %d",
+			regions.Bottom.Y, regions.Bottom.Height, regions.StatusBar.Y)
 	}
-	if regions.Editor.Y+regions.Editor.Height != regions.Terminal.Y {
-		t.Errorf("o editor deveria terminar onde o terminal começa")
+	if regions.Editor.Y+regions.Editor.Height != regions.Bottom.Y {
+		t.Errorf("o editor deveria terminar onde o painel começa")
+	}
+}
+
+// TestTheBottomPanelIsOneRegionForThreeThings é a razão de a região ter um nome
+// só: Terminal, Problemas e Busca são **abas** de um lugar, e não três superfícies
+// disputando as mesmas linhas. A busca deixar de ter região própria é o ponto —
+// duas superfícies no mesmo lugar é a definição de uma delas se esconder.
+func TestTheBottomPanelIsOneRegionForThreeThings(t *testing.T) {
+	regions := Compute(Size{Width: 100, Height: 40}, Wants{ShowBottom: true, BottomHeight: 12})
+
+	if regions.Bottom.Height != 12 {
+		t.Fatalf("painel com %d linhas, esperado 12", regions.Bottom.Height)
+	}
+	if regions.Bottom.Width != 100 {
+		t.Errorf("o painel tem %d de largura, e a tela tem 100", regions.Bottom.Width)
 	}
 }
 
 // TestComputeRefusesToEatTheEditor: on a short terminal a tall terminal panel
 // would leave nothing to edit, so it is dropped rather than shown empty.
 func TestComputeRefusesToEatTheEditor(t *testing.T) {
-	regions := Compute(Size{Width: 100, Height: 12}, Wants{ShowTerminal: true, TerminalHeight: 20})
+	regions := Compute(Size{Width: 100, Height: 12}, Wants{ShowBottom: true, BottomHeight: 20})
 
-	if !regions.Terminal.Empty() {
-		t.Errorf("o terminal tomou %d linhas de um corpo de %d", regions.Terminal.Height, regions.Editor.Height)
+	if !regions.Bottom.Empty() {
+		t.Errorf("o painel tomou %d linhas de um corpo de %d", regions.Bottom.Height, regions.Editor.Height)
 	}
 	if regions.Editor.Empty() {
 		t.Error("o editor ficou sem área")
@@ -129,11 +144,11 @@ func TestComputeRefusesToEatTheEditor(t *testing.T) {
 // width that renders as garbage.
 func TestComputeHandlesAnUnmeasuredTerminal(t *testing.T) {
 	for _, size := range []Size{{}, {Width: 0, Height: 0}, {Width: -5, Height: 10}, {Width: 80, Height: -1}, {Width: 3, Height: 3}} {
-		regions := Compute(size, Wants{ShowTree: true, TreeWidth: 30, ShowTerminal: true, TerminalHeight: 10})
+		regions := Compute(size, Wants{ShowTree: true, TreeWidth: 30, ShowBottom: true, BottomHeight: 10})
 
 		for name, region := range map[string]Region{
 			"editor": regions.Editor, "tree": regions.Tree,
-			"terminal": regions.Terminal, "statusbar": regions.StatusBar,
+			"bottom": regions.Bottom, "statusbar": regions.StatusBar,
 		} {
 			if region.Width < 0 || region.Height < 0 {
 				t.Errorf("%v: %s com dimensão negativa: %+v", size, name, region)
@@ -269,10 +284,10 @@ func TestNoSurfaceIsEverNegative(t *testing.T) {
 	for width := 0; width <= 200; width += 7 {
 		for height := 0; height <= 60; height += 5 {
 			regions := Compute(Size{Width: width, Height: height},
-				Wants{ShowTree: true, TreeWidth: 30, ShowTerminal: true, TerminalHeight: 12})
+				Wants{ShowTree: true, TreeWidth: 30, ShowBottom: true, BottomHeight: 12})
 
 			all := []Region{regions.MenuBar, regions.Tabs, regions.Tree,
-				regions.Editor, regions.Terminal, regions.StatusBar}
+				regions.Editor, regions.Bottom, regions.StatusBar}
 			for index, region := range all {
 				if region.Width < 0 || region.Height < 0 || region.X < 0 || region.Y < 0 {
 					t.Fatalf("%dx%d: região %d negativa: %+v", width, height, index, region)

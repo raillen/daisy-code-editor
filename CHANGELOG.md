@@ -10,6 +10,18 @@
   o cursor do componente pisca, e um golden não pode depender do relógio.
 
 ### Added
+- **Painel inferior com abas — Terminal │ Problemas │ Busca:** um lugar só, no
+  modelo do Lapce e do Zed. Antes o terminal ficava embaixo e a barra de busca
+  acima, em regiões separadas: abrir a busca fazia o terminal sumir. A faixa come
+  uma linha em todas as abas, a aba ativa é marcada em texto, e a aba de
+  problemas **diz** que o LSP está desligado em vez de oferecer um "0 problemas"
+  que ninguém mediu.
+
+### Fixed
+- **O terminal não aceita mais teclado quando outra aba está à frente:** o foco
+  podia descansar num painel invisível, o que a regra do projeto proíbe.
+
+### Added
 - **A barra de status virou superfície de informação:** modo da linguagem, branch
   do git com `↑ahead ↓behind`, e o estado do LSP. O número de erros **só aparece
   quando há cliente LSP** — sem servidor, "0 erros" é ausência de medição, e a

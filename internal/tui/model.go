@@ -37,6 +37,7 @@ import (
 	"github.com/ori-team/oride/internal/tui/layout"
 	"github.com/ori-team/oride/internal/tui/menubar"
 	"github.com/ori-team/oride/internal/tui/overlay"
+	"github.com/ori-team/oride/internal/tui/panel"
 	"github.com/ori-team/oride/internal/tui/statusbar"
 	"github.com/ori-team/oride/internal/tui/tabs"
 	"github.com/ori-team/oride/internal/tui/terminal"
@@ -370,7 +371,9 @@ const gitPollInterval = 2 * time.Second
 // seria dois comandos disputando o mesmo campo, e o que chegasse por último
 // decidiria se existe terminal.
 func (m Model) terminalCmd() tea.Cmd {
-	if !m.application.ShowTerminal {
+	// A PTY só existe quando a aba **do terminal** está à frente: pedir um
+	// processo para uma aba de busca é abrir um shell que ninguém vê.
+	if !m.application.ShowBottom || m.application.BottomTab != app.BottomTabTerminal {
 		return nil
 	}
 
@@ -650,8 +653,11 @@ func (m Model) surfaceVisible(surface focus.Surface) bool {
 	case focus.SCM:
 		return m.application.SCM
 	case focus.Terminal:
-		// The terminal panel arrives with its state in a later slice.
-		return false
+		// O painel existe quando o modelo diz que existe, **e** quando a aba
+		// mostrada é a do terminal: com a aba de busca à frente, o teclado do shell
+		// iria para uma superfície invisível — que é o bug de foco que a regra
+		// "foco nunca descansa onde nada é pintado" existe para impedir.
+		return m.application.ShowBottom && m.application.BottomTab == app.BottomTabTerminal
 	}
 	return false
 }
@@ -728,9 +734,6 @@ func (m Model) Frame() string {
 	rows = append(rows, menubar.Render(m.size.Width, m.menuView()))
 	rows = append(rows, tabs.Render(m.size.Width, m.tabsView()))
 	rows = append(rows, m.bodyRows(regions)...)
-	if !regions.FindBar.Empty() {
-		rows = append(rows, findbar.Render(regions.FindBar.Width, m.findView())...)
-	}
 	rows = append(rows, statusbar.Render(m.size.Width, m.statusView()))
 
 	for len(rows) < m.size.Height {
@@ -771,12 +774,12 @@ func (m Model) bodyRows(regions layout.Regions) []string {
 		}
 	}
 
-	// O terminal entra por último e em **largura cheia**: ele fica abaixo da
-	// árvore, não ao lado, e por isso não leva o prefixo da árvore — que é
-	// exatamente o defeito que apareceu quando ele entrou antes da composição.
-	if !regions.Terminal.Empty() {
-		for _, row := range terminal.Render(regions.Terminal.Width, regions.Terminal.Height, m.terminalView()) {
-			editorRows = append(editorRows, layout.Pad(row, regions.Terminal.Width))
+	// O painel inferior entra por último e em **largura cheia**: ele fica abaixo da
+	// árvore, não ao lado, e por isso não leva o prefixo dela — que é exatamente
+	// o defeito que apareceu quando o terminal entrou antes da composição.
+	if !regions.Bottom.Empty() {
+		for _, row := range m.panelRows(regions.Bottom) {
+			editorRows = append(editorRows, layout.Pad(row, regions.Bottom.Width))
 		}
 	}
 	return editorRows
@@ -827,6 +830,34 @@ func (m Model) treeView() tree.View {
 		Selected: m.application.Tree.SelectedIndex(),
 		Focused:  m.surface == focus.Tree,
 	}
+}
+
+// panelRows draws the bottom panel: a faixa de abas e o conteúdo da aba ativa.
+//
+// A aba decide o que há dentro, e o painel decide o **tamanho** — a faixa come
+// uma linha em todas, e é ela que diz o que está à vista.
+func (m Model) panelRows(region layout.Region) []string {
+	view := panel.View{
+		Tabs:         panel.AllTabs(),
+		Active:       panel.Tab(m.application.BottomTab),
+		Focused:      m.surface == focus.Terminal,
+		HasProblems:  m.application.LSPAttached,
+		ProblemCount: m.application.Diagnostics,
+		Theme:        m.theme,
+	}
+
+	width := region.Width
+	height := max(region.Height-panel.TabStripHeight, 0)
+	switch m.application.BottomTab {
+	case app.BottomTabSearch:
+		view.Content = findbar.Render(width, m.findView())
+	case app.BottomTabProblems:
+		view.Content = panel.ProblemsEmptyLines(width,
+			m.application.Config.LSP.Enabled, m.application.LSPAttached)
+	default:
+		view.Content = terminal.Render(width, height, m.terminalView())
+	}
+	return panel.Render(width, region.Height, view)
 }
 
 // terminalView is the panel's view, with the rows the shell has written.
@@ -1074,7 +1105,7 @@ func (m *Model) handleFindKey(key tea.KeyPressMsg) {
 
 	switch chord {
 	case "escape", "esc", "ctrl+c":
-		m.application.Overlay = overlayNone
+		m.closeFind()
 		return
 	case "enter":
 		_ = m.application.Apply(action.FindNext)
@@ -1091,6 +1122,19 @@ func (m *Model) handleFindKey(key tea.KeyPressMsg) {
 	}
 
 	m.editFindField(key)
+}
+
+// closeFind fecha a busca e recolhe o painel **se** a busca era o que estava à
+// frente.
+//
+// A busca é uma aba: fechar é tirar a aba da frente, e o painel some quando não
+// sobra nenhuma. Um painel que fica vazio depois de Esc é um painel que mente
+// sobre o que o programa está fazendo.
+func (m *Model) closeFind() {
+	m.application.Overlay = app.OverlayNone
+	if m.application.BottomTab == app.BottomTabSearch {
+		m.application.ShowBottom = false
+	}
 }
 
 // editFindField hands the key to the active field and copies the result back into
@@ -1153,16 +1197,18 @@ func (m *Model) recomputeFind() {
 // Derivado do pacote do modelo, e não declarado aqui: o valor é um contrato
 // comparado com o Rust, e duas cópias da mesma string em dois pacotes é a
 // divergência esperando o dia.
-const overlayNone = app.OverlayNone
+const (
+	overlayNone = app.OverlayNone
+	overlayFind = app.OverlayFind
+)
 
 // wants is what the model asks the layout to show.
 func (m Model) wants() layout.Wants {
 	return layout.Wants{
-		ShowTree:       m.application.ShowTree,
-		TreeWidth:      treeWidth,
-		ShowTerminal:   m.application.ShowTerminal,
-		TerminalHeight: m.application.TerminalHeight,
-		FindHeight:     m.findHeight(),
+		ShowTree:     m.application.ShowTree,
+		TreeWidth:    treeWidth,
+		ShowBottom:   m.application.ShowBottom,
+		BottomHeight: m.bottomHeight(),
 	}
 }
 
@@ -1171,23 +1217,44 @@ func (m Model) wants() layout.Wants {
 // The overlay name is the model's, and the extra row for the replacement field is
 // the search state's: the bar grows when the field is revealed, and the layout is
 // told before it divides the screen.
-func (m Model) findHeight() int {
-	if m.application.Overlay != overlayFind {
+// bottomHeight is how many rows the panel asks for, **aba inclusive**.
+//
+// Cada aba pede o que precisa, e a faixa de abas come uma linha em todas: são
+// três linhas para o terminal (o piso do layout) e três para a busca com o campo
+// de substituição. O mínimo é o **piso do conteúdo mais a faixa**, e não o piso do
+// conteúdo — pedir duas linhas para uma faixa de uma devolve um painel sem
+// nenhuma linha de conteúdo, e o leitor vê abas e nada mais.
+func (m Model) bottomHeight() int {
+	if !m.application.ShowBottom {
 		return 0
 	}
-	if m.application.Find.ShowReplace {
-		return 2
+
+	content := 0
+	switch m.application.BottomTab {
+	case app.BottomTabSearch:
+		content = 1
+		if m.application.Find.ShowReplace {
+			content = 2
+		}
+	case app.BottomTabProblems:
+		content = 1
+	default:
+		// O terminal tem o piso de três linhas do layout, e mais a faixa.
+		height := m.application.TerminalHeight
+		if height < minPanelHeight {
+			height = m.application.Config.Terminal.DefaultHeight
+		}
+		content = max(height, minPanelHeight)
 	}
-	return 1
+	return content + panel.TabStripHeight
 }
+
+// minPanelHeight is the floor for the terminal's content: um painel de duas
+// linhas não é um terminal, é um erro de layout.
+const minPanelHeight = 3
 
 // overlayFind is the value the model and the oracle use for the search overlay.
 //
-// A constant rather than a literal because the string is a contract: it is
-// compared against the Rust in the conformance harness, and a typo here would
-// become a parity failure rather than a compile error.
-const overlayFind = app.OverlayFind
-
 // The pickers' names come from the model too, and for the same reason.
 const (
 	overlayThemePicker  = app.OverlayThemePicker

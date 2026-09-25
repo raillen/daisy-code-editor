@@ -54,12 +54,20 @@ type App struct {
 	// is the tree itself: a panel can be hidden without the workspace being
 	// closed.
 	ShowTree bool
-	// ShowTerminal is whether the embedded terminal panel is visible, and
-	// TerminalHeight how many rows it takes.
+	// BottomTab is which content the bottom panel is showing, e ShowBottom whether
+	// the panel is up at all.
 	//
-	// Model state, not presentation: the oracle dumps both, e a conformance case
-	// que abrir o painel sem o desenho é um caso sobre um painel que não existe.
-	ShowTerminal   bool
+	// Três coisas em **um** lugar — Terminal, Problemas e Busca — em vez de duas
+	// superfícies (o terminal embaixo, a barra de busca acima) disputando as
+	// mesmas linhas. Abrir a busca fazia o terminal sumir, e o leitor que queria o
+	// terminal o perdeu para a tecla que não era uma troca.
+	//
+	// Model state, not presentation: o oráculo também tem painéis, e um painel
+	// que só existe na tela é um painel que o dump não enxerga.
+	ShowBottom bool
+	BottomTab  string
+	// TerminalHeight é a altura do painel quando ele mostra o terminal — a outra
+	// aba tem o tamanho que precisa.
 	TerminalHeight int
 
 	// Workspace is the directory that reported paths are relative to.

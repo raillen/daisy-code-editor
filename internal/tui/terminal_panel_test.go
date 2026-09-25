@@ -9,11 +9,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/ori-team/oride/internal/action"
 	"github.com/ori-team/oride/internal/app"
 	"github.com/ori-team/oride/internal/config"
 	"github.com/ori-team/oride/internal/editor"
 	"github.com/ori-team/oride/internal/keymap"
 	"github.com/ori-team/oride/internal/term"
+	"github.com/ori-team/oride/internal/tui/focus"
 	"github.com/ori-team/oride/internal/tui/layout"
 )
 
@@ -47,14 +49,15 @@ func shellModel(t *testing.T) Model {
 // panel, gives it the keyboard, and says how to leave.
 func TestTheTerminalPanelOpensAndTakesFocus(t *testing.T) {
 	model := shellModel(t)
-	if model.application.ShowTerminal {
+	if model.application.ShowBottom {
 		t.Fatal("o painel começou aberto")
 	}
 
 	model = press(t, model, tea.Key{Code: '`', Mod: tea.ModCtrl})
 
-	if !model.application.ShowTerminal {
-		t.Fatal("Ctrl+` não mostrou o painel")
+	if !model.application.ShowBottom || model.application.BottomTab != app.BottomTabTerminal {
+		t.Fatalf("Ctrl+` não mostrou a aba do terminal: aberto=%v, aba=%q",
+			model.application.ShowBottom, model.application.BottomTab)
 	}
 	if model.application.Focus != app.FocusTerminal {
 		t.Errorf("foco = %q, esperava o terminal", model.application.Focus)
@@ -260,5 +263,67 @@ func TestThePanelNeverBlocksStartup(t *testing.T) {
 	}
 	if got := model.Frame(); got == "" {
 		t.Error("o editor deixou de desenhar por causa do terminal")
+	}
+}
+
+// TestThePanelNeverSpawnsAShellNobodySees é a regra que o painel com abas
+// introduz: pedir uma PTY para uma aba de busca é abrir um shell que ninguém vê.
+func TestThePanelNeverSpawnsAShellNobodySees(t *testing.T) {
+	model := shellModel(t)
+	model = press(t, model, tea.Key{Code: '`', Mod: tea.ModCtrl})
+	// A PTY nasce na `Cmd`, e o teste pergunta pelo **pedido** — o handle só
+	// existe depois que o comando roda, e um teste que espera o handle estaria
+	// medindo o teste, não o produto.
+	if cmd := model.terminalCmd(); cmd == nil {
+		t.Fatal("a aba do terminal deveria pedir um shell")
+	}
+
+	// Abrir a busca leva a aba da frente: o shell continua vivo (é o que o
+	// leitor espera ao voltar), mas **não** nasce um segundo.
+	if err := model.application.Apply(action.Find); err != nil {
+		t.Fatalf("abrindo a busca: %v", err)
+	}
+	if model.application.BottomTab != app.BottomTabSearch {
+		t.Fatalf("a busca não virou aba: %q", model.application.BottomTab)
+	}
+	if cmd := model.terminalCmd(); cmd != nil {
+		t.Error("a busca pediu um shell: a aba da frente não é o terminal")
+	}
+}
+
+// TestTheTerminalKeepsTheKeyboardOnlyWhenVisible fecha a outra ponta: com a aba de
+// busca à frente, o teclado **não** é do shell — senão a regra "foco nunca
+// descansa onde nada é pintado" vira letra.
+func TestTheTerminalKeepsTheKeyboardOnlyWhenVisible(t *testing.T) {
+	model := shellModel(t)
+	model = press(t, model, tea.Key{Code: '`', Mod: tea.ModCtrl})
+	if !model.surfaceVisible(focus.Terminal) {
+		t.Fatal("com a aba do terminal à frente, o foco deveria ser visível")
+	}
+
+	if err := model.application.Apply(action.Find); err != nil {
+		t.Fatalf("abrindo a busca: %v", err)
+	}
+	if model.surfaceVisible(focus.Terminal) {
+		t.Error("com a aba de busca à frente, o terminal ainda aceita o teclado")
+	}
+}
+
+// TestClosingTheSearchTakesThePanelWithIt: um painel que fica vazio depois de Esc
+// é um painel que mente sobre o que o programa está fazendo.
+func TestClosingTheSearchTakesThePanelWithIt(t *testing.T) {
+	model := shellModel(t)
+	model.application.Store.OpenEmpty()
+	if err := model.application.Apply(action.Find); err != nil {
+		t.Fatalf("abrindo a busca: %v", err)
+	}
+	if !model.application.ShowBottom {
+		t.Fatal("a busca não abriu o painel")
+	}
+
+	model = press(t, model, tea.Key{Code: tea.KeyEscape})
+
+	if model.application.ShowBottom {
+		t.Error("Esc fechou a busca e deixou o painel vazio à frente")
 	}
 }

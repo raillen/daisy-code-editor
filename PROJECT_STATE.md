@@ -430,8 +430,38 @@ o documento de contrato vem depois do código, nunca antes.
   `LSP —` permanente na barra seria ruído que faz o leitor parar de ler a barra
   inteira, então isso é do estado e do ledger, não de cada frame.
 
-**Próximo, na nova ordem: o painel inferior com abas** — Terminal │ Problemas │
-Busca em um lugar, que é o modelo do Lapce e usa a região que o layout já reserva.
+### Painel inferior com abas · **completo** (item 4 da direção)
+
+- ✅ **Uma região, três abas**: Terminal │ Problemas │ Busca. `layout.FindBar`
+  deixou de existir — eram **duas** superfícies disputando as mesmas linhas, e abrir
+  a busca fazia o terminal sumir. Quem queria o terminal perdia-o para a tecla que
+  não era uma troca.
+- ✅ **A faixa come uma linha em todas as abas**, e a altura pedida é o piso do
+  conteúdo **mais** a faixa: pedir duas linhas para uma faixa de uma devolve um
+  painel com abas e nada dentro, e o leitor vê um menu.
+- ✅ **A aba ativa é marcada em texto** (`▍` + negrito), nunca só na cor.
+- ✅ **A PTY só nasce com a aba do terminal à frente** — pedir um shell para uma
+  aba de busca é abrir um processo que ninguém vê.
+- ✅ **O teclado do terminal é recusado quando outra aba está à frente**: com a
+  busca visível, `focus.Terminal` deixa de ser uma superfície visível, que é a
+  regra "foco nunca descansa onde nada é pintado" virando letra.
+- ✅ **A aba de problemas nomeia a fonte do dado**: com o LSP desligado ela diz
+  `LSP desligado · ligue em [lsp].enabled` em vez de oferecer um "0 problemas";
+  ligado sem cliente, diz que o cliente não iniciou. A contagem de erros só
+  aparece **quando alguém mediu**.
+- ✅ **`Esc` recolhe o painel** quando a busca era a aba da frente: um painel vazio
+  depois de `Esc` é um painel que mente sobre o que o programa está fazendo.
+- O contrato está em [`docs/ui-ux/panels.md`](docs/ui-ux/panels.md), com cada
+  regra ligada ao teste que a verifica.
+
+**Um bug que a nova regra pegou, e era antigo:** `surfaceVisible(focus.Terminal)`
+devolvia `false` desde o painel — o terminal era o único nó que **mentia sobre a
+própria visibilidade**, e o foco podia descansar num painel que não estava à frente.
+A edição anterior que devia ter trocado isso nunca entrou no código (o texto que
+eu procurava já tinha mudado), e só o teste novo do painel revelou.
+
+**Próximo, na nova ordem: o git por arquivo na árvore** — o badge já é produzido
+por `internal/git` e não aparece em lugar nenhum.
 
 ## Camada de documentação do Prumo
 

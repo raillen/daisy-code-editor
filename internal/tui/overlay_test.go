@@ -241,20 +241,32 @@ func TestEscapeClosesTheFindBar(t *testing.T) {
 // revealing the replacement must not hide what is being searched.
 func TestTabRevealsTheReplaceFieldAndKeepsTheQuery(t *testing.T) {
 	model := sized(t, newModel(t, nil), 100, 30)
-	model.application.Overlay = overlayFind
+	model.application.Store.OpenEmpty()
+	// A busca é aberta **pelo caminho real** — a ação — e não escrevendo no
+	// modelo: escrever `Overlay` sem `BottomTab` produz uma busca que o painel não
+	// mostra, e o teste mediria um estado que o leitor nunca vê.
+	if err := model.application.Apply(action.Find); err != nil {
+		t.Fatalf("abrindo a busca: %v", err)
+	}
 	model.application.Find.Query = "alfa"
 
 	updated, _ := model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyTab}))
 	model = updated.(Model)
 
+	if model.application.BottomTab != "search" {
+		t.Errorf("a busca não virou aba do painel: %q", model.application.BottomTab)
+	}
 	if !model.application.Find.ShowReplace {
 		t.Error("Tab não revelou o campo de substituição")
 	}
 	if got := model.application.Find.Query; got != "alfa" {
 		t.Errorf("a consulta foi perdida: %q", got)
 	}
-	if got := model.findHeight(); got != 2 {
-		t.Errorf("altura = %d, esperado 2 com o campo revelado", got)
+	// A altura agora é a do **painel**: o campo de substituição ocupa duas linhas
+	// de conteúdo, e a faixa de abas come uma. É a diferença entre "a barra
+	// cresceu" e "o painel pediu o tamanho certo".
+	if got := model.bottomHeight(); got != 3 {
+		t.Errorf("altura do painel = %d, esperado 3 com o campo revelado", got)
 	}
 }
 
