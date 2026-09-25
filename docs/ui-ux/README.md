@@ -2,13 +2,15 @@
 
 O comportamento visível do editor, descrito de forma **verificável**.
 
-Cada documento aqui tem uma contraparte no código, e um teste que compara os
-dois. Um contrato que ninguém checa é um contrato que decai — e este projeto já
+Cada documento aqui — **exceto `direction.md`** — tem uma contraparte no código, e um
+teste que compara os dois. A direção é a única peça que descreve o futuro, e ela
+diz isso no próprio título para não ser confundida com um contrato. Um contrato que ninguém checa é um contrato que decai — e este projeto já
 pagou esse preço: `:normal` no lugar de `modal_mode`, `modal_editing` no lugar do
 id real, um `:help` que não existia.
 
 | Documento | Descreve | Verificado por |
 |---|---|---|
+| `direction.md` | **a ambição da interface** e o que recusamos copiar | nada — é intenção, e por isso não é contrato |
 | `keymap.md` | a tabela canônica de teclas | `TestDocumentedKeymapMatchesTheBindings` |
 | `focus-graph.md` | o grafo de foco e a captura por sobreposição | teste de foco (M3.2) |
 | `states.md` | o vocabulário de estados observáveis | `TestStateVocabularyMatchesTheDump` (M3.2) |

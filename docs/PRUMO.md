@@ -73,6 +73,7 @@ significa "a frase não está", não "o conhecimento não está".
 
 ## Quero desenvolver
 
+- [Direção da interface](ui-ux/direction.md) — a ambição de workbench, o que vem do Zed e do Lapce, e o que recusamos copiar
 - [Design e arquitetura](design.md) — camadas, invariantes, fases
 - [Plugin API](plugin-api.md) — manifesto, hooks e ferramentas externas
 - [Polimento e releases](polish.md) — padrões de qualidade e histórico

@@ -2,7 +2,9 @@
 
 ## Context
 
-Queremos um **editor de código em terminal (TUI)** modular, rápido e extensível, inspirado na ergonomia do [Micro](https://micro-editor.github.io/) e [Helix], concebido em **Rust** com foco em linguagens de desenvolvimento de sistemas (Rust, C, Bash/Shell), documentação rica (Markdown) e ecossistema Ori (`ori-lang`), além de extensibilidade para linguagens modernas via highlight Tree-Sitter, task runner e LSP.
+Queremos um **workbench de IDE dentro de um terminal**: a densidade e a informação do [Zed](https://zed.dev), a organização em painéis do [Lapce](https://lapce.dev), e a ergonomia de tecla do [Micro](https://micro-editor.github.io/) e do [Helix](https://helix-editor.com) — um chord, um gesto, sem depender do mouse. A direção está escrita, com o que recusamos copiar, em [`docs/ui-ux/direction.md`](ui-ux/direction.md).
+
+A implementação é **Go** (`cmd/`, `internal/`); o Rust em `crates/` foi o oráculo diferencial da migração e não é o alvo. O foco são linguagens de sistemas, documentação rica (Markdown) e o ecossistema Ori (`ori-lang`), com realce, task runner e LSP.
 
 Diferente de editores puramente textuais simples, o **Oride** inclui:
 
