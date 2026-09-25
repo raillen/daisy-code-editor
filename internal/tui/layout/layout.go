@@ -277,6 +277,26 @@ func Cells(text string, byteOffset int) int {
 	return column
 }
 
+// Offset converts a scalar column into a byte offset in the same text.
+//
+// A inversa de `Cells`, e existe porque as duas conversões usam índices
+// diferentes — byte e escalar — e uma linha quebrada precisa dos dois. Uma função
+// só para cada direção impede que alguém reintroduza a conta dentro da
+// superfície, que é onde ela estava antes de o wrap existir.
+func Offset(column int, text string) int {
+	if column <= 0 {
+		return 0
+	}
+	seen := 0
+	for offset := range text {
+		if seen == column {
+			return offset
+		}
+		seen++
+	}
+	return len(text)
+}
+
 // cluster is one grapheme cluster, with where it is and how wide it draws.
 type cluster struct {
 	text  string

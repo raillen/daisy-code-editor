@@ -32,6 +32,24 @@ var NotYetImplemented = map[string]string{
 	"lsp_failures": "M2 — LSP",
 }
 
+// DivergentByDecision names state that the Go produces **differently on
+// purpose**, with the ledger item that says so.
+//
+// A diferença entre esta lista e `NotYetImplemented` é a direção: aqui os dois
+// lados produzem o campo e eles discordam por decisão; lá o Go ainda não produz.
+//
+// O caminho é por **ponto** (`config.soft_wrap`) e não por chave, porque a chave
+// `config` carrega sete campos que concordam e continuam sendo comparados — tirar
+// a chave inteira faria a suíte parar de verificar o que funciona. A divergência
+// continua visível no relatório, com o item do ledger, e o caso segue sendo um
+// caso de paridade para todo o resto.
+var DivergentByDecision = map[string]string{
+	"config.soft_wrap": "B19 — o wrap vem ligado por padrão, como no Zed e como o plano de produto " +
+		"pede (docs/design.md, secao P0: default on em .md); o oráculo entrega desligado. " +
+		"Linha de 121 caracteres num terminal de 60 é o caso comum de código, e cortar a cauda " +
+		"sem caminho para ela é pior que qualquer outro defeito de tela.",
+}
+
 // ExcludedKeys returns the sorted keys the comparison skips.
 func ExcludedKeys() []string {
 	out := make([]string, 0, len(NotYetImplemented))

@@ -38,6 +38,11 @@ passam sem regerar.
 `no-color` afirma. A diferença entre as duas coisas é a razão de `rawTokens` usar
 ponteiros.
 
+**`line_highlight` vem vazio por padrão**, e é decoração: a linha atual já é
+marcada em texto na gutter. Um tema que declara o token vê a linha do caret com um
+fundo sutil; a prova de que o token age está no pacote que pinta, e a prova de que
+ele **não** age por omissão está aqui.
+
 **`no-color` é um tema, não um perfil.** O perfil desliga a cor porque o terminal não
 sabe fazer; o tema afirma que a paleta não tem cor nenhuma, e a afirmação é
 verificável — `TestNoColourThemeReallyPaintsNothing` falha o build se um token dele

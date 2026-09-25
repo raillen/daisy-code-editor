@@ -43,6 +43,14 @@ type Tokens struct {
 	Error string
 	// Focus marks the surface that has the keyboard.
 	Focus string
+	// LineHighlight is the background of the line the caret is on.
+	//
+	// Deliberadamente **vazio** por padrão: um realce de linha atual é uma
+	// decoração, e uma decoração que muda o quadro de todos os temas gerados do
+	// oráculo seria uma mudança de produto feita por conta própria. O token
+	// existe para o tema que quiser — e `TestLineHighlightIsOptionalByDefault`
+	// segura essa escolha.
+	LineHighlight string
 }
 
 // The token names, as they appear in `[tokens]`.
@@ -51,17 +59,18 @@ type Tokens struct {
 // arquivo de configuração do usuário, e um nome escrito em dois lugares é um nome
 // que diverge.
 const (
-	TokenSurface      = "surface"
-	TokenPanel        = "panel"
-	TokenPanelText    = "panel_text"
-	TokenBorderSubtle = "border_subtle"
-	TokenText         = "text"
-	TokenTextMuted    = "text_muted"
-	TokenAccent       = "accent"
-	TokenSuccess      = "success"
-	TokenWarning      = "warning"
-	TokenError        = "error"
-	TokenFocus        = "focus"
+	TokenSurface       = "surface"
+	TokenPanel         = "panel"
+	TokenPanelText     = "panel_text"
+	TokenBorderSubtle  = "border_subtle"
+	TokenText          = "text"
+	TokenTextMuted     = "text_muted"
+	TokenAccent        = "accent"
+	TokenSuccess       = "success"
+	TokenWarning       = "warning"
+	TokenError         = "error"
+	TokenFocus         = "focus"
+	TokenLineHighlight = "line_highlight"
 )
 
 // defaultTokens is the token layer every theme starts from.

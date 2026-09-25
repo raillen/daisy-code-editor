@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -214,5 +215,52 @@ func TestExcludedFieldsDoNotFailTheComparison(t *testing.T) {
 	}
 	if result.Status != StatusPass {
 		t.Fatalf("a chave excluída %q derrubou a comparação: %s", excluded, result.Diff)
+	}
+}
+
+// TestDecidedDivergencesCarryAReason mantém a lista honesta do mesmo jeito que a
+// de exclusões: uma divergência por decisão sem motivo escrito é uma diferença
+// que alguém escolheu e não explicou, que é como a paridade começa a mentir.
+func TestDecidedDivergencesCarryAReason(t *testing.T) {
+	if len(DivergentByDecision) == 0 {
+		t.Fatal("a lista de divergências por decisão está vazia: o relatório não diria nada")
+	}
+	for path, reason := range DivergentByDecision {
+		if strings.TrimSpace(reason) == "" {
+			t.Errorf("divergência %q sem motivo", path)
+		}
+		if !strings.Contains(reason, "B") || len(reason) < 20 {
+			t.Errorf("divergência %q sem o item do ledger: %q", path, reason)
+		}
+		if !strings.Contains(path, ".") {
+			t.Errorf("divergência %q por chave de topo: o resto do estado pararia de ser comparado", path)
+		}
+	}
+}
+
+// TestOnlyTheDecidedPathIsDropped prova que a exclusão é por ponto: `config` tem
+// sete campos que concordam, e perdê-los todos faria a suíte parar de verificar o
+// que funciona.
+func TestOnlyTheDecidedPathIsDropped(t *testing.T) {
+	report := &Report{Frames: []Frame{{State: map[string]any{
+		"config": map[string]any{"soft_wrap": true, "theme": "default-dark", "tab_size": float64(4)},
+		"focus":  "editor",
+	}}}}
+
+	trimmed := stripUnimplemented(report)
+	state := trimmed.Frames[0].State.(map[string]any)
+
+	config, ok := state["config"].(map[string]any)
+	if !ok {
+		t.Fatal("a chave config inteira foi removida")
+	}
+	if _, gone := config["soft_wrap"]; gone {
+		t.Error("o campo divergente não foi removido")
+	}
+	if _, kept := config["theme"]; !kept {
+		t.Error("um campo que concorda foi removido junto: a exclusão tem que ser por ponto")
+	}
+	if _, kept := state["focus"]; !kept {
+		t.Error("a comparação parou de olhar o resto do estado")
 	}
 }

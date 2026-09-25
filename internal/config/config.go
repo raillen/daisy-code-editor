@@ -127,8 +127,11 @@ func Default() Config {
 		Theme:           "default",
 		Locale:          "pt-BR",
 		ShowLineNumbers: true,
-		SoftWrap:        false,
-		Mouse:           false,
+		// Soft wrap ligado por padrão, como no Zed: uma linha de código de 121
+		// caracteres num terminal de 60 tem de ser legível por inteiro, e cortar a
+		// cauda sem caminho para ela é pior que qualquer outro defeito de tela.
+		SoftWrap: true,
+		Mouse:    false,
 		Editor: EditorConfig{
 			TabSize:           4,
 			InsertSpaces:      true,

@@ -111,6 +111,31 @@ func (t Theme) Error() lipgloss.Style { return t.token(t.tokens.Error) }
 // Focus marks the surface that has the keyboard.
 func (t Theme) Focus() lipgloss.Style { return t.token(t.tokens.Focus) }
 
+// LineHighlight is the background of the caret's line, and **nothing at all** when
+// the token is empty.
+//
+// Decoração, e não estado: a linha atual já é marcada em texto, na gutter, com o
+// marcador do caret. Esta é a segunda pista, e a segunda pista some sem custo
+// nenhum num terminal sem cor.
+//
+// `HasLineHighlight` é separado do estilo porque `GetBackground` nunca devolve
+// nulo na biblioteca — um estilo sem fundo tem um fundo, e é o fundo do terminal.
+// A pergunta "este tema quer a linha atual marcada?" é do **token**, e não do
+// estilo.
+func (t Theme) LineHighlight() lipgloss.Style {
+	background := parse(t.tokens.LineHighlight)
+	if background == nil {
+		return lipgloss.NewStyle()
+	}
+	return lipgloss.NewStyle().Background(background)
+}
+
+// HasLineHighlight reports whether the theme asks for the caret's line to be
+// marked, which é o que decide se a superfície pinta o fundo.
+func (t Theme) HasLineHighlight() bool {
+	return t.profile != NoColor && !config.IsNoColour(t.tokens.LineHighlight)
+}
+
 // token resolves one token into a style that paints nothing when the token says
 // "no colour".
 func (t Theme) token(value string) lipgloss.Style {
@@ -126,6 +151,19 @@ func (t Theme) token(value string) lipgloss.Style {
 // Tokens exposes the resolved layer, for the surfaces that compose a style out of
 // two tokens (a borda de um painel, por exemplo).
 func (t Theme) Tokens() config.Tokens { return t.tokens }
+
+// WithTokens returns the theme with another token layer, keeping the profile.
+//
+// Um método e não um construtor: o perfil vem do terminal, e um tema novo muda a
+// paleta sem mudar a capacidade — que são duas coisas independentes.
+func (t Theme) WithTokens(tokens *config.Tokens) Theme {
+	layer := t.tokens
+	if tokens != nil {
+		layer = *tokens
+	}
+	t.tokens = layer
+	return t
+}
 
 // Selection marks selected text.
 func (t Theme) Selection() lipgloss.Style {

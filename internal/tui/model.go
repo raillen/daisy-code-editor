@@ -800,7 +800,11 @@ func (m Model) editorView(regions layout.Regions) editorview.View {
 	view := editorview.View{
 		Gutter:  m.application.Config.ShowLineNumbers,
 		Focused: m.surface == focus.Editor,
-		Theme:   m.theme,
+		// O wrap é o padrão do produto, como no Zed: linha longa é o caso comum
+		// de código, e cortar o fim dela sem caminho para ele é o pior defeito de
+		// leitura que um editor pode ter. `soft_wrap = false` desliga.
+		Wrap:  m.application.Config.SoftWrap,
+		Theme: m.theme,
 	}
 
 	document, err := m.application.Store.Active()

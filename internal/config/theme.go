@@ -130,17 +130,18 @@ type rawTheme struct {
 
 // rawTokens is `[tokens]` as it arrives from a file: every field optional.
 type rawTokens struct {
-	Surface      *string `toml:"surface"`
-	Panel        *string `toml:"panel"`
-	PanelText    *string `toml:"panel_text"`
-	BorderSubtle *string `toml:"border_subtle"`
-	Text         *string `toml:"text"`
-	TextMuted    *string `toml:"text_muted"`
-	Accent       *string `toml:"accent"`
-	Success      *string `toml:"success"`
-	Warning      *string `toml:"warning"`
-	Error        *string `toml:"error"`
-	Focus        *string `toml:"focus"`
+	Surface       *string `toml:"surface"`
+	Panel         *string `toml:"panel"`
+	PanelText     *string `toml:"panel_text"`
+	BorderSubtle  *string `toml:"border_subtle"`
+	Text          *string `toml:"text"`
+	TextMuted     *string `toml:"text_muted"`
+	Accent        *string `toml:"accent"`
+	Success       *string `toml:"success"`
+	Warning       *string `toml:"warning"`
+	Error         *string `toml:"error"`
+	Focus         *string `toml:"focus"`
+	LineHighlight *string `toml:"line_highlight"`
 }
 
 // mergeTokens applies the declared tokens over an inherited layer.
@@ -186,6 +187,9 @@ func mergeTokens(base Tokens, raw *rawTokens) *Tokens {
 	}
 	if raw.Focus != nil {
 		merged.Focus = *raw.Focus
+	}
+	if raw.LineHighlight != nil {
+		merged.LineHighlight = *raw.LineHighlight
 	}
 	return &merged
 }

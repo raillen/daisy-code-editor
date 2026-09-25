@@ -2,6 +2,7 @@ package conformance
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
@@ -51,6 +52,9 @@ type Result struct {
 	// Carried on the result rather than kept out of band so the parity report
 	// cannot claim coverage it does not have.
 	Skipped []string
+	// Divergent names the state paths the Go differs on by decision, with the
+	// ledger item — e continua comparando o resto do estado.
+	Divergent map[string]string
 	// Ledger names the item that justifies an expected divergence, if any.
 	Ledger string
 }
@@ -68,10 +72,31 @@ func CompareMeasured(name string, want, got *Report) (Result, error) {
 		return Result{}, err
 	}
 	result.Skipped = ExcludedKeys()
+	result.Divergent = map[string]string{}
+	for path := range DivergentByDecision {
+		result.Divergent[path] = DivergentByDecision[path]
+	}
 	return result, nil
 }
 
-// stripUnimplemented copies a report without the excluded state keys.
+// DivergentPaths returns the sorted state paths the Go differs from the oracle
+// on purpose, com o item do ledger que diz por quê.
+func DivergentPaths() []string {
+	out := make([]string, 0, len(DivergentByDecision))
+	for path, reason := range DivergentByDecision {
+		out = append(out, path+" — "+reason)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// stripUnimplemented copies a report without the excluded state keys, and without
+// the paths the two sides differ on by decision.
+//
+// A remoção é por **caminho** (`config.soft_wrap`), não só por chave de topo: a
+// chave `config` concorda em sete campos, e tirar a chave inteira faria a suíte
+// parar de verificar o que funciona — que é o jeito mais fácil de uma suíte de
+// paridade virar decorativa.
 func stripUnimplemented(report *Report) *Report {
 	out := *report
 	out.Frames = make([]Frame, len(report.Frames))
@@ -86,11 +111,34 @@ func stripUnimplemented(report *Report) *Report {
 			if _, skip := NotYetImplemented[key]; skip {
 				continue
 			}
-			trimmed[key] = value
+			trimmed[key] = dropDecidedPaths(key, value)
 		}
 		out.Frames[i].State = trimmed
 	}
 	return &out
+}
+
+// dropDecidedPaths removes the decided divergences nested under one state key.
+func dropDecidedPaths(prefix string, value any) any {
+	for path := range DivergentByDecision {
+		head, rest, nested := strings.Cut(path, ".")
+		if head != prefix {
+			continue
+		}
+		state, ok := value.(map[string]any)
+		if !ok {
+			return value
+		}
+		trimmed := make(map[string]any, len(state))
+		for key, inner := range state {
+			if nested && key == rest {
+				continue
+			}
+			trimmed[key] = inner
+		}
+		return trimmed
+	}
+	return value
 }
 
 // Compare compares two reports for the same case, without tolerance.

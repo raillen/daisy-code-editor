@@ -14,7 +14,7 @@ id real, um `:help` que não existia.
 | `keymap.md` | a tabela canônica de teclas | `TestDocumentedKeymapMatchesTheBindings` |
 | `focus-graph.md` | o grafo de foco e a captura por sobreposição | teste de foco (M3.2) |
 | `states.md` | o vocabulário de estados observáveis | `TestStateVocabularyMatchesTheDump` (M3.2) |
-| `layout.md` | as classes de largura e o que muda em cada uma | golden frames (M3.2) |
+| `layout.md` | as classes de largura, a quebra de linha e a linha atual | golden frames + `TestWrap*` e `TestTheCurrentLine*` |
 | `degradation.md` | cor, mouse e keyboard enhancements | golden frames `no-color` (M3.2) |
 
 ## Precedência

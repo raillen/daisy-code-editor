@@ -200,3 +200,19 @@ func TestTokenDefaultFieldsMatchWhatIsRead(t *testing.T) {
 		}
 	}
 }
+
+// TestLineHighlightIsOptionalByDefault fecha a escolha: o realce de linha atual é
+// decoração, e decoração que muda o quadro de todos os temas gerados do oráculo
+// seria uma mudança de produto feita por conta própria.
+//
+// O token existe — um tema que quiser declara — e vem vazio. A prova de que ele
+// não é um acessório inerte é `TestTheCurrentLineIsMarkedWhenTheThemeAsks`, no
+// pacote que pinta.
+func TestLineHighlightIsOptionalByDefault(t *testing.T) {
+	for _, definition := range BuiltInThemes() {
+		completed := completeTheme(definition)
+		if value := completed.Tokens.LineHighlight; !IsNoColour(value) {
+			t.Errorf("tema %q veio com realce de linha atual (%q): os temas gerados não o declaram", definition.Name, value)
+		}
+	}
+}
