@@ -45,3 +45,33 @@ a aplicação nunca o sobe) e ela é do `PROJECT_STATE` e do ledger.
 `Esc` na busca **recolhe o painel** quando a busca era a aba da frente: um painel
 que fica vazio depois de `Esc` é um painel que mente sobre o que o programa está
 fazendo. `Ctrl+`` fecha a aba do terminal e devolve o foco ao editor.
+
+## A coluna de estado da árvore
+
+Cada arquivo mostra a **letra** do seu estado no git, na coluna da direita:
+
+| Letra | Estado | Token que a pinta |
+|---|---|---|
+| `M` | modificado | `warning` |
+| `A` | novo (staged) | `success` |
+| `D` | apagado | `error` |
+| `U` | em conflito | `error` |
+| `?` | não rastreado | `accent` |
+| `R` | renomeado | `accent` |
+
+Duas regras:
+
+1. **A letra é a pista principal e a cor é a segunda.** Um terminal sem cor
+   continua mostrando o estado — a regra do projeto é que nenhum estado é
+   comunicado apenas por cor (`TestTheBadgeIsALetterAndTheColourIsTheSecondPista`).
+2. **A coluna é medida, não colada.** O nome recebe o que sobra e o badge é o
+   último caractere da linha; abaixo de quatro células para o nome, **a letra é
+   descartada** e fica o nome truncado — o nome é o conteúdo, a letra é informação
+   sobre ele (`TestANameNeverDisappearsForABadge`).
+
+O estado é lido do disco **no mesmo tique de dois segundos que lê a branch**: `git`
+é um processo, e dois `git` no mesmo tique seriam o dobro do trabalho pelo mesmo
+dado. E o mapa é **relativo ao workspace**, porque o `git` reporta a partir da
+raiz do repositório e um workspace dentro de um repositório maior traria caminhos
+que não casam com nada da árvore — um badge que nunca apareceria, e ninguém saberia
+se o defeito era do `git` ou do casamento.

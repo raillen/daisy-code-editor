@@ -4,6 +4,7 @@ package tree
 import (
 	"github.com/ori-team/oride/internal/tui/component"
 	"github.com/ori-team/oride/internal/tui/layout"
+	"github.com/ori-team/oride/internal/tui/theme"
 )
 
 // Row is one entry as the panel sees it.
@@ -12,6 +13,14 @@ type Row struct {
 	Name     string
 	IsDir    bool
 	Expanded bool
+	// Path is the entry's full path, which é o que casa com o status do git.
+	//
+	// O nome sozinho não serve: o status vem por caminho, e casar por nome seria
+	// casar `a.go` de um diretório com o `a.go` de outro.
+	Path string
+	// Status é o estado do git, em **letra** (`M`, `A`, `?`…) — a mesma
+	// simplificação que `git.Status.Badge` já fazia para o painel SCM.
+	Status string
 }
 
 // View is what the panel needs to draw.
@@ -25,6 +34,9 @@ type View struct {
 	Rows     []Row
 	Selected int
 	Focused  bool
+	// Theme paints the git badge. O valor zero desenha plain — que é o que um
+	// terminal sem cor e todo teste querem.
+	Theme theme.Theme
 }
 
 // Affordances. A directory says what it is and whether it is open, in text: an
@@ -57,8 +69,13 @@ func Render(width, height int, view View) []string {
 		row := view.Rows[index]
 		selected := index == view.Selected
 
-		text := affordance(row) + row.Name
-		rows = append(rows, component.Row(text, row.Depth, selected, width))
+		// O badge é desenhado pelo `component.Row`, e não colado aqui: a coluna da
+		// direita é geométrica — o nome precisa caber no que sobra, e um nome
+		// colado com um espaço antes do badge desalinha a coluna entre linhas de
+		// larguras diferentes.
+		rows = append(rows, component.RowWithBadge(
+			affordance(row)+row.Name, row.Depth, selected, width,
+			view.Theme.FileStatus(row.Status), row.Status))
 	}
 
 	for len(rows) < height {

@@ -21,3 +21,12 @@ uma lista que pula a cada seta é exaustiva de ler.
 **`Mark`** é o cursor da linha selecionada, e é **texto, não cor**: nenhum estado
 é comunicado só por cor, e uma seleção tingida mas não marcada é invisível para
 quem não vê o tom — e para quem está num terminal sem cor.
+
+**`RowWithBadge` desenha a coluna de estado à direita, e ela é medida.** O nome
+recebe `largura − cursor − badge` e o badge é o **último** caractere da linha —
+colado com um espaço, o badge apareceria em colunas diferentes conforme o nome
+cresce ou encolhe, e uma coluna que anda não é coluna.
+
+**Duas colunas que não cabem: some a letra, fica o nome.** Abaixo de quatro células
+para o nome, o badge é descartado. O nome é o conteúdo da lista; a letra é
+informação sobre ele — e `M` ao lado de um `…` não informa nada.

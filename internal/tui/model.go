@@ -78,6 +78,13 @@ type Model struct {
 	// whole file.
 	highlight highlightCache
 
+	// gitBadges é o estado do git por caminho, relativo ao workspace, e é lido
+	// no mesmo tique que a branch. Guardar no modelo e não na aplicação é
+	// escolha: o `git` **não** é estado do produto — ele descreve o disco, e o
+	// dump do oráculo tem uma chave própria (`scm`) que a comparacao de paridade
+	// resolve; este é o mesmo dado visto pela tela.
+	gitBadges map[string]string
+
 	// pty is the shell behind the terminal panel, or nil when none was started.
 	//
 	// A handle, e não um processo criado aqui: o modelo não cria processo
@@ -291,6 +298,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.application.GitAhead = message.ahead
 		m.application.GitBehind = message.behind
 		m.application.HasUpstream = message.tracked
+		m.gitBadges = message.badges
 		return m, nil
 
 	case terminalReadyMsg:
@@ -332,6 +340,8 @@ type gitStateMsg struct {
 	ahead   int
 	behind  int
 	tracked bool
+	// badges é o estado do git por caminho, relativo ao workspace.
+	badges map[string]string
 }
 
 // gitCmd re-reads the workspace's branch, on a slow tick.
@@ -351,7 +361,7 @@ func (m Model) gitCmd() tea.Cmd {
 	}
 	return tea.Tick(gitPollInterval, func(time.Time) tea.Msg {
 		branch := git.Branch(workspace)
-		message := gitStateMsg{branch: branch}
+		message := gitStateMsg{branch: branch, badges: gitBadgeMap(workspace, workspace)}
 		if branch != "" {
 			if ahead, behind, ok := git.AheadBehind(workspace); ok {
 				message.ahead, message.behind, message.tracked = ahead, behind, true
@@ -359,6 +369,25 @@ func (m Model) gitCmd() tea.Cmd {
 		}
 		return message
 	})
+}
+
+// gitBadgeMap is the git status of every changed path, as the **letter** the tree
+// shows, com o caminho relativo ao workspace.
+//
+// Relativo porque o `git` reporta a partir da **raiz do repositório**, e um
+// workspace dentro de um repositório maior traria caminhos que não casam com
+// nada da árvore — um badge que nunca apareceria, e ninguém saberia dizer se o
+// bug era do `git` ou do casamento.
+func gitBadgeMap(cwd, workspace string) map[string]string {
+	entries := git.EntriesRelative(cwd, workspace)
+	if len(entries) == 0 {
+		return nil
+	}
+	badges := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		badges[entry.Path] = entry.Status.Badge()
+	}
+	return badges
 }
 
 // gitPollInterval is how often the branch is re-read.
@@ -822,14 +851,32 @@ func (m Model) treeView() tree.View {
 	list := make([]tree.Row, 0, len(rows))
 	for _, row := range rows {
 		list = append(list, tree.Row{
-			Depth: row.Depth, Name: row.Name, IsDir: row.IsDir, Expanded: row.Expanded,
+			Depth:    row.Depth,
+			Name:     row.Name,
+			Path:     row.Path,
+			IsDir:    row.IsDir,
+			Expanded: row.Expanded,
+			Status:   m.gitBadge(row.Path),
 		})
 	}
 	return tree.View{
 		Rows:     list,
 		Selected: m.application.Tree.SelectedIndex(),
 		Focused:  m.surface == focus.Tree,
+		Theme:    m.theme,
 	}
+}
+
+// gitBadge is the git letter of a path, e o mapa é do **tique** que já lê a branch.
+//
+// Um `git` por frame seria um processo por frame, e um segundo `git` no mesmo
+// tique seria o dobro do trabalho pelo mesmo dado: branch e status saem da mesma
+// leitura do repositório.
+func (m Model) gitBadge(path string) string {
+	if m.gitBadges == nil {
+		return ""
+	}
+	return m.gitBadges[path]
 }
 
 // panelRows draws the bottom panel: a faixa de abas e o conteúdo da aba ativa.

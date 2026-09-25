@@ -10,6 +10,12 @@
   o cursor do componente pisca, e um golden não pode depender do relógio.
 
 ### Added
+- **A árvore mostra o estado do git de cada arquivo**, na coluna da direita: `M`
+  modificado, `A` novo, `D` apagado, `?` não rastreado. A letra é a pista principal
+  e a cor a segunda, para que um terminal sem cor continue mostrando o estado. O
+  dado já era lido do disco e não aparecia em lugar nenhum.
+
+### Added
 - **Painel inferior com abas — Terminal │ Problemas │ Busca:** um lugar só, no
   modelo do Lapce e do Zed. Antes o terminal ficava embaixo e a barra de busca
   acima, em regiões separadas: abrir a busca fazia o terminal sumir. A faixa come

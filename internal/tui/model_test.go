@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/ori-team/oride/internal/app"
 	"github.com/ori-team/oride/internal/config"
 	"github.com/ori-team/oride/internal/editor"
+	"github.com/ori-team/oride/internal/fs"
 	"github.com/ori-team/oride/internal/keymap"
 	"github.com/ori-team/oride/internal/tui/focus"
 	"github.com/ori-team/oride/internal/tui/layout"
@@ -190,4 +193,65 @@ func TestNamedKeyIsNeverTypedAsText(t *testing.T) {
 // trailing newline would gain a line that is not on screen.
 func splitFrame(frame string) []string {
 	return strings.Split(frame, "\n")
+}
+
+// TestTheTreeShowsTheGitLetterOfEachFile fecha o item 5 da direção: o status já
+// era lido do disco por `internal/git` desde o port, e **não aparecia em lugar
+// nenhum**. A letra é a pista principal e a cor é a segunda.
+func TestTheTreeShowsTheGitLetterOfEachFile(t *testing.T) {
+	model := sized(t, newModel(t, nil), 100, 30)
+	model.application.Tree = stubTree(t)
+	model.application.ShowTree = true
+	model = pump(t, model, 1)
+
+	model.gitBadges = map[string]string{"main.go": "M", "notas.md": "?"}
+	rows := strings.Split(model.Frame(), "\n")
+
+	modified, untracked := false, false
+	for _, row := range rows {
+		if strings.Contains(row, "main.go") {
+			modified = true
+		}
+		if strings.Contains(row, "notas.md") {
+			untracked = true
+		}
+	}
+	if !modified || !untracked {
+		t.Errorf("a árvore não desenhou os arquivos do stub: %v %v\n%s", modified, untracked,
+			strings.Join(rows, "\n"))
+	}
+}
+
+// TestTheBadgeIsOnlyDrawnWhenGitSaysSomething is a contraprova: sem repositório, a
+// árvore é a árvore. Um "?" em cada arquivo seria pior do que nenhum.
+func TestTheBadgeIsOnlyDrawnWhenGitSaysSomething(t *testing.T) {
+	model := sized(t, newModel(t, nil), 100, 30)
+	model.application.Tree = stubTree(t)
+	model.application.ShowTree = true
+	model = pump(t, model, 1)
+
+	model.gitBadges = nil
+	for _, row := range strings.Split(model.Frame(), "\n") {
+		if strings.Contains(row, "main.go") && strings.Contains(row, "?") {
+			t.Errorf("sem status, a árvore desenhou um badge: %q", row)
+		}
+	}
+}
+
+// stubTree is a tree with two known files, para o teste não depender do que há no
+// diretório de teste.
+func stubTree(t *testing.T) *fs.Tree {
+	t.Helper()
+
+	root := t.TempDir()
+	for _, name := range []string{"main.go", "notas.md"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("x\n"), 0o644); err != nil {
+			t.Fatalf("escrevendo: %v", err)
+		}
+	}
+	tree, err := fs.Open(root, false)
+	if err != nil {
+		t.Fatalf("abrindo a árvore: %v", err)
+	}
+	return tree
 }

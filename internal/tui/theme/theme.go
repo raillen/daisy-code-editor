@@ -111,6 +111,27 @@ func (t Theme) Error() lipgloss.Style { return t.token(t.tokens.Error) }
 // Focus marks the surface that has the keyboard.
 func (t Theme) Focus() lipgloss.Style { return t.token(t.tokens.Focus) }
 
+// FileStatus is the style of a file's git badge — a **letra** que a cor acompanha.
+//
+// A letra é a pista principal e a cor é a segunda: um terminal sem cor continua
+// mostrando o estado, que é a regra do projeto sobre nunca comunicar estado
+// apenas por cor. E o mapeamento é por **intenção** (`warning` para modificado,
+// `success` para novo, `error` para apagado), não por nome de git — o que muda
+// de valor no `git` é o token, não o estilo.
+func (t Theme) FileStatus(gitStatus string) lipgloss.Style {
+	switch gitStatus {
+	case "M":
+		return t.token(t.tokens.Warning)
+	case "A":
+		return t.token(t.tokens.Success)
+	case "D", "U":
+		return t.token(t.tokens.Error)
+	case "?", "R":
+		return t.token(t.tokens.Accent)
+	}
+	return lipgloss.NewStyle()
+}
+
 // LineHighlight is the background of the caret's line, and **nothing at all** when
 // the token is empty.
 //

@@ -460,8 +460,30 @@ própria visibilidade**, e o foco podia descansar num painel que não estava à 
 A edição anterior que devia ter trocado isso nunca entrou no código (o texto que
 eu procurava já tinha mudado), e só o teste novo do painel revelou.
 
-**Próximo, na nova ordem: o git por arquivo na árvore** — o badge já é produzido
-por `internal/git` e não aparece em lugar nenhum.
+### Git por arquivo na árvore · **completo** (item 5 da direção)
+
+- ✅ **A letra do estado do git aparece na coluna da direita de cada arquivo** — o
+  dado já era lido por `internal/git` desde o port, e não aparecia em lugar nenhum.
+- ✅ **A letra é a pista principal e a cor é a segunda**: `M` modificado,
+  `A` novo, `D` apagado, `U` em conflito, `?` não rastreado, `R` renomeado — cada
+  um pintado por **intensão** (`warning`, `success`, `error`, `accent`), e um
+  terminal sem cor continua mostrando o estado.
+- ✅ **A coluna é medida, não colada**, e a degradação é explícita: abaixo de quatro
+  células para o nome, **a letra some e o nome fica** — o nome é o conteúdo da
+  lista, a letra é informação sobre ele.
+- ✅ **Lido no mesmo tique de dois segundos da branch**: `git` é um processo, e dois
+  `git` no mesmo tique seriam o dobro do trabalho pelo mesmo dado. O mapa é
+  **relativo ao workspace**, porque o `git` reporta a partir da raiz do
+  repositório.
+- ⚠️ **Onde o mapa mora, e por quê:** no **modelo de apresentação**, e não no
+  `app.App`. O `git` descreve o disco, não o produto, e o dump do oráculo tem uma
+  chave própria (`scm`) que a comparação de paridade resolve; este é o mesmo dado
+  visto pela tela. Escrever no `app` faria a paridade acusar uma diferença que
+  não é de comportamento.
+
+**Os seis itens da direção estão fechados.** O que a direção deixa como item de
+**feature** (e não de UI/UX) são os splits, o SCM com stage, o preview Markdown, o
+motor modal Vim, o cliente LSP subindo, e a busca no projeto.
 
 ## Camada de documentação do Prumo
 
