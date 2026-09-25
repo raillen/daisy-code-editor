@@ -10,9 +10,17 @@ import (
 )
 
 // View is what the bar needs to draw.
+//
+// The two fields arrive **already rendered**, as the exact-width string the
+// component `textinput` draws. They are not strings to lay out: quem escreve,
+// move o cursor, mostra o placeholder e rola a cauda é o componente, e um segundo
+// parágrafo fazendo o mesmo é a duplicação que este pacote existia para ter.
 type View struct {
-	Query         string
-	Replace       string
+	// Field is the search field, already trimmed to FieldWidth cells.
+	Field string
+	// ReplaceField is the replacement field, same width. Ignored when
+	// ShowReplace is false.
+	ReplaceField  string
 	ShowReplace   bool
 	CaseSensitive bool
 	IgnoreAccents bool
@@ -34,8 +42,14 @@ const (
 	queryLabel   = " buscar: "
 	replaceLabel = "substituir: "
 	noMatch      = "sem resultados"
-	fieldWidth   = 28
 )
+
+// FieldWidth is how many cells the text field occupies.
+//
+// Exported because a caller has to tell the component `textinput` o quanto
+// medir, e um valor em dois lugares é um valor que vai divergir — que foi
+// exatamente o que aconteceu com o `…` e com o `▶` neste projeto.
+const FieldWidth = 28
 
 // Height is how many rows the bar needs.
 //
@@ -64,7 +78,7 @@ func Render(width int, view View) []string {
 
 // queryRow is the search line: the query, its flags, and the count.
 func queryRow(width int, view View) string {
-	line := queryLabel + field(view.Query)
+	line := queryLabel + view.Field
 	line += "  " + flags(view) + "  " + count(view)
 
 	return style(view, line, width, false)
@@ -72,31 +86,7 @@ func queryRow(width int, view View) string {
 
 // replaceRow is the replacement line.
 func replaceRow(width int, view View) string {
-	return style(view, replaceLabel+field(view.Replace), width, true)
-}
-
-// field shows the query, or a placeholder when it is empty.
-//
-// The cursor is not drawn here: the runtime owns the terminal cursor, and a bar
-// that drew its own would show two.
-func field(value string) string {
-	if value == "" {
-		return layout.Pad("digite…", fieldWidth)
-	}
-	if layout.Width(value) > fieldWidth {
-		// The tail is what someone typing wants to see, so the front is what goes.
-		return tail(value, fieldWidth)
-	}
-	return layout.Pad(value, fieldWidth)
-}
-
-// tail keeps the last width cells, so a long query shows where typing is.
-func tail(value string, width int) string {
-	runes := []rune(value)
-	for len(runes) > 0 && layout.Width(string(runes)) > width {
-		runes = runes[1:]
-	}
-	return layout.Pad(string(runes), width)
+	return style(view, replaceLabel+view.ReplaceField, width, true)
 }
 
 // flags spells out the active search options.

@@ -15,6 +15,11 @@ três (ledger B1).
 **Undo e redo restauram a seleção que o grupo produziu**, e descartam cursores
 que ficaram além do fim (B2–B4).
 
+**Recarregar do disco descarta o histórico de undo, de propósito:** desfazer depois
+de uma recarga desfaria contra um texto que já não é o do disco, e o reader
+receberia um documento que ele nunca editou. O caret é limitado ao fim do texto
+novo, porque um arquivo que encolheu deixaria o offset apontando para o nada.
+
 **Invariantes de multi-cursor:** cursores ordenados e sem duplicata; edições
 aplicam do maior offset para o menor; toda operação que encolhe o buffer
 revalida cada cursor.

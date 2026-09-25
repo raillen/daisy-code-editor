@@ -5,16 +5,27 @@ import (
 	"testing"
 
 	"github.com/ori-team/oride/internal/config"
+	"github.com/ori-team/oride/internal/syntax"
 	"github.com/ori-team/oride/internal/tui/layout"
 	"github.com/ori-team/oride/internal/tui/theme"
 )
 
-func lines(count int) []string {
-	out := make([]string, count)
-	for index := range out {
-		out[index] = "linha " + string(rune('a'+index%26))
+// plain are lines with no roles: what a document no lexer claims arrives as, and
+// what most of the tests here are about.
+func plain(texts ...string) []Line {
+	lines := make([]Line, 0, len(texts))
+	for _, text := range texts {
+		lines = append(lines, Line{Text: text})
 	}
-	return out
+	return lines
+}
+
+func lines(count int) []Line {
+	texts := make([]string, count)
+	for index := range texts {
+		texts[index] = "linha " + string(rune('a'+index%26))
+	}
+	return plain(texts...)
 }
 
 // TestEveryRowHasTheExactWidth is the invariant that keeps a frame from shifting.
@@ -108,7 +119,7 @@ func TestGutterWidthFollowsTheDocumentLength(t *testing.T) {
 // TestWideTextIsTruncatedWithAMarker: a line that silently loses its tail is
 // indistinguishable from one that ends there.
 func TestWideTextIsTruncatedWithAMarker(t *testing.T) {
-	view := View{Lines: []string{strings.Repeat("x", 500)}}
+	view := View{Lines: plain(strings.Repeat("x", 500))}
 
 	row := Render(20, 1, view)[0]
 	if layout.Width(row) != 20 {
@@ -146,7 +157,7 @@ func selection(startLine, startColumn, endLine, endColumn int) Selection {
 // a background across the whole row would claim the selection reaches the edge of
 // the screen, which it does not.
 func TestSelectionIsPaintedOnlyInsideItsRange(t *testing.T) {
-	view := View{Lines: []string{"abcdefghij"}, Selection: selection(0, 2, 0, 5), Theme: colourTheme()}
+	view := View{Lines: plain("abcdefghij"), Selection: selection(0, 2, 0, 5), Theme: colourTheme()}
 
 	row := Render(20, 1, view)[0]
 	if !strings.ContainsRune(row, 0x1b) {
@@ -165,8 +176,7 @@ func TestSelectionIsPaintedOnlyInsideItsRange(t *testing.T) {
 // TestSelectionOnTheFirstAndLastLineIsPartial: every line between them is selected
 // whole, and the two ends are not.
 func TestSelectionOnTheFirstAndLastLineIsPartial(t *testing.T) {
-	lines := []string{"primeira", "meio", "ultima"}
-	view := View{Lines: lines, Selection: selection(0, 3, 2, 2), Theme: colourTheme()}
+	view := View{Lines: plain("primeira", "meio", "ultima"), Selection: selection(0, 3, 2, 2), Theme: colourTheme()}
 
 	rows := Render(20, 3, view)
 	for index, row := range rows {
@@ -182,7 +192,7 @@ func TestSelectionOnTheFirstAndLastLineIsPartial(t *testing.T) {
 // TestAnEmptySelectionPaintsNothing: a collapsed selection is a caret, and tinting
 // the character under the cursor would misrepresent it.
 func TestAnEmptySelectionPaintsNothing(t *testing.T) {
-	view := View{Lines: []string{"abcdef"}, Selection: Selection{Empty: true}, Theme: colourTheme()}
+	view := View{Lines: plain("abcdef"), Selection: Selection{Empty: true}, Theme: colourTheme()}
 
 	if row := Render(20, 1, view)[0]; strings.ContainsRune(row, 0x1b) {
 		t.Errorf("seleção vazia foi pintada: %q", row)
@@ -199,7 +209,7 @@ func TestASelectionPastTheEndOfTheLineDoesNotBreakTheWidth(t *testing.T) {
 	}
 	for _, sel := range cases {
 		for _, width := range []int{10, 20, 40} {
-			row := Render(width, 1, View{Lines: []string{"curta"}, Selection: sel, Theme: colourTheme()})[0]
+			row := Render(width, 1, View{Lines: plain("curta"), Selection: sel, Theme: colourTheme()})[0]
 			if got := layout.Width(row); got != width {
 				t.Errorf("%+v largura %d: linha com %d células", sel, width, got)
 			}
@@ -210,7 +220,7 @@ func TestASelectionPastTheEndOfTheLineDoesNotBreakTheWidth(t *testing.T) {
 // TestSelectionSurvivesWideCharacters: the range is in cells, and slicing by byte
 // would land in the middle of a wide character.
 func TestSelectionSurvivesWideCharacters(t *testing.T) {
-	view := View{Lines: []string{"日本語のテキスト"}, Selection: selection(0, 2, 0, 8), Theme: colourTheme()}
+	view := View{Lines: plain("日本語のテキスト"), Selection: selection(0, 2, 0, 8), Theme: colourTheme()}
 
 	for _, width := range []int{20, 30} {
 		row := Render(width, 1, view)[0]
@@ -227,7 +237,7 @@ func TestSelectionSurvivesWideCharacters(t *testing.T) {
 // on document line 40 must paint when that line is the slice's first row.
 func TestSelectionFollowsTheSliceOffset(t *testing.T) {
 	view := View{
-		Lines:     []string{"alvo"},
+		Lines:     plain("alvo"),
 		Offset:    40,
 		Selection: selection(40, 0, 40, 4),
 		Theme:     colourTheme(),
@@ -249,7 +259,7 @@ func colourTheme() theme.Theme {
 // the text, not only counted in the bar.
 func TestMatchesArePainted(t *testing.T) {
 	view := View{
-		Lines:        []string{"alfa beta alfa"},
+		Lines:        plain("alfa beta alfa"),
 		Matches:      []Match{{Start: Position{0, 0}, End: Position{0, 4}}, {Start: Position{0, 10}, End: Position{0, 14}}},
 		CurrentMatch: 1,
 		Theme:        colourTheme(),
@@ -267,7 +277,7 @@ func TestMatchesArePainted(t *testing.T) {
 // TestNoMatchesPaintsNothing: the plain path stays the common one, and a row with
 // no match must not carry escape sequences.
 func TestNoMatchesPaintsNothing(t *testing.T) {
-	view := View{Lines: []string{"texto simples"}, CurrentMatch: -1, Theme: colourTheme()}
+	view := View{Lines: plain("texto simples"), CurrentMatch: -1, Theme: colourTheme()}
 
 	if row := Render(30, 1, view)[0]; strings.ContainsRune(row, 0x1b) {
 		t.Errorf("linha sem casamento foi pintada: %q", row)
@@ -278,7 +288,7 @@ func TestNoMatchesPaintsNothing(t *testing.T) {
 // than by the order styles happen to be applied.
 func TestTheSelectionWinsOverAMatch(t *testing.T) {
 	view := View{
-		Lines:        []string{"alfa beta"},
+		Lines:        plain("alfa beta"),
 		Matches:      []Match{{Start: Position{0, 0}, End: Position{0, 4}}},
 		CurrentMatch: 0,
 		Selection:    selection(0, 0, 0, 4),
@@ -304,7 +314,7 @@ func TestTheSelectionWinsOverAMatch(t *testing.T) {
 // character must not tint half of it.
 func TestMatchesSurviveWideCharacters(t *testing.T) {
 	view := View{
-		Lines:        []string{"日本語の"},
+		Lines:        plain("日本語の"),
 		Matches:      []Match{{Start: Position{0, 2}, End: Position{0, 6}}},
 		CurrentMatch: 0,
 		Theme:        colourTheme(),
@@ -325,7 +335,7 @@ func TestMatchesSurviveWideCharacters(t *testing.T) {
 // so the slice offset has to be honoured.
 func TestAMatchOnAnotherLineIsNotPaintedHere(t *testing.T) {
 	view := View{
-		Lines:        []string{"sem casamento"},
+		Lines:        plain("sem casamento"),
 		Offset:       10,
 		Matches:      []Match{{Start: Position{0, 0}, End: Position{0, 3}}},
 		CurrentMatch: 0,
@@ -334,5 +344,137 @@ func TestAMatchOnAnotherLineIsNotPaintedHere(t *testing.T) {
 
 	if row := Render(30, 1, view)[0]; strings.ContainsRune(row, 0x1b) {
 		t.Errorf("um casamento de outra linha foi pintado: %q", row)
+	}
+}
+
+// TestSyntaxRolesArePainted is the acceptance of the highlighting engine seen
+// from the surface: a line that has roles comes out with escape sequences, and a
+// line with none comes out plain.
+func TestSyntaxRolesArePainted(t *testing.T) {
+	view := View{
+		Lines: []Line{{
+			Text:   "func soma() int { return 1 }",
+			Tokens: []syntax.Token{{Role: syntax.Keyword, Start: 0, End: 4}, {Role: syntax.Function, Start: 5, End: 9}},
+		}},
+		Theme: colourTheme(),
+	}
+
+	row := Render(30, 1, view)[0]
+	if !strings.ContainsRune(row, 0x1b) {
+		t.Fatalf("os papéis não foram pintados: %q", row)
+	}
+	if got := layout.Width(row); got != 30 {
+		t.Errorf("linha com %d células", got)
+	}
+}
+
+// TestTwoRolesPaintTwoWays is the contraprova of the previous test: a painter that
+// applied one style to the whole line would also produce escape sequences, and the
+// reader would see a coloured line rather than coloured words.
+func TestTwoRolesPaintTwoWays(t *testing.T) {
+	text := "func soma"
+	tokens := []syntax.Token{{Role: syntax.Keyword, Start: 0, End: 4}, {Role: syntax.Function, Start: 5, End: 9}}
+
+	both := Render(20, 1, View{Lines: []Line{{Text: text, Tokens: tokens}}, Theme: colourTheme()})[0]
+	onlyKeyword := Render(20, 1, View{Lines: []Line{{
+		Text:   text,
+		Tokens: tokens[:1],
+	}}, Theme: colourTheme()})[0]
+
+	if both == onlyKeyword {
+		t.Error("os dois papéis pintaram igual")
+	}
+}
+
+// TestPlainTextPaintsNothing keeps the common case cheap: a document with no lexer
+// must not pay escape sequences on every row.
+func TestPlainTextPaintsNothing(t *testing.T) {
+	row := Render(20, 1, View{Lines: plain("texto simples"), Theme: colourTheme()})[0]
+
+	if strings.ContainsRune(row, 0x1b) {
+		t.Errorf("uma linha sem papéis foi pintada: %q", row)
+	}
+}
+
+// TestTheSelectionWinsOverARole is the precedence rule extended: what the reader
+// asked for outranks what the theme chose.
+func TestTheSelectionWinsOverARole(t *testing.T) {
+	line := Line{Text: "func soma", Tokens: []syntax.Token{{Role: syntax.Keyword, Start: 0, End: 4}}}
+	view := View{Lines: []Line{line}, Selection: selection(0, 0, 0, 4), Theme: colourTheme()}
+
+	selected := Render(20, 1, view)[0]
+
+	view.Selection = Selection{Empty: true}
+	roleOnly := Render(20, 1, view)[0]
+
+	if selected == roleOnly {
+		t.Error("a seleção não teve precedência sobre o papel")
+	}
+}
+
+// TestTheMatchWinsOverARole closes the order: a highlight the reader asked for
+// outranks a colour, and the selection outranks the highlight.
+func TestTheMatchWinsOverARole(t *testing.T) {
+	view := View{
+		Lines:        []Line{{Text: "func soma", Tokens: []syntax.Token{{Role: syntax.Keyword, Start: 0, End: 4}}}},
+		Matches:      []Match{{Start: Position{0, 0}, End: Position{0, 4}}},
+		CurrentMatch: 0,
+		Theme:        colourTheme(),
+	}
+
+	roleOnly := View{
+		Lines:        view.Lines,
+		CurrentMatch: -1,
+		Theme:        colourTheme(),
+	}
+	if Render(20, 1, view)[0] == Render(20, 1, roleOnly)[0] {
+		t.Error("o casamento não teve precedência sobre o papel")
+	}
+}
+
+// TestRolesSurviveWideCharacters is the unit rule, and the reason layout.Cells
+// exists: the token's offsets are bytes, the array is cells, and a role after a
+// wide character has to start where the reader sees it.
+func TestRolesSurviveWideCharacters(t *testing.T) {
+	// The three wide characters take six cells and the space one more, so the
+	// "func" begins at cell seven and at byte ten — the two are not the same
+	// number, which is the whole point of the conversion.
+	view := View{
+		Lines: []Line{{
+			Text:   "日本語 func",
+			Tokens: []syntax.Token{{Role: syntax.Keyword, Start: 10, End: 14}},
+		}},
+		Theme: colourTheme(),
+	}
+
+	row := Render(20, 1, view)[0]
+	if got := layout.Width(row); got != 20 {
+		t.Errorf("linha com %d células", got)
+	}
+	if !strings.HasPrefix(row, "日本語 ") {
+		t.Fatalf("a linha não começa pelo texto: %q", row)
+	}
+	// The tint starts at the "f". A role measured in bytes instead of cells would
+	// cover the space and the first character instead.
+	painted := strings.SplitN(row, "\x1b[m", 2)[0]
+	if !strings.HasSuffix(painted, "func") {
+		t.Errorf("o papel não começa no texto: %q", row)
+	}
+}
+
+// TestARolePastTheEndOfTheLineIsClamped keeps a token that outlived an edit from
+// slicing the padding into a negative width.
+func TestARolePastTheEndOfTheLineIsClamped(t *testing.T) {
+	for _, width := range []int{10, 20, 40} {
+		view := View{
+			Lines: []Line{{
+				Text:   "curta",
+				Tokens: []syntax.Token{{Role: syntax.Keyword, Start: 2, End: 500}},
+			}},
+			Theme: colourTheme(),
+		}
+		if got := layout.Width(Render(width, 1, view)[0]); got != width {
+			t.Errorf("largura %d: linha com %d células", width, got)
+		}
 	}
 }

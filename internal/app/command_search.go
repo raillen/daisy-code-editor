@@ -24,21 +24,32 @@ func searchCommands() map[action.Action]Handler {
 			// how an earlier version of this file learned it was not a TUI
 			// concern after all.
 			a.Overlay = "find"
+			a.Status = a.Find.Status()
 			return nil
 		}),
 
 		action.FindNext: documentHandler(func(a *App, document *editor.Document) error {
 			if _, ok := a.Find.Next(); !ok {
+				a.Status = a.Find.Status()
 				return nil
 			}
-			return selectCurrentMatch(a, document)
+			if err := selectCurrentMatch(a, document); err != nil {
+				return err
+			}
+			a.Status = a.Find.Status()
+			return nil
 		}),
 
 		action.FindPrev: documentHandler(func(a *App, document *editor.Document) error {
 			if _, ok := a.Find.Prev(); !ok {
+				a.Status = a.Find.Status()
 				return nil
 			}
-			return selectCurrentMatch(a, document)
+			if err := selectCurrentMatch(a, document); err != nil {
+				return err
+			}
+			a.Status = a.Find.Status()
+			return nil
 		}),
 
 		action.Replace: documentHandler(func(a *App, _ *editor.Document) error {
@@ -50,6 +61,8 @@ func searchCommands() map[action.Action]Handler {
 			// separate flow, and modelling it as one action made a keystroke do
 			// something the reference does not.
 			a.Find.ShowReplace = true
+			a.Overlay = "find"
+			a.Status = a.Find.Status()
 			return nil
 		}),
 	}

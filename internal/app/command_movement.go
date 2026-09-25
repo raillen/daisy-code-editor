@@ -40,5 +40,32 @@ func movementCommands() map[action.Action]Handler {
 			return direction.move(document, true)
 		})
 	}
+
+	// Page up and page down are N movements of one line, with N being what fits on
+	// the screen. N is a property of the viewport, so it arrives from the
+	// presentation — and the value is the same rule the oracle uses
+	// (crates/oride-app/src/app/actions.rs): altura menos uma linha, no mínimo
+	// uma.
+	table[action.PageUp] = documentHandler(func(a *App, document *editor.Document) error {
+		return a.page(document, (*editor.Document).MoveUp, -1)
+	})
+	table[action.PageDown] = documentHandler(func(a *App, document *editor.Document) error {
+		return a.page(document, (*editor.Document).MoveDown, 1)
+	})
 	return table
+}
+
+// page moves the caret by one screenful, without extending the selection.
+//
+// Uma linha por vez, e não um salto: o movimento de linha é o que sabe colar no
+// início e no fim da linha, e um salto próprio saltaria essa regra — que é
+// exatamente o que o oráculo faz.
+func (a *App) page(document *editor.Document, move func(*editor.Document, bool) error, times int) error {
+	steps := max(a.EditorHeight-1, 1)
+	for range steps {
+		if err := move(document, false); err != nil {
+			return err
+		}
+	}
+	return nil
 }

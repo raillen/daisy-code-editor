@@ -30,7 +30,6 @@ var NotYetImplemented = map[string]string{
 	"vim":          "M3 — motor modal",
 	"diagnostics":  "M2 — diagnósticos LSP",
 	"lsp_failures": "M2 — LSP",
-	"status":       "M3 — texto da barra de status",
 }
 
 // ExcludedKeys returns the sorted keys the comparison skips.

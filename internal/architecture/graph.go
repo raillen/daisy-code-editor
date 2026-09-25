@@ -227,6 +227,17 @@ func Rules() []Rule {
 			},
 		},
 		{
+			Name:      "R8-configuracao-tem-leitor",
+			Rationale: "clean-code-contract §1.3: configuração parseada e sem consumidor descreve um produto que não existe; dezenove dos vinte papéis de [syntax] passaram o build inteiro assim",
+			Check: func(w Workspace) []string {
+				violations, err := ConfigurationFitness(w.Root)
+				if err != nil {
+					return []string{"não consegui varrer a configuração: " + err.Error()}
+				}
+				return violations
+			},
+		},
+		{
 			Name:      "R7-harness-nao-e-dependencia",
 			Rationale: "o runner de conformidade compara o produto; se o produto o importasse, a comparação deixaria de ser externa",
 			Check: func(w Workspace) []string {

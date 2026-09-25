@@ -127,6 +127,11 @@ func (s *State) Prev() (Match, bool) {
 }
 
 // Label is the short count shown in the find bar.
+// Label is the short count for the bar.
+//
+// A frase é a do oráculo (crates/oride-app/src/find.rs::match_label), palavra por
+// palavra: o texto da barra de status é comparado byte a byte pela paridade, e
+// "2/3" contra "2 / 3 matches" é divergência de mentira, não de comportamento.
 func (s *State) Label() string {
 	if s.Query == "" {
 		return "digite para buscar"
@@ -138,6 +143,9 @@ func (s *State) Label() string {
 }
 
 // Status is the one-line message the status bar shows.
+//
+// Três casos, e o terceiro é o que o leitor lê: um padrão que não compila tem o
+// erro como informação principal, e a contagem ao lado dele seria mentira.
 func (s *State) Status() string {
 	if s.RegexError != "" {
 		return fmt.Sprintf("find: regex error — %s", s.RegexError)

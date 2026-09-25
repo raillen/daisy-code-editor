@@ -8,13 +8,29 @@ import (
 // editCommands change the document's text or its history.
 func editCommands() map[action.Action]Handler {
 	return map[action.Action]Handler{
-		action.Undo: documentHandler(func(_ *App, document *editor.Document) error {
-			_, err := document.Undo()
-			return err
+		// A falha do undo **não** é erro do programa: desfazer sem histórico é
+		// uma situação normal, e a palavra é a mesma do oráculo
+		// (crates/oride-app/src/app/actions.rs) porque o texto da barra é
+		// comparado byte a byte pela paridade.
+		action.Undo: documentHandler(func(a *App, document *editor.Document) error {
+			undone, err := document.Undo()
+			if err != nil {
+				return err
+			}
+			if !undone {
+				a.Status = "nothing to undo"
+			}
+			return nil
 		}),
-		action.Redo: documentHandler(func(_ *App, document *editor.Document) error {
-			_, err := document.Redo()
-			return err
+		action.Redo: documentHandler(func(a *App, document *editor.Document) error {
+			redone, err := document.Redo()
+			if err != nil {
+				return err
+			}
+			if !redone {
+				a.Status = "nothing to redo"
+			}
+			return nil
 		}),
 
 		action.InsertNewline: documentHandler(func(_ *App, document *editor.Document) error {

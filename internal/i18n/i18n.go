@@ -110,6 +110,54 @@ type Catalog struct {
 	Status  Status   `toml:"status"`
 }
 
+// Label is the human name of an action, in this locale.
+//
+// A paleta de comandos mostra **o rótulo quando existe e o id quando não**: uma
+// lista de 74 linhas em que 26 têm nome em português e o resto mostra
+// `lsp_goto_definition` é melhor do que uma lista de ids, e muito melhor do que
+// 74 linhas em branco esperando o M6.
+//
+// O id é a chave nos três menus, e a chave é a identidade — renomear um campo do
+// catálogo sem renomear o id quebra a correspondência, e por isso a tabela é
+// derivada das structs e não escrita à mão.
+func (c Catalog) Label(actionID string) string {
+	for _, group := range []map[string]string{
+		fileLabels(c.File),
+		editLabels(c.Edit),
+		viewLabels(c.View),
+	} {
+		if label, found := group[actionID]; found {
+			return label
+		}
+	}
+	return actionID
+}
+
+func fileLabels(m FileMenu) map[string]string {
+	return map[string]string{
+		"new_tab": m.NewTab, "open_file": m.OpenFile, "open_folder": m.OpenFolder,
+		"save": m.Save, "save_as": m.SaveAs, "save_all": m.SaveAll,
+		"reload_file": m.ReloadFile, "quit": m.Quit,
+	}
+}
+
+func editLabels(m EditMenu) map[string]string {
+	return map[string]string{
+		"undo": m.Undo, "redo": m.Redo, "cut": m.Cut, "copy": m.Copy, "paste": m.Paste,
+		"select_all": m.SelectAll, "find": m.Find, "find_in_project": m.FindInProject,
+		"replace": m.Replace, "toggle_comment": m.ToggleComment,
+	}
+}
+
+func viewLabels(m ViewMenu) map[string]string {
+	return map[string]string{
+		"command_palette": m.CommandPalette, "toggle_tree": m.ToggleTree,
+		"toggle_terminal": m.ToggleTerminal, "toggle_scm": m.ToggleSCM,
+		"color_theme": m.ColorTheme, "display_language": m.DisplayLanguage,
+		"toggle_mouse": m.ToggleMouse,
+	}
+}
+
 // Registry holds the catalogs a session can switch between.
 type Registry struct {
 	catalogs map[Locale]Catalog

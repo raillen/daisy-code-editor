@@ -1,12 +1,15 @@
 package theme
 
 import (
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
 	"charm.land/lipgloss/v2"
 
 	"github.com/ori-team/oride/internal/config"
+	"github.com/ori-team/oride/internal/syntax"
 	"github.com/ori-team/oride/internal/tui/layout"
 )
 
@@ -24,15 +27,15 @@ func sampleConfig() (config.UIConfig, config.SyntaxColors) {
 // over every role rather than one: a theme that suppresses colour in one place and
 // paints in another is the error the rule names.
 func TestNoColorAppliesNothing(t *testing.T) {
-	ui, syntax := sampleConfig()
-	plain := New(ui, syntax, NoColor)
+	ui, colors := sampleConfig()
+	plain := New(ui, colors, NoColor)
 
 	roles := map[string]string{
 		"selection": plain.Selection().Render("texto"),
 		"gutter":    plain.Gutter().Render("12"),
 		"status":    plain.Status().Render("status"),
 		"dirty":     plain.StatusDirty().Render("sujo"),
-		"comment":   plain.Comment().Render("// nota"),
+		"comment":   plain.Syntax(syntax.Comment).Render("// nota"),
 	}
 	for role, rendered := range roles {
 		if strings.ContainsRune(rendered, 0x1b) {
@@ -46,8 +49,8 @@ func TestNoColorAppliesNothing(t *testing.T) {
 
 // TestNoColorRendersTheTextItself: suppressing colour must not suppress content.
 func TestNoColorRendersTheTextItself(t *testing.T) {
-	ui, syntax := sampleConfig()
-	plain := New(ui, syntax, NoColor)
+	ui, colors := sampleConfig()
+	plain := New(ui, colors, NoColor)
 
 	if got := plain.Selection().Render("texto"); got != "texto" {
 		t.Errorf("renderizou %q, esperado o texto sem alteração", got)
@@ -58,8 +61,8 @@ func TestNoColorRendersTheTextItself(t *testing.T) {
 // suppressed colour would pass the tests above while showing a monochrome editor.
 func TestColorProfilesEmitSequences(t *testing.T) {
 	for _, profile := range []Profile{ANSI16, ANSI256, TrueColor} {
-		ui, syntax := sampleConfig()
-		themed := New(ui, syntax, profile)
+		ui, colors := sampleConfig()
+		themed := New(ui, colors, profile)
 
 		if got := themed.Selection().Render("texto"); !strings.ContainsRune(got, 0x1b) {
 			t.Errorf("%v: nenhuma sequência emitida: %q", profile, got)
@@ -70,8 +73,8 @@ func TestColorProfilesEmitSequences(t *testing.T) {
 // TestStyledTextMeasuresTheSameWidth is the invariant that keeps a styled frame
 // aligned: escapes occupy no cells.
 func TestStyledTextMeasuresTheSameWidth(t *testing.T) {
-	ui, syntax := sampleConfig()
-	themed := New(ui, syntax, TrueColor)
+	ui, colors := sampleConfig()
+	themed := New(ui, colors, TrueColor)
 
 	for _, text := range []string{"texto", "日本語", "com ç e ã", ""} {
 		plain := layout.Width(text)
@@ -86,8 +89,8 @@ func TestStyledTextMeasuresTheSameWidth(t *testing.T) {
 // TestAStyledRowPadsToTheExactWidth is what a frame actually does, and where a
 // width bug would show up as a diagonal layout.
 func TestAStyledRowPadsToTheExactWidth(t *testing.T) {
-	ui, syntax := sampleConfig()
-	themed := New(ui, syntax, TrueColor)
+	ui, colors := sampleConfig()
+	themed := New(ui, colors, TrueColor)
 
 	for _, width := range []int{10, 40, 79, 80} {
 		row := layout.Pad(themed.Selection().Render("um rótulo"), width)
@@ -151,5 +154,49 @@ func TestShippedDefaultRendersWithColour(t *testing.T) {
 func TestProfileOrdering(t *testing.T) {
 	if !(NoColor < ANSI16 && ANSI16 < ANSI256 && ANSI256 < TrueColor) {
 		t.Error("os perfis não estão ordenados por capacidade")
+	}
+}
+
+// TestEverySyntaxRolePaintsItsOwnColour is the contraprova of the single
+// accessor.
+//
+// Each of the twenty roles gets a distinct colour, so a role reading the wrong
+// field — or no field, which the shipped palette hides because several roles
+// share "reset" — shows up as a repeat or as a missing escape. The lesson of
+// TestNamedColoursActuallyRender applies twice: the assertion is on the rendered
+// output, because a role that resolves nothing is a silent no-op.
+func TestEverySyntaxRolePaintsItsOwnColour(t *testing.T) {
+	colors := config.Default().Syntax
+	value := reflect.ValueOf(&colors).Elem()
+
+	// The style library renders a true colour as decimal components, so the
+	// expectation is built the same way: asserting on the hex would assert on the
+	// input rather than on what the terminal receives.
+	expected := map[syntax.Role]string{}
+	for index, role := range syntax.All() {
+		if !value.FieldByName(role.String()).CanSet() {
+			t.Fatalf("o papel %s não corresponde a um campo de SyntaxColors", role)
+		}
+		value.FieldByName(role.String()).SetString(fmt.Sprintf("#%02x4060", 16+index))
+		expected[role] = fmt.Sprintf("38;2;%d;64;96", 16+index)
+	}
+
+	built := New(config.Default().UI, colors, TrueColor)
+	seen := map[string]syntax.Role{}
+	for _, role := range syntax.All() {
+		rendered := built.Syntax(role).Render("x")
+		if !strings.Contains(rendered, expected[role]) {
+			t.Errorf("%s: pintou %q, esperava a cor %s", role, rendered, expected[role])
+		}
+		if other, repeated := seen[rendered]; repeated {
+			t.Errorf("%s e %s pintam o mesmo: %q", other, role, rendered)
+		}
+		seen[rendered] = role
+	}
+
+	// A role with no configured colour paints nothing, which is the promise the
+	// absence makes.
+	if got := built.Syntax(syntax.None).Render("x"); got != "x" {
+		t.Errorf("o papel None pintou %q", got)
 	}
 }

@@ -8,8 +8,9 @@ import (
 // selectionCommands change what is selected and how many carets exist.
 func selectionCommands() map[action.Action]Handler {
 	return map[action.Action]Handler{
-		action.SelectAll: documentHandler(func(_ *App, document *editor.Document) error {
+		action.SelectAll: documentHandler(func(a *App, document *editor.Document) error {
 			document.SelectAll()
+			a.Status = "select all"
 			return nil
 		}),
 

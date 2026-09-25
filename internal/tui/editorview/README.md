@@ -16,9 +16,22 @@ uma gutter fixa desalinharia todo o texto.
 **A gutter cede primeiro.** Se ela não deixar largura útil para o texto, ela sai —
 uma coluna de números sem texto ao lado não é um editor menor, é um editor quebrado.
 
-**A seleção ainda não é pintada aqui.** Ela é *dado* no modelo, e o tratamento
-visual chega com o tema; pintar texto sem cor para marcar seleção corromperia o
-próprio texto que a superfície existe para mostrar.
+**O texto e os papéis dele andam juntos**, num `Line` só: dois arrays alinhados
+por índice são um acoplamento que nada verifica, e uma linha que perdesse os
+tokens ainda seria uma linha — pintada sem cor, sem nada dizendo por quê.
+
+**A precedência é decidida por célula**, não pela ordem em que os estilos são
+aplicados: seleção > resultado da busca > papel. O que o leitor pediu vence o que
+o tema escolheu.
+
+**Offset de byte vira coluna de célula dentro da pintura**, e a conversão mora em
+`layout.Cells`. `buffer` conta escalares, `layout` conta células, e as duas só são
+a mesma distância enquanto todo caractere tem uma célula — uma seleção depois de
+um caractere largo era uma coluna curta, em silêncio, só nas linhas que tinham um
+caractere largo antes dela.
+
+**Linha sem papel sai sem estilo**, que é o caso comum: um documento sem lexer não
+paga uma sequência de escape em cada linha.
 
 **Toda linha volta com largura exata**, e o viewport volta com a altura pedida —
 uma tela curta deixaria o que está abaixo subir.

@@ -2,7 +2,7 @@
 
 - Project: **Oride Terminal IDE**
 - Framework: **Prumo v0.6.0** (Protocolo v3)
-- Current phase: **M0 — Fundação, Oráculo e Prumo**
+- Current phase: **M4 — Paridade de features** (M0–M3 concluídos)
 - Current goal: **Migração Rust → Go com paridade diferencial provada**
 - Context methodology: **Lean Progressive Context (LPC)**
 - Last updated: `2026-09-25T00:00:00Z`
@@ -82,10 +82,261 @@ instância: um valor medido numa unidade e afirmado noutra apareceu quatro vezes
 neste trabalho — a largura do `…` no `layout` e no `docdrift`, a largura do `▶` no
 `component`, e um teste comparando bytes onde o código media células.
 
-### Próximo — M3.4: sobreposições
+### M3.4 — Sobreposições · **completo**
 
-`palette`, `whichkey`, `help` e os modais, com a regra de captura do grafo provada
-por teste.
+- ✅ `palette`, `whichkey`, `help` e os modais **pelo componente `list`**, não por
+  um overlay escrito à mão. O manual saiu; o que ficou é testado.
+- ✅ A regra de captura do grafo está provada nos **dois** overlays — o da TUI e o
+  do modelo. Checá-la num só foi um defeito real: abrir a buscaava digitação para
+  o documento atrás da barra.
+- ⚠️ **Os overlays não entram na matriz de golden**, e o motivo está escrito em
+  `golden_test.go`: o campo de filtro do `list` pisca, e a saída depende do
+  relógio. Um golden passaria numa máquina rápida e falharia numa lenta.
+
+## M4 — Paridade de features (em andamento)
+
+**Feito:** find no buffer (modelo + barra + realce + digitação ao vivo) · tema com
+perfis e degradação · seleção pintada · sessão persistida · sobreposições pelo
+`list` · **realce de sintaxe (S1)**.
+
+### S1 — Realce de sintaxe · **completo**
+
+- ✅ **`internal/syntax`** — os vinte papéis da tabela `[syntax]`, que eram
+  parseados, testados e **lidos por ninguém** desde o primeiro marco. O motor é o
+  `chroma/v2`, sem CGO; o `tree-sitter` continua fora do padrão.
+- ✅ O mapeamento é **por família de linguagem**: o lexer de Markdown emite
+  `Keyword` para marcador de lista e para citação, e `NameTag` para o texto de um
+  link — onde em HTML são tag e atributo. Três colisões, cada uma com um papel só.
+- ✅ **`[[languages]]` finalmente tem leitor**: as entradas do usuário respondem
+  primeiro, por nome e por extensão, e o registro do `chroma` pelo resto.
+- ✅ A pintura mora na borda: `layout.Cells` converte offset de byte em coluna de
+  célula, e é a **única** conversão do pacote. Antes, uma seleção depois de um
+  caractere largo era uma coluna curta — em silêncio, e só nas linhas com caractere
+  largo antes.
+- ✅ `editorview.Lines` passou de `[]string` para `[]Line`, com o texto e os papéis
+  dele juntos. Dois arrays alinhados por índice são um acoplamento que nada
+  verifica.
+- ✅ O realce é **assíncrono e cacheado por `(documento, versão, caminho)`**. O
+  caminho entra na chave porque renomear muda a linguagem sem mudar um byte da
+  versão; a versão porque uma resposta que chega depois da próxima digitação
+  descreve um documento que não existe mais.
+- **Contraprova:** um `.txt` tem que sair **sem cor no texto**, e um `.go` tem que
+  sair com. Sem o par, um frame em que a barra demenu pinta algo satisfaria "há um
+  escape" e o motor poderia não estar fazendo nada.
+
+**Desvios declarados** (§6 do plano manda dizer quando acontece): o S1 levou duas
+coisas que o plano não nomeava — a conversão byte→célula e a mudança do tipo de
+`Lines`. As duas são consequência direta de "os vinte papéis têm consumidor", e
+nenhuma delas é adiável sem refazer o mesmo trabalho.
+
+### S2 — Medida de largura · **completo**
+
+- ✅ **Uma medição só.** `layout` delega a `clipperhouse/displaywidth` — a engine
+  que os componentes `bubbles` usam. `go-runewidth` saiu da dependência direta.
+  Não há três medidas para comparar: há uma, e a ponte é onde ela é configurada.
+- ✅ **A regra conservadora estava errada, e a medição provou.** Ambíguo agora
+  conta como **estreito**: a tabela ambígua do `runewidth` inclui "é" e não
+  inclui "ã", então "são" mediava 4 células num terminal que desenha 3 — e **cada
+  linha acentuada saía uma coluna mais larga que a vizinha**. Desvio declarado no
+  plano, que recomendava manter a regra antiga.
+- ✅ **Cluster de grafema, não rune.** `Slice`, `Truncate` e `Cells` mediam por
+  rune; acento combinado, emoji com ZWJ e bandeira são um caractere na tela e
+  vários runes no texto. Cortar no meio de um cluster produz um caractere que o
+  terminal não sabe desenhar.
+- **Contraprova:** `TestTheThreeMeasuresAgree` exige acordo entre as três medidas
+  que existiam, sobre texto ambíguo, largo, com acento combinado, com emoji e com
+  ANSI. E os **dez golden frames** foram regenerados com o diff lido: uma linha
+  por arquivo, sempre a do `(sem título)` ou a da mensagem truncada, cada uma um
+  caractere a menos de enchimento — o bug corrigido aparecendo no snapshot.
+
+### S5 — Teste de fumaça · **completo**
+
+- ✅ **`cmd/oride/smoke_test.go`** dirige a sessão inteira como um usuário: abre,
+  Tab até a árvore, expande diretório, abre `notas.md`, volta ao editor, digita,
+  `Ctrl+F`, busca ao vivo, `Esc`, `Ctrl+Q`. Cada passo afirma **estado**, nunca
+  frame.
+- ✅ **Vive no pacote `main` de propósito**: a sessão é montada pelo mesmo código
+  que o binário executa (configuração mesclada, keymap, árvore, restauração). Um
+  teste em `internal/tui` montaria a aplicação à mão e passaria com o
+  `openEditor` quebrado.
+- **Contraprova:** sem o binding de `Ctrl+Q` o modelo não fecha. E a primeira
+  versão do teste tinha uma afirmação errada — "pediu para sair" via `Cmd` no
+  retorno de `Update` — que **só começou a falhar depois do S1**: com o realce
+  assíncrono, todo `Update` devolve um `Cmd`, e a afirmação media a existência do
+  realce. Passar pela razão errada é a mesma classe de um gate que mede o que ele
+  mede.
+
+**Ordem trocada, e declarada:** S5 veio antes de S3, contra a numeração do plano.
+A rede de proteção tem que existir antes da refatoração, não depois.
+
+### S3 — Componentes da biblioteca · **1 de 4**
+
+- ✅ **`findbar` → `textinput`.** `field()`, `tail()`, `appendFind()` e
+  `backspaceFind()` não existem mais: inserção, apagar por rune, placeholder e
+  cauda são do componente. A barra recebe o campo **já desenhado**.
+- ✅ **Os dois testes** que mediam cauda e placeholder foram **apagados** (mediam a
+  biblioteca); o que é nosso ganhou teste.
+- ✅ **Um único caminho escreve a consulta** (`setFindQuery`). O teste do
+  backspace agora digita em vez de atribuir, e afirma os dois lados — porque
+  escrever no modelo sem escrever no campo mediria uma barra que o usuário nunca
+  vê.
+- **Evidência do aceite:** os **quatro goldens da barra passaram sem regerar** —
+  quadro byte a byte igual, o que prova que a troca não mudou comportamento.
+- ⚠️ **Duas consequências declaradas:** o cursor virtual do componente **pisca**,
+  então foi desligado (um golden não pode depender do relógio) — e a barra de
+  busca **não tem cursor visível**, dívida de M4. Os estilos do componente foram
+  **zerados**, porque no perfil sem cor ele emitia escapes que o perfil promete não
+  emitir.
+
+### S3 — medido: 1 aplicado, 3 sem o que remover · **concluído**
+
+A lista dizia que três componentes ainda estavam escritos à mão. A medição disse
+outra coisa:
+
+- **which-key / ajuda: já estava feito, e o plano se contradiz.** A primeira linha
+  da tabela S3 marca `overlay (palette, which-key, ajuda)` como ✅ substituído pelo
+  `list`; a quinta os lista de novo como "à mão". O que sobrou é
+  `bindingItems` — 18 linhas que leem o keymap e viram itens de lista. E
+  `bubbles/help` desenha duas colunas estáticas, **pior** para 98 bindings
+  filtráveis do que a lista com scroll.
+- **`editorview` → `viewport`: não há o que remover.** O que existe é
+  `component.Window`, 53 linhas de função pura com a regra "a seleção está sempre
+  visível e a lista não salta", e com dois usos provados. **Não existe estado de
+  scroll** — o campo `Scroll` da `View` da árvore nunca foi preenchido, e foi
+  removido com a medição anotada. `viewport` adicionaria um recurso ausente, não
+  removeria duplicação.
+- **`tree` → `tree`: a biblioteca repetiria o modelo.** `bubbles/tree.New` **possui**
+  a árvore, e adotá-la produziria três defeitos medidos: duplicar `internal/fs` (que
+  o harness de paridade compara com o oráculo), trazer de volta `▼ ▶ →` (largura
+  ambígua — a mesma classe de bug do `▶` e do `…`) e trazer um segundo `viewport`
+  (o que o S2 acabou de consolidar).
+
+### S4 — regra de aptidão das teclas · **feito, e 9 teclas religadas**
+
+- ✅ **A regra:** toda ação com tecla tem tratamento, ou está na dívida nomeada com
+  motivo, nos dois sentidos. E toda binding anunciada é uma tecla que o terminal
+  manda.
+- **O número agora:** 81 ações com tecla · **49 tratadas** · 4 interceptadas pela
+  TUI · **28 mortas** (era 37 tratadas e 40 mortas).
+- ✅ **13 teclas religadas, nesta ordem:**
+  - **Abas** — `next_tab`, `prev_tab`, `new_tab`, `close_tab`. O store já tinha as
+    três operações; o que faltava era o despacho. Fechar a última aba abre um
+    documento vazio e **diz** que fechou.
+  - **Paginação** — `page_up`/`page_down` andam `altura − 1` linhas, que é a regra
+    do oráculo. A altura é **injetada** pela composição (`App.EditorHeight`), nunca
+    lida do terminal: um teste pede "uma página de dez linhas" sem tocar no
+    ambiente.
+  - **Área de transferência** — `copy`, `paste`, `cut`, com a regra do oráculo: a
+    **seleção, ou a linha inteira** quando não há seleção. `internal/clipboard` é
+    buffer de sessão + **OSC 52** (escrita, que sobrevive à saída e funciona sobre
+    SSH), sem `fork` de `xclip` — o plano lista `atotto/clipboard` como
+    não-candidata. O modelo guarda a sequência e a TUI a escreve, porque o modelo
+    não é dono do stdout: uma escape no dump quebraria a paridade byte a byte.
+  - **Painéis, foco e recarga** — `focus_toggle_tree_editor` (a árvore aparece
+    quando o alvo estava escondido, porque atalho para superfície invisível é
+    atalho para nada), `tree_refresh` (relê o disco: um arquivo novo aparece), 
+    `toggle_mouse` (a mensagem diz por que o padrão é desligado) e `reload_file`
+    (`Document.ReloadFromDisk` mantém o caret, descarta o undo **de propósito** e
+    limita o caret ao fim do texto novo — o mesmo invariante do oráculo). Falha de
+    recarga é **status, não erro**: recarregar um arquivo que sumiu é situação
+    normal.
+- **Um achado de teste, e vale mais que o código:** o clipboard é **estado do
+  processo**, então dois testes que colam compartilham o buffer e o segundo falha
+  por causa do primeiro. Todo teste de cópia agora esvazia o buffer explicitamente,
+  com o motivo escrito — o oráculo usa um lock pelo mesmo motivo.
+
+- **Correção que quase entrou, e o ledger teria registrado errado:** trocar o
+  canônico `pagedown` → `pgdown` (a grafia do Bubble Tea) quebrou a paridade do
+  dump e revelou que `ApplyKey` **já** traduz por `keymap.Parse`. **Não havia
+  binding morta por grafia**; a segunda tradução só criaria uma segunda verdade.
+  Revertido, e ficou um teste que mede a propriedade real.
+- ✅ **A regra do enunciado do S4 também está feita: R8** em
+  `internal/architecture`. Ela varre as tabelas de `internal/config`, conta as
+  leituras em cada arquivo que **importa** o config, e falha o build quando um
+  campo não tem leitor e não está na dívida nomeada (16 entradas). Falha também
+  quando a dívida ganha leitor, ou quando um campo novo aparece.
+- **A R8 encontrou uma chave morta que o grep não via:** `[ui].gutter_width`. A
+  largura da gutter é derivada do número de linhas pela `editorview`, e o campo
+  documenta um valor que nada lê.
+- **O que a R8 não prova, escrito na própria regra:** a contagem é lexical. Um
+  campo cujo nome colide com o de outro tipo, no mesmo arquivo que importa o
+  config, passa. É o mesmo trade-off de `Load` (imports sem tipos).
+
+### Item 2 — Pickers e execução de overlay · **completo**
+
+- ✅ **Enter executa a linha destacada.** Era a peça que faltava: a paleta
+  **listava** comandos e não rodava nenhum.
+- ✅ **A paleta mostra rótulos, não ids.** `i18n.Catalog.Label(actionID)` traduz os
+  26 comandos que os menus nomeiam ("Salvar", "Alternar árvore") e devolve o id para
+  o resto.
+- ✅ **Enter aplica com o filtro aberto também**, interceptado antes da lista: o
+  componente gasta o Enter em "aceitar o filtro" (`AcceptWhileFiltering`), e num
+  seletor isso é uma tecla jogada fora entre digitar e escolher.
+- ✅ **Tecla digitável abre o filtro**, sem o `/` da convenção de lista, e o texto
+  entra **semeado** — a primeira letra de um filtro recém-aberto é o que a lista
+  ainda não viu, e mandá-la pelo `Update` depois de trocar o estado a perde.
+- ✅ **Os dois seletores**: `select_theme` lista os temas do registro com o ativo
+  marcado **em texto**, e guarda o nome **normalizado** (aplicar "Tokyo Night"
+  resolveria um tema que não existe, e o sintoma é um seletor que "funciona" e não
+  muda nada). `select_locale` recarrega o catálogo.
+- ✅ **Os nomes da sobreposição saem do modelo** (`app.OverlayThemePicker` etc.) e a
+  TUI deriva os dela — duas cópias da mesma string em dois pacotes é a divergência
+  esperando o dia.
+- ⚠️ **Dívida que fica, e é de forma:** o dump do overlay no oráculo é um union rico
+  (`ThemePicker{query, selected, themes, locales}`) e o Go emite uma string. Nenhum
+  caso de paridade exercita os seletores, então a suíte está verde — e quando um
+  caso existir, a forma do dump tem de acompanhar.
+
+**As 28 teclas restantes não são dispatch faltando: são recurso inteiro**, e cada
+grupo diz o que precisa:
+
+| Grupo | Teclas | O que falta |
+|---|---|---|
+| Painel de terminal | 4 | região já existe no `layout`; falta o estado (`ShowTerminal`), a superfície e a PTY na raiz de composição |
+| SCM + diff | 5 | `internal/git` já tem o status; falta a região, a superfície e os handlers de pull/push |
+| Splits | 6 | o `layout` é de painel único; é trabalho de layout |
+| LSP | 5 | o cliente existe e a app nunca o sobe |
+| Pickers | 4 | a infraestrutura de overlay existe; falta a lista de temas/locales/buffers |
+| Overlays de entrada | 2 | `tree_new_file`/`tree_new_dir` abrem um **prompt** no oráculo — é o `textinput` numa sobreposição nova |
+| Busca no projeto | 2 | o walker existe; falta a sobreposição |
+| Edição | 4 | soft wrap (envolver linhas), `surround`, jump list, undo tree |
+| Comentar linha | 1 | `toggle_comment` usa o comentário de linha da linguagem — **outro campo de configuração sem leitor** |
+| Misc | 1 | `toggle_modal` é o motor Vim do M4, trabalho real |
+
+**Próximo, por valor para quem lê o programa:** o **painel de terminal** (4 teclas) —
+a região já existe no `layout` e `internal/term` já tem a PTY; falta o estado no
+modelo, a superfície que pinta o scrollback, e a PTY nascer na raiz de composição.
+
+## Camada de documentação do Prumo
+
+O Prumo instalado é o build da `main` com os assets **embutidos** (v0.6.0), e os
+gates de governança funcionam a partir deste repositório — o P14 do ledger está
+**fechado**, e o procedimento está em [`docs/PRUMO.md`](docs/PRUMO.md).
+
+- ✅ **`docs/contracts/bindings.json`** — 13 contratos vinculados às suas fontes
+  reais e 4 dispensados com o motivo escrito. `prumo docs audit` passou a rodar;
+  antes ele nem tinha o que ler.
+- ✅ **`docs/AUTHORITY_MAP.json`** — 83 documentos classificados: 40 canônicos,
+  34 projeções (`docs/en/**`, `docs/guides/en/**`) e 8 registros (`docs/planning`,
+  `docs/migration`, ADR). `prumo docs authority` passa limpo.
+- ✅ **`docs/lifecycle.json`** — versão, gates de release e a depreciação de
+  `docs/en/design.md`, que é uma projeção abreviada da fonte pt-BR.
+- ✅ **Oito links quebrados que o gate achou e ninguém tinha visto:** dois índices
+  apontando para `ATLAS.md` (virou `PRUMO.md` no rebranding do Prumo 0.5), a
+  projeção `docs/en/ui-ux/` apontando para cinco arquivos nunca escritos, e um
+  caminho relativo quebrado em `docs/guides/pt/markdown.md`.
+- ✅ **`docs/development/testing-strategy.md` e `coding-standards.md` reescritos**:
+  os dois nomeavam só `cargo`, `Ratatui`, `Crossterm` e `Ropey` — a estratégia de
+  testes descrevia um produto que não existe desde o primeiro marco em Go. Agora
+  nomeiam os checks que bloqueiam de verdade, e declaram o que **não** é gate
+  (cobertura de 85% não é medida por nada; golden só para o que é função pura do
+  estado).
+- ⚠️ **Um achado permanece, e é deliberado (P15):** a política de versão do Prumo
+  compara a versão do produto com a versão do CLI. Escrever `0.6.0` deixaria o
+  gate verde e a afirmação falsa; o `version-policy-drift` fica visível.
+- ⚠️ **O `audit` é lexical** e o vocabulário dos contratos é inglês contra uma
+  fonte pt-BR: todo contrato vinculado aparece `partial` mesmo quando o
+  conhecimento está lá. O caminho para `verified` é semântico e é trabalho do M6.
 
 ## Onde o projeto está
 
@@ -198,12 +449,20 @@ são observáveis no dump são comparados byte a byte contra o oráculo.
 
 ## Próxima ação
 
-- **M1, na ordem de dependência:** `keymap`/`chord` (com o dump de keymap do
-  oráculo como verificação), depois `buffer` e `editor` — que é onde vivem os
-  itens B1–B4 e B10–B11 do ledger —, depois `config`/`theme`/`i18n`.
-- **Depois M2:** adaptadores de I/O (git, fs, search, lsp, pty/term, session,
-  plugin). **M3:** shell TUI em Bubble Tea v2 com golden frames. **M4:** gate de
-  paridade — 100% dos casos, ledger sem exceções abertas.
+- **S2** — consolidar a medida de largura. Três medidas convivem (`layout`,
+  `bubbles`, `x/ansi`) e a classe de bug mais frequente deste projeto é um valor
+  medido numa unidade e afirmado noutra: cinco vezes. Consolinar é pré-requisito,
+  não tarefa paralela.
+- **S3** — substituir os quatro componentes escritos à mão: `findbar` →
+  `textinput`, `editorview` → `viewport`, `tree` → `tree`, which-key/ajuda → `key`
+  + `help`. Um commit por componente, e os testes do que deixou de ser nosso são
+  **apagados**, não adaptados.
+- **S4 e S5** — a regra de aptidão (configuração sem consumidor falha o build) e o
+  teste de fumaça que dirige a TUI como um usuário. O gate do M4 passa a exigir os
+  dois.
+- **Depois:** SCM + diff, splits, multi-cursor com gesto, preview Markdown,
+  pickers de tema e locale, motor modal Vim, task runner, disk watch, bracketed
+  paste — na ordem do plano.
 
 ## Ordem de recuperação
 

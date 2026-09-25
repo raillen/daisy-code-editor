@@ -1,69 +1,135 @@
-# Estratégia de Testes Exaustivos e Ciclo de Qualidade
+# Estratégia de Testes e Ciclo de Qualidade
 
-Este documento codifica o **ciclo mandatório e rigoroso de testes e qualidade** aplicado a todas as implementações deste projeto. Nenhum código é integrado sem evidências automatizadas de aprovação em todos os níveis da pirâmide.
+Nenhum código é integrado sem evidência automatizada. Este documento diz **quais
+checks bloqueiam** e o que cada um prova — porque um gate que mede frames, testes
+e paridade sem perguntar se uma tecla faz alguma coisa já deixou passar uma TUI
+inutilizável aqui (ver §5).
+
+A implementação alvo é **Go** (`cmd/`, `internal/`); o **Rust** (`crates/`) é o
+oráculo diferencial e é buildado pelo CI ao lado dela.
 
 ---
 
-## 1. O Loop Rigoroso de Implementação (TDD / BDD)
-
-Para cada nova funcionalidade ou correção de defeito:
+## 1. O loop
 
 ```mermaid
 flowchart LR
-    A[1. Definir Contrato / Goal] --> B[2. Escrever Teste com Falha]
-    B --> C[3. Implementação Mínima]
-    C --> D[4. Validação & Refatoração]
-    D --> E[5. Bateria de Segurança & Estresse]
-    E --> F[6. Evidência & Atualização de Docs/Changelog]
+    A[1. Contrato] --> B[2. Teste que falha]
+    B --> C[3. Implementação mínima]
+    C --> D[4. Contraprova]
+    D --> E[5. Suíte + paridade]
+    E --> F[6. Docs e CHANGELOG]
 ```
 
-1. **Definição de Contratos**: Especificar a interface, tipos e critérios de aceitação.
-2. **Teste Inicial**: Criar teste que reproduza a falha ou verifique o comportamento esperado antes de codificar a solução.
-3. **Implementação**: Escrever código limpo, modular e desacoplado que satisfaça o teste.
-4. **Refatoração**: Aplicar princípios de Clean Code sem quebrar nenhum teste existente.
-5. **Varredura Completa**: Executar suíte de conformidade, segurança, performance e estresse.
-6. **Evidência e Changelog**: Atualizar documentação afetada e registrar a mudança no `CHANGELOG.md`.
+1. **Contrato** — o comportamento observável, não a assinatura interna.
+2. **Teste que falha primeiro** — inclusive para correção de defeito: o caso
+   `conformance/cases/<feature>/*.json` reproduz a divergência.
+3. **Implementação mínima** que satisfaz o teste.
+4. **Contraprova** — a prova de que o teste é capaz de falhar. Um teste que nunca
+   falhou não mediu nada: `TestRulesCanFail`, `TestComparatorDetectsDivergence` e
+   `TestDocumentedKeymapFailsOnATypo` existem por isso.
+5. **Suíte e paridade** (§3).
+6. **Documentação e `CHANGELOG.md`** no mesmo commit do código.
 
 ---
 
-## 2. As Camadas da Pirâmide de Testes
+## 2. As camadas
 
-### A. Funcionalidade
-- **Testes Unitários**: Determinísticos, rápidos (milissegundos), sem chamadas de rede ou I/O real. Cobertura mínima exigida: **85%**.
-- **Testes de Integração**: Testam interações reais entre módulos, adaptadores de banco de dados e sistemas de arquivos com fixtures isoladas.
-- **Testes de Contrato**: Validação de comunicação entre serviços e interfaces públicas.
+### A. Domínio puro
+Testes unitários determinísticos, sem TTY, sem rede: `internal/buffer`,
+`internal/editor`, `internal/action`, `internal/keymap`, `internal/config`,
+`internal/search`, `internal/syntax`. Onde o dump do oráculo expõe o estado, o
+teste compara **byte a byte** contra o Rust.
 
-### B. Conformidade e Validação Estática
-- **Linters**: Verificação estrita de sintaxe, tipos e convenções.
-- **Schemas**: Validação de todas as estruturas de entrada/saída contra esquemas JSON Draft 2020-12.
-- **Formatação**: Zero divergência em relação ao padrão canônico.
+### B. Adaptadores
+I/O real com fixture isolada: `internal/fs`, `internal/git`, `internal/lsp`
+(transporte separado do processo, o cliente inteiro testado por um pipe),
+`internal/term` (PTY), `internal/session` (digest FNV-1a contra valores golden do
+Rust), `internal/plugin` (execução sem shell).
 
-### C. Segurança (DevSecOps)
-- **Varredura de Segredos**: Proibição de chaves, senhas ou tokens no código (verificação automatizada pré-commit).
-- **SAST (Static Application Security Testing)**: Análise estática contra injeção de comandos, XSS, SSRF e vulnerabilidades OWASP Top 10.
-- **Auditoria de Dependências**: Detecção de CVEs e bibliotecas vulneráveis ou obsoletas na cadeia de suprimentos.
-- **Princípio do Menor Privilégio**: Testes de permissões restritas em tempo de execução.
+### C. Superfícies
+Renderização sem terminal, asserção sobre a **string renderizada** e não sobre o
+valor parseado: `internal/tui/*`. Cor não resolvida é no-op silencioso, e um teste
+que compara o valor parseado passa com o produto monocromático.
 
-### D. Performance, Carga e Estresse
-- **Benchmarks**: Medição contínua de latência e consumo de memória por operação.
-- **Testes de Concorrência & Deadlock**: Detecção de condições de corrida, contenção de mutexes e verificação de segurança de threads em buffers e canais assíncronos.
-- **Testes de Estresse & Carga**: Operações contínuas em buffers gigantes (Ropey) e saturação de eventos de entrada.
+### D. Conformidade e validação estática
+- **Formato**: `gofmt -l cmd internal conformance` sem saída; `cargo fmt --all -- --check`.
+- **Vet e lint**: `go vet ./...`; `staticcheck ./...`; `cargo clippy --all-targets -- -D warnings`.
+- **Tabelas geradas**: `python3 scripts/gen-tables.py --check` compara ids de ação,
+  bindings e as 252 cores do registro de temas com o oráculo.
+- **Sem CGO**: `CGO_ENABLED=0 go build ./...` a cada mudança, não no release.
 
-### E. Terminal UI e Experiência do Usuário (TUI)
-- **Testes de Componentes & Widgets**: Renderização isolada e asserções sem TTY utilizando o `TestBackend` da biblioteca Ratatui.
-- **Testes de Integração de Entrada**: Simulação de fluxos reais de digitação e sequências de escape do Crossterm sem necessidade de terminal físico.
-- **Regressão Visual de Layout**: Asserção do buffer de células de caracteres para garantir estabilidade de splits, modais e barra de status.
-- **Acessibilidade e Ergonomia**: Garantia de contraste de cores, suporte a temas claros/escuros e navegação 100% acessível via teclado.
+### E. Contratos de arquitetura e de documentação
+- `internal/architecture`: R1–R7 como teste, cada regra com contraprova.
+- `internal/docdrift`: `docs/ui-ux/keymap.md` é **gerado** das 98 bindings e
+  comparado nos dois sentidos.
+
+### F. Paridade diferencial
+`go test ./conformance/...` executa o mesmo caso contra as duas implementações e
+compara sem tolerância. Duas garantias sustentam o número: o oráculo é
+determinístico e o comparador **detecta** divergência. Toda divergência
+intencional está em `docs/migration/parity-ledger.md` com veredito — *spec vence*,
+*código vence*, *removido* ou *melhoria*.
+
+### G. Limites declarados
+- **Cobertura de 85%**: alvo histórico, **sem gate**. Não existe medição no CI
+  que o sustente, e um número que nada mede é uma afirmação sem evidência — fica
+  escrito aqui como dívida, não como promessa.
+- **Golden frames**: só para o que é **função pura do estado**. O campo de filtro
+  do componente `list` pisca; a saída depende do relógio, e um golden passaria
+  numa máquina rápida e falharia numa lenta. As sobreposições ficaram fora da
+  matriz com o motivo registrado no código.
+- **Benchmarks e fuzz**: não existem ainda. Estão no M5 como trabalho real.
 
 ---
 
-## 3. Comandos de Execução Recomendados
+## 3. Os checks que bloqueiam
 
-| Categoria | Ferramenta Canônica | Comando Padrão |
-|-----------|---------------------|----------------|
-| Unitário & Integração | Cargo Test | `cargo test --workspace` |
-| Formatação | Rustfmt | `cargo fmt --all -- --check` |
-| Linter & Conformance | Clippy | `cargo clippy --all-targets -- -D warnings` |
-| Auditoria de Segurança | Cargo Audit | `cargo audit` |
-| Testes com Saída Completa | Cargo Test | `cargo test --workspace -- --nocapture` |
-| Compilação Otimizada | Cargo Release | `cargo build --release` |
+| Check | Comando | O que falha quando |
+|---|---|---|
+| Formatação | `gofmt -l cmd internal conformance` | um arquivo fora do padrão |
+| Vet | `go vet ./...` | diagnóstico do compilador ou do vet |
+| Lint | `staticcheck ./...` | código que compila mas está errado |
+| Testes | `go test -race ./...` | qualquer regressão, e `-race` pega concorrência |
+| Sem CGO | `CGO_ENABLED=0 go build ./...` | alguém introduz CGO no alvo distribuído |
+| Tabelas | `python3 scripts/gen-tables.py --check` | tabela diverge do oráculo |
+| Paridade | `go test ./conformance/...` | o Go faz algo que o oráculo não faz |
+| Governança | `prumo validate` · `prumo docs verify` | manifesto ou documentação divergem do código |
+
+O gate do marco acrescenta o **teste de fumaça** (S5), que dirige a TUI como um
+usuário: abre, anda na árvore, digita, busca, fecha. Sem ele, um gate que mede
+frames e contagens passa com um programa que não fecha.
+
+---
+
+## 4. Ordem de execução
+
+```bash
+gofmt -l cmd internal conformance   # format
+go vet ./...                        # vet
+go test -race ./...                 # suíte
+python3 scripts/gen-tables.py --check
+CGO_ENABLED=0 go build ./...        # alvo distribuído
+go test ./conformance/...           # paridade, exige o oráculo buildado
+prumo validate && prumo docs verify # governança
+```
+
+O job de paridade do CI faz `cargo build -p oride` antes: `cargo test` não
+renova o binário em `target/debug`, e um oráculo velho faria o gate comparar o Go
+contra a revisão anterior do Rust sem dizer nada.
+
+---
+
+## 5. O que um gate não mede
+
+Nove checks verdes conviveram com uma TUI em que não se fechava o programa, não
+se navegava a árvore e os menus não faziam nada. Frame, teste e paridade não
+perguntam se uma tecla funciona — e "marco completo" era verdade sobre a medição e
+mentira sobre o produto. Duas consequências já são regra:
+
+1. **Teste de fumaça por marco** (S5): caminhos, não frames.
+2. **Regra de aptidão** (S4): configuração sem consumidor falha o build.
+
+E uma que nenhuma máquina verifica: **um desvio do plano declarado quando
+acontece**. O componente `list` foi omitido em silêncio porque nada falhou, e uma
+linha no relatório de marco teria custado nada.

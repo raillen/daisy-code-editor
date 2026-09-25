@@ -15,10 +15,15 @@ type Row struct {
 }
 
 // View is what the panel needs to draw.
+//
+// **Não há `Scroll`.** Havia, e ninguém escrevia nele: a composição monta a
+// visão e a rolagem seguia a seleção, porque `component.Window` é a função pura
+// que garante "a seleção está sempre visível e a lista não salta". Um campo que
+// ninguém preenche é uma promessa de um recurso que não existe — e é também a
+// prova medida de que não há rolagem manual para trocar por `viewport`.
 type View struct {
 	Rows     []Row
 	Selected int
-	Scroll   int
 	Focused  bool
 }
 
@@ -41,7 +46,7 @@ func Render(width, height int, view View) []string {
 		return nil
 	}
 
-	start, end := component.Window(len(view.Rows), height, view.Selected, view.Scroll)
+	start, end := component.Window(len(view.Rows), height, view.Selected, 0)
 	rows := make([]string, 0, height)
 
 	if len(view.Rows) == 0 {

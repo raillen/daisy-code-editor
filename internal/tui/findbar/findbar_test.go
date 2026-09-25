@@ -9,8 +9,22 @@ import (
 	"github.com/ori-team/oride/internal/tui/theme"
 )
 
+// sampleTheme is the shipped palette: a View with no theme renders plain, and a
+// test do layout não deve estar medindo a ausência de cor.
+func sampleTheme() theme.Theme {
+	shipped := config.Default()
+	return theme.New(shipped.UI, shipped.Syntax, theme.TrueColor)
+}
+
 func sample() View {
-	return View{Query: "alfa", IgnoreAccents: true, Current: 2, Total: 5}
+	return View{
+		Theme:         sampleTheme(),
+		Field:         layout.Pad("alfa", FieldWidth),
+		ReplaceField:  layout.Pad("", FieldWidth),
+		IgnoreAccents: true,
+		Current:       2,
+		Total:         5,
+	}
 }
 
 // TestEveryRowHasTheExactWidth keeps the bar from shifting the frame.
@@ -89,48 +103,35 @@ func TestARegularExpressionErrorReplacesTheCount(t *testing.T) {
 }
 
 // TestALongQueryShowsItsTail: someone typing needs to see where they are typing.
-func TestALongQueryShowsItsTail(t *testing.T) {
-	view := sample()
-	view.Query = strings.Repeat("x", 40) + "FIM"
-
-	row := Render(120, view)[0]
-	if !strings.Contains(row, "FIM") {
-		t.Errorf("o fim da consulta não aparece: %q", row)
+// TestTheBarDrawsTheFieldItIsGiven is what is ours after the S3 swap: the bar
+// lays out a field that the component `textinput` already drew, and does not
+// second-guess it.
+//
+// The two tests that used to live here — the tail of a long query and the
+// placeholder of an empty one — were deleted rather than adapted: they measured
+// the component's behaviour, and the library tests it better. Keeping them would
+// be a copy of somebody else's suite, que diverge no primeiro bug corrigido lá.
+func TestTheBarDrawsTheFieldItIsGiven(t *testing.T) {
+	view := View{
+		Field:         layout.Pad("alfa", FieldWidth),
+		ReplaceField:  layout.Pad("digite…", FieldWidth),
+		ShowReplace:   true,
+		CaseSensitive: false,
+		Total:         0,
+		Theme:         sample().Theme,
 	}
-}
 
-// TestAnEmptyQueryShowsAPlaceholder: an empty field is indistinguishable from a
-// field that lost its content.
-func TestAnEmptyQueryShowsAPlaceholder(t *testing.T) {
-	view := sample()
-	view.Query = ""
+	rows := Render(60, view)
 
-	if row := Render(120, view)[0]; !strings.Contains(row, "digite…") {
-		t.Errorf("campo vazio sem indicação: %q", row)
+	if !strings.Contains(rows[0], "alfa") {
+		t.Errorf("o campo da consulta não está na linha: %q", rows[0])
 	}
-}
-
-// TestNoColourRendersNothingExtra is the bar's share of the no-colour guarantee.
-func TestNoColourRendersNothingExtra(t *testing.T) {
-	view := sample()
-	view.Theme = plain()
-
-	for _, row := range Render(80, view) {
-		if strings.ContainsRune(row, 0x1b) {
-			t.Errorf("o perfil sem cor emitiu escape: %q", row)
+	if !strings.Contains(rows[1], "digite…") {
+		t.Errorf("o campo da substituição não está na linha: %q", rows[1])
+	}
+	for index, row := range rows {
+		if got := layout.Width(row); got != 60 {
+			t.Errorf("linha %d com %d células", index, got)
 		}
 	}
-}
-
-func TestZeroWidthRendersNothing(t *testing.T) {
-	if rows := Render(0, sample()); rows != nil {
-		t.Errorf("largura zero devolveu %d linhas", len(rows))
-	}
-}
-
-// plain is the theme with colour suppressed, built from the product's own
-// configuration so the test cannot drift from the values the bar receives.
-func plain() theme.Theme {
-	shipped := config.Default()
-	return theme.New(shipped.UI, shipped.Syntax, theme.NoColor)
 }

@@ -81,7 +81,7 @@ Linha só com imagem vira card:
 
 ## Roadmap MD (normativo)
 
-Ver **[`docs/planning/alpha6-roadmap.md`](planning/alpha6-roadmap.md)** seções **M1** / **M2**.
+Ver **[`docs/planning/alpha6-roadmap.md`](../../planning/alpha6-roadmap.md)** seções **M1** / **M2**.
 
 | Item | Descrição | Status |
 |------|-----------|--------|

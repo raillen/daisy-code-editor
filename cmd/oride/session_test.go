@@ -25,6 +25,12 @@ func workspace(t *testing.T, files map[string]string) string {
 	}
 	for name, content := range files {
 		path := filepath.Join(root, name)
+		// O diretório do arquivo é criado junto: um workspace com pasta dentro é
+		// o que a árvore precisa para ter o que expandir, e um helper que só
+		// aceita arquivos na raiz obrigaria cada teste a montar a árvore à mão.
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("criando %s: %v", filepath.Dir(path), err)
+		}
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatalf("escrevendo %s: %v", name, err)
 		}

@@ -1,5 +1,12 @@
 # Architecture & Technical Design: Modular Rust TUI Code Editor & Mini-IDE
 
+> **Deprecated as a standalone document.** This English projection is abridged
+> (85 lines against 410 of the pt-BR source) and it describes the **Rust**
+> implementation, which is now frozen as the differential oracle. The canonical
+> and complete version is [`docs/design.md`](../design.md) — the migration to
+> Go is tracked in [`docs/migration/refactoring-plan.md`](../migration/refactoring-plan.md).
+> Registered in `docs/lifecycle.json`.
+
 ## Context
 
 **Oride** is a fast, modular, and extensible **terminal code editor and mini-IDE** inspired by the ergonomics of [Micro](https://micro-editor.github.io/) and [Helix], engineered in **Rust** with a core focus on systems languages (Rust, C, Bash/Shell), technical documentation (Markdown), the Ori ecosystem (`ori-lang`), and modern general-purpose languages via Tree-Sitter, integrated task runners, and standard Language Server Protocol (LSP).

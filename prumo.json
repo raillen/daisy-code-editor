@@ -131,7 +131,7 @@
     "autonomy": "agentic"
   },
   "goals": {
-    "active_phase": "M0",
+    "active_phase": "M4",
     "active_goal": null
   },
   "ai": {

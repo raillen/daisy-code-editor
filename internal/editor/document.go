@@ -3,6 +3,7 @@ package editor
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -473,6 +474,37 @@ func (d *Document) CommitEditGroup() { d.undo.CommitGroup(d.selection) }
 func (d *Document) MarkSaved() {
 	d.undo.CommitGroup(d.selection)
 	d.dirty = false
+}
+
+// ReloadFromDisk re-reads the file, keeping the caret where it was.
+//
+// A recarrega descarta o histórico de undo **de propósito**: desfazer depois de
+// uma recarga desfaria contra um texto que já não é o do disco, e o reader
+// receberia um documento que ele nunca editou. É a mesma decisão do oráculo
+// (crates/oride-core/src/document.rs::reload_from_disk), e é por isso que esta
+// função fica aqui e não na aplicação: as invariantes do documento são do
+// documento.
+//
+// O caret é limitado ao fim do texto novo: um arquivo que encolheu deixaria um
+// offset apontando para o nada, e o próximo `insert` escreveria no lugar errado.
+func (d *Document) ReloadFromDisk() error {
+	if !d.hasPath {
+		return errors.New("documento sem caminho")
+	}
+	text, err := os.ReadFile(d.path)
+	if err != nil {
+		return err
+	}
+
+	d.buffer = buffer.FromText(string(text))
+	length := buffer.Offset(len(text))
+	d.selection = CaretAt(min(d.selection.Head, length))
+	d.extraCarets = nil
+	d.preferredColumn = nil
+	d.undo = NewUndoStack()
+	d.dirty = false
+	d.version++
+	return nil
 }
 
 // UndoHistoryLabels returns the undo history labels.

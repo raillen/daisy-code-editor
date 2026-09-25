@@ -11,6 +11,37 @@ atual; não carregue a árvore de documentação inteira.
 - Formatos canônicos: Markdown, JSON, TOML e Git.
 - Estado derivado: caches, índices, contexto de execução, adaptadores compilados.
 
+## O framework, instalado
+
+O Prumo é a ferramenta que governa este projeto. Ela precisa ser um binário com
+os assets **embutidos** — um build de desenvolvimento resolve os recursos pelo
+disco, relativo ao diretório de onde foi chamado, e os gates funcionam só de
+dentro do checkout do próprio Prumo (achado **P14**).
+
+```bash
+git clone --depth 1 https://github.com/raillen/prumo && cd prumo
+go build -o ~/.local/bin/prumo ./cmd/prumo     # v0.6.0, assets embutidos
+```
+
+O asset de release cobre só a v0.5.0; quem precisa da linha corrente compila a
+`main`. Toda invocação precisa de stdin fechado — `prumo doctor </dev/null` —,
+porque a CLI bloqueia lendo-o.
+
+Gates de governança, e o que cada um mede:
+
+| Comando | O que falha quando |
+|---|---|
+| `prumo validate` | o manifesto `prumo.json` diverge do schema do Protocolo v3 |
+| `prumo doctor` | o ambiente ou a resolução do projeto não fecham |
+| `prumo docs authority` | um documento não está classificado, um link de roteamento quebra, ou há drift de versão |
+| `prumo docs audit` | um contrato de documentação não tem fonte |
+| `prumo docs verify` | link quebrado, claim drift, ou a política de versão diverge |
+
+A camada que o Prumo lê está em [`docs/contracts/`](contracts/README.md), e ela
+diz também **o que os comandos não medem** — o `audit` é lexical e o
+vocabulário dos contratos é inglês contra uma fonte pt-BR, então `partial`
+significa "a frase não está", não "o conhecimento não está".
+
 ## Estado do projeto
 
 - [Estado do projeto](../PROJECT_STATE.md) — fase ativa, meta ativa, próximas ações

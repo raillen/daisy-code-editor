@@ -19,9 +19,16 @@ visual — `clean-code-contract` §2.
 
 `Apply` é um **lookup**, não um `switch`. A tabela é composta de arquivos por
 domínio — `command_file.go`, `command_edit.go`, `command_movement.go`,
-`command_selection.go`, `command_view.go` — de modo que uma mudança em busca não
+`command_selection.go`, `command_view.go`, `command_search.go`,
+`command_clipboard.go` e `command_panel.go` — de modo que uma mudança em busca não
 colide com uma mudança em movimento, e acrescentar ação é uma entrada em vez de
 um braço novo numa função que cresce.
+
+**Uma ação anunciada sem tratamento é uma mentira**, e a tabela de teclas é
+*gerada* para `docs/ui-ux/keymap.md`. Por isso `command_fitness_test.go` cobra
+que toda ação com tecla tenha tratamento, ou esteja na dívida nomeada com motivo —
+nos dois sentidos. A auditoria encontrou 40 dessas; hoje são 28, e cada grupo
+pendente diz o que falta (o painel de terminal, o SCM, os splits, o LSP).
 
 ```go
 type Handler struct {

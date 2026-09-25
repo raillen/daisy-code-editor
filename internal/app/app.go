@@ -64,6 +64,22 @@ type App struct {
 	Tree *fs.Tree
 	// Find is the in-buffer search state.
 	Find search.State
+	// EditorHeight is how many rows the editor viewport had at the last frame.
+	//
+	// Injetado, nunca lido do terminal: a paginação anda N linhas, e N é o número
+	// de linhas que o leitor vê — que só a apresentação sabe. Um teste precisa
+	// poder pedir "uma página de 10 linhas" sem escrever no ambiente do processo.
+	// Zero é um valor legítimo (o modelo还没有 medido), e vale como uma linha.
+	EditorHeight int
+
+	// ClipboardWrite is the OSC 52 sequence a copy produced, waiting for the
+	// terminal.
+	//
+	// State and not a side effect: the model does not own stdout, and writing an
+	// escape from here would make the headless harness emit escapes into the
+	// conformance dump. The composition root turns this into a command.
+	ClipboardWrite string
+
 	// Overlay names what floats above the surfaces, in the oracle's vocabulary.
 	//
 	// It is model state, not presentation: the Rust dumps it, so which overlay is
@@ -84,7 +100,7 @@ func New(store *editor.Store, cfg config.Config, keys *keymap.Map) *App {
 		Focus:    FocusEditor,
 		ShowTree: true,
 		Find:     search.NewState(),
-		Overlay:  "none",
+		Overlay:  OverlayNone,
 	}
 }
 

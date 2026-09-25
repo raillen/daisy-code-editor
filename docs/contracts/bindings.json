@@ -1,0 +1,164 @@
+[
+  {
+    "contract_id": "architecture.system",
+    "sources": [
+      "docs/architecture/overview.md",
+      "docs/architecture/clean-code-contract.md",
+      "docs/architecture/adr/001-architecture-baseline.md"
+    ],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "answered_questions": [
+      "What owns canonical state?",
+      "Which components may mutate it?"
+    ],
+    "evidence": [
+      "internal/architecture: R1–R7 falham o build, e TestRulesCanFail prova que cada regra sabe falhar"
+    ]
+  },
+  {
+    "contract_id": "product.vision",
+    "sources": ["docs/product/vision.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "answered_questions": ["What problem does the product solve?"]
+  },
+  {
+    "contract_id": "project.scope",
+    "sources": ["docs/product/scope.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "answered_questions": ["What is explicitly out of scope?"]
+  },
+  {
+    "contract_id": "testing.strategy",
+    "sources": [
+      "docs/development/testing-strategy.md",
+      "AGENTS.md"
+    ],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "answered_questions": ["Which checks block completion?"],
+    "evidence": [
+      "go test ./... · go test -race ./... · go vet ./... · gofmt -l · staticcheck · CGO_ENABLED=0 go build ./... · go test ./conformance/..."
+    ]
+  },
+  {
+    "contract_id": "security.trust",
+    "sources": [
+      "docs/security/security-contract.md",
+      "docs/security/threat-model.md"
+    ],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation"
+  },
+  {
+    "contract_id": "tui.interaction",
+    "sources": [
+      "docs/ui-ux/keymap.md",
+      "docs/ui-ux/focus-graph.md",
+      "docs/ui-ux/states.md",
+      "docs/ui-ux/degradation.md",
+      "docs/ui-ux/layout.md"
+    ],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "answered_questions": ["Is the interface complete without a mouse?"],
+    "evidence": [
+      "internal/docdrift: docs/ui-ux/keymap.md é gerado das 98 bindings e comparado nos dois sentidos"
+    ]
+  },
+  {
+    "contract_id": "ui.interaction",
+    "sources": [
+      "docs/ui-ux/keymap.md",
+      "docs/ui-ux/focus-graph.md",
+      "docs/ui-ux/states.md"
+    ],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "answered_questions": ["Is every action reachable by keyboard only?"]
+  },
+  {
+    "contract_id": "ui.layout",
+    "sources": ["docs/ui-ux/layout.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation"
+  },
+  {
+    "contract_id": "ui.state-model",
+    "sources": ["docs/ui-ux/states.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "answered_questions": [
+      "Which states must be supported and which are explicitly not applicable?"
+    ]
+  },
+  {
+    "contract_id": "ui.theming",
+    "sources": [
+      "docs/guides/pt/themes.md",
+      "docs/guides/pt/config.md"
+    ],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "answered_questions": [
+      "Which themes must be supported and how do they inherit tokens?"
+    ],
+    "evidence": [
+      "scripts/gen-tables.py --check: os 10 temas e as 252 cores do registro batem com o oráculo Rust"
+    ]
+  },
+  {
+    "contract_id": "accessibility.keyboard",
+    "sources": ["docs/ui-ux/keymap.md", "docs/ui-ux/focus-graph.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "answered_questions": ["Can every action be completed without a pointer?"]
+  },
+  {
+    "contract_id": "accessibility.focus",
+    "sources": ["docs/ui-ux/focus-graph.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "answered_questions": ["Where does focus go after an error or a modal closes?"]
+  },
+  {
+    "contract_id": "tui.accessibility",
+    "sources": ["docs/ui-ux/degradation.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation"
+  },
+  {
+    "contract_id": "accessibility.screen-reader",
+    "sources": ["docs/ui-ux/degradation.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "applicability": "not-applicable",
+    "not_applicable_reason": "Um editor de terminal não tem árvore de acessibilidade: a superfície que o leitor de tela consome é o terminal, não o produto. O que o Oride controla — nunca sinalizar estado só por cor, marcador de caret em texto, e o perfil NoColor — está em docs/ui-ux/degradation.md e é verificado por golden no-color."
+  },
+  {
+    "contract_id": "accessibility.target-size",
+    "sources": ["docs/ui-ux/degradation.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "applicability": "not-applicable",
+    "not_applicable_reason": "O alvo é a tecla, não o pixel: o mouse é aceleração opcional e desligado por padrão ([editor] mouse = false), e a meta de 44×44 px não tem tradução num terminal de células."
+  },
+  {
+    "contract_id": "accessibility.zoom-reflow",
+    "sources": ["docs/ui-ux/layout.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "applicability": "not-applicable",
+    "not_applicable_reason": "O terminal reflowa por conta própria ao mudar de tamanho; o produto trata o caso pelas classes de largura (compact 60 / standard 80 / wide 120) e pela degradação documentada, não por um zoom de viewport."
+  },
+  {
+    "contract_id": "accessibility.drag-alternatives",
+    "sources": ["docs/ui-ux/focus-graph.md"],
+    "ownership": "human-maintained",
+    "authority": "canonical-documentation",
+    "applicability": "not-applicable",
+    "not_applicable_reason": "Nenhuma interação primária é arraste: resize por teclado existe, foco e seleção são navegáveis, e o mouse é aceleração opcional. Não há gesto de arrastar cujo alternative precise existir."
+  }
+]

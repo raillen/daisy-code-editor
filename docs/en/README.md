@@ -20,7 +20,7 @@ It implements the **Living Canonical Documentation** principle: the repository i
 - 🤝 [**Contributing Guide**](../../CONTRIBUTING.md) — Core invariants, TDD workflow, style conventions, and PR requirements.
 
 ## Central Intent Router
-See [`ATLAS.md`](ATLAS.md) as the intent-guided entrypoint for developers, users, operators, and AI agents.
+The intent-guided entrypoint for developers, users, operators and AI agents is [`docs/PRUMO.md`](../PRUMO.md) — canonical, in Portuguese. This English projection has no router of its own: a second index is a second thing to drift.
 
 ## Subdirectory Taxonomy
 - `architecture/`: System topology, boundaries, Clean Code contracts, and Architecture Decision Records (ADRs).

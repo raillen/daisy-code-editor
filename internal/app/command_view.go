@@ -23,5 +23,33 @@ func viewCommands() map[action.Action]Handler {
 			a.Focus = FocusEditor
 			return nil
 		}),
+
+		// Os dois seletores nomeiam a sobreposição e **sayem como usá-la**, que é
+		// a mesma frase do oráculo (crates/oride-app/src/app/actions.rs): um
+		// seletor que não diz o que Enter faz parece um menu decorativo.
+		action.SelectTheme: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Overlay = OverlayThemePicker
+			a.Status = "seletor de tema: ↑↓ navega/preview · Enter aplica · Esc cancela"
+			return nil
+		}),
+		action.SelectLocale: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Overlay = OverlayLocalePicker
+			a.Status = "seletor de idioma: ↑↓ seleciona · Enter aplica · Esc cancela"
+			return nil
+		}),
 	}
 }
+
+// The names the model uses for the overlay in the dump.
+//
+// São os mesmos nomes que o oráculo usa no seu `Overlay` — o dump compara a
+// chave, e um nome diferente aqui seria uma divergência que o nome da ferramenta
+// não explica. **Exportados** porque a TUI precisa abri-los: e a TUI deriva os
+// dela destes, em vez de declarar as mesmas strings em dois pacotes — que foi
+// exatamente a confusão que o ledger já registrou uma vez com o overlay da busca.
+const (
+	OverlayNone         = "none"
+	OverlayFind         = "find"
+	OverlayThemePicker  = "ThemePicker"
+	OverlayLocalePicker = "LocalePicker"
+)

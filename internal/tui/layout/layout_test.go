@@ -3,6 +3,8 @@ package layout
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // TestClassifyBoundaries pins the edges. An off-by-one here moves every surface
@@ -143,19 +145,23 @@ func TestComputeHandlesAnUnmeasuredTerminal(t *testing.T) {
 // TestTruncateMarksTheCut: a label that vanishes with no sign is
 // indistinguishable from one that never existed.
 //
-// The expected strings encode the marker's real width — two cells, because an
-// ambiguous-width character counts as wide here. An earlier version of this test
-// assumed one cell and agreed with a constant that was wrong.
+// The expected strings encode the marker's real width, and that width is now
+// **measured** instead of assumed: "…" is an ambiguous-width character, and this
+// package counts it as one cell. An earlier version of this test hard-coded two
+// because the ambiguous table said so, and a hard-coded width that disagrees with
+// Width() is the bug this package already paid for three times.
 func TestTruncateMarksTheCut(t *testing.T) {
-	if got := Truncate("abcdef", 4); got != "ab…" {
-		t.Errorf("Truncate = %q, esperado \"ab…\" (o marcador ocupa 2 células)", got)
+	if got := Width(ellipsis); got != 1 {
+		t.Fatalf("o marcador ocupa %d células; as expectativas deste teste derivam disso", got)
+	}
+	if got := Truncate("abcdef", 4); got != "abc…" {
+		t.Errorf("Truncate = %q, esperado \"abc…\" (o marcador ocupa uma célula)", got)
 	}
 	if got := Truncate("abc", 10); got != "abc" {
 		t.Errorf("texto que cabe foi alterado: %q", got)
 	}
-	// Em uma coluna o marcador não cabe; um ponto cabe.
-	if got := Truncate("abcdef", 1); got != "." {
-		t.Errorf("Truncate com uma coluna = %q, esperado \".\"", got)
+	if got := Truncate("abcdef", 1); got != "…" {
+		t.Errorf("Truncate com uma coluna = %q, esperado \"…\"", got)
 	}
 	if got := Truncate("abcdef", 0); got != "" {
 		t.Errorf("Truncate com zero = %q", got)
@@ -187,13 +193,14 @@ func TestTruncateCountsCellsNotRunes(t *testing.T) {
 	}
 }
 
-// TestWidthIsConservative treats ambiguous-width characters as wide. Erring that
-// way costs a column; erring the other way misaligns the whole row.
-func TestWidthIsConservative(t *testing.T) {
-	if got := Width("→"); got != 2 {
-		t.Errorf("Width(→) = %d; a largura ambígua deveria contar como 2", got)
-	}
-}
+// TestAmbiguousIsNarrowNotConservative substitui a regra antiga.
+//
+// A regra era "ambíguo conta como largo, porque errar para o largo custa só uma
+// coluna". A medição mostrou que o custo era maior: a tabela ambígua do
+// `go-runewidth` inclui "é" e não inclui "ã", então num produto em português
+// **cada linha acentuada saía uma coluna mais larga** que a linha vizinha, e esta
+// medição discordava da que os componentes `bubbles` usam. A prova está em
+// TestAmbiguousWidthCountsAsNarrow e TestTheThreeMeasuresAgree.
 
 // TestPadFitsExactly: a row that comes back short lets whatever is to its right
 // shift left, which turns a two-column layout into a diagonal one.
@@ -288,5 +295,178 @@ func TestTruncateIsStableUnderRepetition(t *testing.T) {
 	}
 	if strings.HasSuffix(once, "……") {
 		t.Errorf("o marcador se acumulou: %q", once)
+	}
+}
+
+// TestCellsConvertsBytesIntoTerminalCells is the conversion the selection, the
+// search and the syntax roles all depend on, pinned against the case that broke
+// it: a byte offset is not a cell column once a wide character is in the line.
+func TestCellsConvertsBytesIntoTerminalCells(t *testing.T) {
+	cases := []struct {
+		text   string
+		offset int
+		want   int
+	}{
+		{"", 0, 0},
+		{"abc", 0, 0},
+		{"abc", 3, 3},
+		{"日本語", 3, 2},
+		{"日本語 func", 9, 6},
+		{"日本語 func", 10, 7},
+		{"日本語 func", 14, 11},
+		// Past the end clamps to the width, because a token that outlived an edit
+		// is not an error and must not produce a negative column.
+		{"abc", 500, 3},
+		// A negative offset is the same as zero.
+		{"abc", -1, 0},
+	}
+	for _, tc := range cases {
+		if got := Cells(tc.text, tc.offset); got != tc.want {
+			t.Errorf("Cells(%q, %d) = %d, esperava %d", tc.text, tc.offset, got, tc.want)
+		}
+	}
+}
+
+// TestCellsRoundsDownInsideACharacter: an offset that splits a multi-byte
+// character rounds to the character's start, which keeps the tint inside the text
+// rather than half a character to its left.
+func TestCellsRoundsDownInsideACharacter(t *testing.T) {
+	for offset := 1; offset <= 2; offset++ {
+		if got := Cells("日", offset); got != 0 {
+			t.Errorf("Cells(\"日\", %d) = %d, esperava 0", offset, got)
+		}
+	}
+}
+
+// TestCellsAgreesWithSlice is the property that makes the two usable together: the
+// column Cells reports has to be the column Slice starts from, or a token is
+// painted one character away from where the highlighter said it starts.
+func TestCellsAgreesWithSlice(t *testing.T) {
+	text := "日本語 e um emoji 🙂 no meio"
+
+	for offset := 0; offset <= len(text); offset++ {
+		column := Cells(text, offset)
+		if got := len([]rune(Slice(text, column, 1))); got > 1 {
+			t.Errorf("deslocamento %d: a coluna %d não é um início de caractere", offset, column)
+		}
+		if column > Width(text) {
+			t.Errorf("deslocamento %d: coluna %d passa da largura %d", offset, column, Width(text))
+		}
+	}
+}
+
+// widthCorpus is the text the three measures are compared on.
+//
+// Deliberately not only ASCII: a corpus de ASCII_only provaria que as três
+// medidas concordam, e é exatamente o texto fácil que nunca produziu bug.
+var widthCorpus = []string{
+	"",
+	"a",
+	"abc def",
+	"  espacos  ",
+	"日本語",
+	"日本語のテキスト",
+	"한글 텍스트",
+	"ἀγγλικὰ",
+	"ЖЖЖ",
+	// Ambíguos: a regra deliberada deste pacote.
+	"são", "ações", "informação", "→", "…", "·", "±", "«»", "☺", "│─",
+	// Clusters: acento combinado, emoji com ZWJ, bandeira.
+	"é", "a\u0301b", "👍🏽", "🇧🇷🇵🇹", "👨‍👩‍👧",
+	// Rune que é dois cells e rune que é zero.
+	"\u0301", "Ａ",
+	// Sequences: ocupam zero célula.
+	"\x1b[31mabc\x1b[m",
+	"a\x1b[1mb\x1b[0mc",
+	"\x1b[38;2;16;64;96mcolorido\x1b[m",
+}
+
+// TestTheThreeMeasuresAgree is the acceptance of S2.
+//
+// Duas medidas de largura que podem discordar são o terreno exato do sexto bug
+// desta classe, que é a mais frequente do projeto. Este teste afirma o acordo
+// sobre texto ambíguo, largo, com acento combinado, com emoji e com ANSI — e
+// sobre a resposta que as três dão.
+func TestTheThreeMeasuresAgree(t *testing.T) {
+	for _, text := range widthCorpus {
+		ours := Width(text)
+		for name, other := range map[string]int{
+			"clipperhouse/displaywidth": measure.String(text),
+			"x/ansi.StringWidth":        ansi.StringWidth(text),
+		} {
+			if ours != other {
+				t.Errorf("%q: %s mediu %d, esta mediu %d", text, name, other, ours)
+			}
+		}
+	}
+}
+
+// TestAmbiguousWidthCountsAsNarrow is a decisão, não um acidente.
+//
+// A tabela ambígua do go-runewidth inclui "é" e não inclui "ã". Com a regra
+// antiga — ambíguo conta como largo — "são" mediava quatro células num terminal
+// que desenha três, e cada linha accentuada saía uma coluna mais larga que a
+// linha vizinha. Este teste fixa a escolha e o motivo.
+func TestAmbiguousWidthCountsAsNarrow(t *testing.T) {
+	for _, text := range []string{"são", "informação", "é", "→", "…", "·"} {
+		if got := Width(text); got != len([]rune(text)) {
+			t.Errorf("%q mediu %d, esperava %d (uma célula por caractere)", text, got, len([]rune(text)))
+		}
+	}
+}
+
+// TestWideTextStillMeasuresWide é a outra metade: estreitar o ambíguo não pode
+// ter estragado o largo de verdade.
+func TestWideTextStillMeasuresWide(t *testing.T) {
+	for _, text := range []string{"日本語", "한글", "Ａ"} {
+		if got := Width(text); got <= len([]rune(text)) {
+			t.Errorf("%q mediu %d, esperava mais de %d", text, got, len([]rune(text)))
+		}
+	}
+}
+
+// TestSliceAndTruncateNeverSplitACluster é o que a medida por rune não garantia.
+//
+// Um cluster cortado produz um caractere que o terminal não sabe desenhar, e a
+// largura medida da sobra deixa de ser a largura desenhada.
+func TestSliceAndTruncateNeverSplitACluster(t *testing.T) {
+	texts := []string{"👨‍👩‍👧x", "🇧🇷abc", "a\u0301bc", "日本語x"}
+
+	for _, text := range texts {
+		for width := range 6 {
+			sliced := Slice(text, 0, width+1)
+			if width := Width(sliced); width > width+1 {
+				t.Errorf("Slice(%q, 0, %d) devolveu %q medindo %d", text, width+1, sliced, width)
+			}
+			truncated := Truncate(text, width+1)
+			if got := Width(truncated); got > width+1 {
+				t.Errorf("Truncate(%q, %d) devolveu %q medindo %d", text, width+1, truncated, got)
+			}
+		}
+	}
+}
+
+// TestPadAndSliceAgree is a propriedade que a pintura depende: uma linha
+// montada com Pad tem que ter a mesma largura que a soma das fatias que a
+// formaram, ou o corte de um campo desalinha o resto da linha.
+func TestPadAndSliceAgree(t *testing.T) {
+	for _, text := range widthCorpus {
+		for width := range 8 {
+			column := 0
+			for column < width {
+				piece := Slice(text, column, width-column)
+				cells := Width(piece)
+				if piece == "" || cells == 0 {
+					// Cluster de largura zero (acento combinado solto) não
+					// avança a coluna: devolvê-lo é correto, mas contar
+					// progresso por ele seria laço infinito.
+					break
+				}
+				column += cells
+			}
+			if got := Width(Pad(text, width)); got != width {
+				t.Errorf("Pad(%q, %d) mediu %d", text, width, got)
+			}
+		}
 	}
 }

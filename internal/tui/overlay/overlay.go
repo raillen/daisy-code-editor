@@ -21,6 +21,11 @@ const (
 	WhichKey
 	Help
 	Welcome
+	// Theme and Locale are pickers: a list of choices, and nothing else. What
+	// happens to the choice belongs to the model, and the difference between the
+	// two is only what gets done with the chosen name.
+	Theme
+	Locale
 	QuitConfirm
 	CloseConfirm
 )
@@ -43,6 +48,13 @@ func (k Kind) Active() bool { return k != None }
 type Item struct {
 	Label  string
 	Detail string
+	// Value is what the row **means**: an action id, a theme name, a locale.
+	//
+	// A string e não um `action.Action` porque a superfície não conhece o
+	// vocabulário do produto: ela desenha e devolve a linha escolhida, e a raiz de
+	// composição é quem decide o que ela significa. Uma linha sem valor é uma linha
+	// informative — a lista de ajuda, por exemplo — e aplicá-la não faz nada.
+	Value string
 }
 
 // FilterValue is what the component matches a typed filter against.
@@ -141,3 +153,30 @@ func (m Model) Selected() (Item, bool) {
 // closing the panel on the first Escape would also throw away a half-typed filter
 // the reader meant to correct.
 func (m Model) Filtering() bool { return m.list.FilterState() == list.Filtering }
+
+// StartFilter puts the list in filtering mode with the given text.
+//
+// A lista entra em filtro pela tecla `/`, que é a convenção de componente. Numa
+// paleta de comandos o leitor digita o que quer, e pedir `/` antes seria uma tecla
+// a mais entre lembrar o comando e executá-lo.
+//
+// O texto entra **semeado** e não pela tecla, e a ordem é do componente:
+// `SetFilterText` aplica o filtro e deixa o estado em "aplicado", enquanto
+// `SetFilterState` só move o estado. Inverter as duas deixa o filtro preenchido e
+// fechado — a lista casa o que foi digitado e não aceita mais nada.
+func (m *Model) StartFilter(text string) {
+	if text != "" {
+		m.list.SetFilterText(text)
+	}
+	m.list.SetFilterState(list.Filtering)
+}
+
+// FilteringNow reports whether the list is accepting typing.
+//
+// A diferença entre `Filtering()` e isto: `SetFilterText` deixa o estado em
+// "filtro aplicado", que **é** digitável, e `Filtering()` só responde verdadeiro
+// quando o input está no modo de edição. Consultar o estado errado aqui faz a
+// paleta abrir o filtro duas vezes e a segunda tecla comer um caractere.
+func (m Model) FilteringNow() bool {
+	return m.list.FilterState() == list.Filtering || m.list.FilterState() == list.FilterApplied
+}

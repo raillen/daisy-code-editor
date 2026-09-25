@@ -72,7 +72,7 @@ qualquer componente animado (`spinner`, `progress`, `timer`) — a regra é:
 Ordem de execução. Cada item é verificável e nenhum depende do seguinte, exceto
 onde anotado.
 
-### S1 — Extrair o realce de sintaxe (desbloqueia M4)
+### S1 — Extrair o realce de sintaxe (desbloqueia M4) · **concluído**
 
 Adotar `chroma/v2` e ligar os 20 papéis de `config.Syntax`. É o item de maior
 impacto visual e o que torna a configuração honesta.
@@ -80,17 +80,63 @@ impacto visual e o que torna a configuração honesta.
 **Aceite:** um arquivo `.go` aberto mostra tokens coloridos; os 20 papéis têm
 consumidor, ou o papel é removido da configuração.
 
-### S2 — Consolidar a medida de largura
+**O que foi entregue:** `internal/syntax` (os 20 papéis, o mapeamento por família
+de linguagem e o leitor de `[[languages]]`), `Theme.Syntax(papel)`, a pintura em
+`editorview` e o realce assíncrono cacheado por `(documento, versão, caminho)`.
 
-Escolher **uma** implementação e apontar as outras para ela. A recomendação é
-manter a minha como autoridade de medida da aplicação (a regra conservadora é uma
-decisão, não um acidente) e expor uma ponte para o que o `bubbles` mede, com um
-teste de propriedade que compare as duas em texto largo, ambíguo e com ANSI.
+**Desvios, ditos na hora:** o item levou duas coisas que o plano não nomeava — a
+conversão byte→célula em `layout.Cells` e a mudança de `editorview.Lines` de
+`[]string` para `[]Line`. As duas são consequência de "os 20 papéis têm
+consumidor" e nenhuma delas é adiável sem refazer o mesmo trabalho.
 
-**Aceite:** um teste afirma que as duas concordam, ou documenta exatamente onde
-discordam.
+**Aproxima para S2:** `layout.Cells` é a única conversão entre offset de byte e
+célula que existe hoje. As outras duas medidas (`bubbles`, `x/ansi`) continuam
+convivendo, e S2 é o que fecha isso.
 
-### S3 — Substituir os quatro componentes restantes
+### S2 — Consolidar a medida de largura · **concluído**
+
+Escolher **uma** implementação e apontar as outras para ela. A recomendação era
+manter a minha como autoridade de medida da aplicação — a regra conservadora é uma
+decisão, não um acidente.
+
+**O que foi entregue:** `layout` passou a **delegar** a `clipperhouse/displaywidth`
+— a engine que os componentes `bubbles` usam — em vez de manter uma segunda
+implementação. Não há mais medidas para comparar: há uma, e a ponte é o ponto
+onde ela é configurada. `go-runewidth` saiu da dependência direta.
+
+**Desvio declarado, e ele é o achado:** a recomendação era manter a regra
+conservadora (ambíguo = largo). **Ela estava errada, e a medição provou.** A
+tabela ambígua do `runewidth` inclui `à á è é ê ì í ò ó ù ú ü` e **não** inclui
+`ã õ â ç` — num produto em português, "são" mediava quatro células num terminal
+que desenha três. O custo não era "uma coluna": era **cada linha acentuada uma
+coluna mais larga que a vizinha**, e esta medição discordando da que os
+componentes usam.
+
+| | antes | depois |
+|---|---|---|
+| `são` | 4 células | 3 |
+| `(sem título)` | 1 coluna a mais que o terminal | exato |
+| `→ · ± … »` | 2 | 1 |
+| `日本語` | 6 | 6 |
+| sequência ANSI | removida antes de medir | zero por configuração |
+
+**A segunda metade do S2 era mais funda que a engine:** `Slice`, `Truncate` e
+`Cells` mediam **por rune**, e a menor unidade de exibição é o **cluster de
+grafema** — acento combinado, emoji com ZWJ e bandeira são um caractere na tela e
+vários runes no texto. Cortar no meio de um cluster produz um caractere que o
+terminal não sabe desenhar. Os três passaram a percorrer clusters, e foi no
+primeiro teste dessa classe que uma comparação de **byte com célula** apareceu
+dentro de `Slice` — a mesma troca de unidade, agora dentro da função que existe
+para preveni-la.
+
+**Aceite cumprido:** `TestTheThreeMeasuresAgree` compara `layout.Width` com
+`displaywidth` e `x/ansi` sobre texto ambíguo, largo, com acento combinado, com
+emoji e com ANSI, e exige acordo — não há onde discordar. E os dez golden frames
+foram regenerados com o diff lido: uma linha por arquivo, sempre a linha do
+`(sem título)` e a linha da mensagem truncada, cada uma **um caractere a menos de
+enchimento** — que é o bug corrigido, aparecendo no snapshot.
+
+### S3 — Substituir os quatro componentes restantes · **concluído: 1 aplicado, 3 medidos**
 
 `findbar` → `textinput`; `editorview` → `viewport`; `tree` → `tree`;
 which-key/ajuda → `key` + `help`. Um commit por componente, como o do `overlay`.
@@ -98,7 +144,77 @@ which-key/ajuda → `key` + `help`. Um commit por componente, como o do `overlay
 **Aceite, por componente:** o código manual some, os testes do que deixou de ser
 nosso são **apagados** (não adaptados), e o que é nosso ganha teste novo.
 
-### S4 — Regra de aptidão: configuração sem consumidor
+#### `findbar` → `textinput` · **feito**
+
+- ✅ O código manual sumiu: `field()`, `tail()`, `appendFind()` e `backspaceFind()`
+  não existem mais. Inserção, apagar por rune, placeholder e cauda são do
+  componente.
+- ✅ Os **dois testes** que mediam cauda e placeholder foram **apagados**. O que
+  ficou de nosso ganhou teste: a barra desenha o campo que recebeu, na largura
+  exata.
+- ✅ Um único caminho escreve a consulta (`setFindQuery`), porque dois
+  escritores seriam duas verdades — e um teste que escreve no modelo sem escrever
+  no campo mediria uma barra que o usuário nunca vê. O teste do backspace agora
+  **digita** em vez de atribuir, e afirma os dois lados.
+- **Evidência mais forte do aceite:** os **quatro goldens da barra de busca
+  passaram sem regerar**. O quadro saiu byte a byte igual, o que prova que a troca
+  não mudou comportamento — e não só que os testes foram adaptados.
+- **Duas decisões, ambas forçadas pelo componente:**
+  - **Cursor virtual desligado** porque ele pisca, e um golden não pode depender
+    do relógio. O custo é dito: **a barra não tem cursor visível**, e consertar é
+    posicionar o cursor real do runtime sobre o campo (M4).
+  - **Estilos do componente zerados**, não os do tema: o perfil sem cor promete não
+    emitir escape, e o componente emitia. `TestNoColourFramesCarryNoEscapeSequences`
+    é quem mede.
+
+#### Os três que faltam · **medidos, e nenhum se aplica**
+
+A lista dizia que três componentes ainda estavam escritos à mão. A medição diz
+outra coisa, e o item que mais se aproxima de "feito" é o que o próprio plano já
+tinha marcado como feito.
+
+##### which-key / ajuda → `key` + `help` · **já estava feito, e o plano se contradiz**
+
+A primeira linha da tabela S3 diz que `overlay (palette, which-key, ajuda)` foi
+substituído pelo `list` — **✅ substituído**. A quinta linha lista which-key e
+ajuda de novo como "à mão". As duas linhas não podem ser verdadeiras, e a segunda
+é a errada: o que sobrou é `bindingItems`, uma projeção de 18 linhas que lê o
+keymap e vira `Item{Label, Detail}` para a lista. Não é um componente, é uma
+leitura de dados — e a biblioteca que a faria (`help`) desenha duas colunas
+estáticas, o que é **pior** para 98 bindings filtráveis do que a lista com scroll.
+
+##### `editorview` → `viewport` · **o aceite não se aplica: não há o que remover**
+
+- O que existe: `component.Window`, **53 linhas** de função pura, com a regra "a
+  seleção está sempre visível e a lista não salta enquanto a seleção anda dentro
+  do range visível", e com dois usos provados (a árvore e o editor).
+- O que **não** existe: qualquer estado de scroll. A composição nunca preencheu um
+  campo `Scroll` — ele existia na `View` da árvore, sempre zero, e **foi removido**
+  nesta rodada, com a medição anotada no código.
+- `viewport` não substituiria código: **adicionaria um recurso** (rolagem própria)
+  que o produto não tem, em troca de trocar uma regra testada por outra. Isso é
+  item de M4 ("rolagem do editor"), não saneamento.
+
+##### `tree` → `tree` · **o aceite não se aplica: a biblioteca repetiria o modelo**
+
+`bubbles/tree.New(t *Node, width, height)` **possui** a árvore: o nó, o cursor, a
+janela e os próprios caracteres de estado (`▼`, `▶`, `→`). Adotá-lo aqui produziria
+três defeitos medidos, não um ganho:
+
+1. **Duplicaria o modelo.** `internal/fs` é o que o harness de paridade compara
+   com o oráculo Rust, chave `tree` do dump. A biblioteca passaria a ser um segundo
+   lugar com a mesma estrutura — a mesma classe de `Find.Query`/campo.
+2. **Trazia de volta a classe de bug de largura.** `▼` e `→` são caracteres de
+   largura ambígua, que é exatamente o que `component.Row` mede e documenta: a
+   largura do `▶` já foi uma das cinco ocorrências desta projeto.
+3. **Trazia uma segunda janela.** A `tree` da biblioteca carrega o próprio
+   `viewport` — o que o S2 acabou de consolidar em uma medição só.
+
+**S3 fecha com 1 de 4 aplicado e 3 medidos.** O que resta de verdade é o item
+manual que ninguém escreveu: a barra de busca sem cursor visível (dívida dita no
+S3) e a rolagem do editor (recurso ausente, não código duplicado).
+
+### S4 — Regra de aptidão: configuração sem consumidor · **parcialmente feito, e o resto medido**
 
 Acrescentar a `internal/architecture` uma regra que falhe o build quando um campo
 de configuração não tem leitor fora do `config/`. Um mapa explícito de exceções
@@ -107,20 +223,44 @@ de configuração não tem leitor fora do `config/`. Um mapa explícito de exce�
 **Aceite:** reintroduzir `Languages` sem consumidor **falha** o build. Contraprova
 obrigatória, como nas outras sete.
 
-### S5 — Teste de fumaça da TUI
+**A regra das teclas foi feita primeiro, e é a que dói.** A mesma ideia, aplicada
+ao que o leitor vê: **81 ações têm tecla, 37 são tratadas, 4 são interceptadas
+pela TUI e 40 são teclas mortas** — 49% do que o keymap anuncia não faz nada, e
+`docs/ui-ux/keymap.md` é *gerado* dessas mesmas bindings.
 
-O item que faltou. Um teste que dirige a TUI **como um usuário**: abre, anda na
-árvore, abre um arquivo, digita, busca, fecha. Não compara frames — exercita
-caminhos.
+- `internal/app/command_fitness_test.go` — a regra: toda ação com tecla tem
+  tratamento, ou está na dívida nomeada com motivo. A dívida é também levada pelo
+  caminho inverso (uma entrada que já tem tratamento quebra o teste), e há uma
+  lista separada para a dívida que só a palette alcança.
+- `internal/tui/keys_fitness_test.go` — a outra metade: **toda binding anunciada é
+  uma tecla que o terminal manda**. Verifica pelo caminho do produto (sintetiza a
+  tecla, tira a grafia que o runtime entregaria, pergunta ao keymap).
 
-**Aceite:** remover o `Ctrl+Q` **falha** o teste; remover a navegação da árvore
-**falha** o teste.
+**Uma correção que este trabalho quase fez, e o ledger teria registerado errado:**
+trocar o canônico de `pagedown` para `pgdown` — a grafia que o Bubble Tea emite.
+Isso **quebrou a paridade do dump** e, ao investigar, mostrou que `ApplyKey` já faz
+`keymap.Parse`, cujos apelidos traduzem `pgdown` → `pagedown`. **Não havia binding
+morta por grafia**: a tradução já morava no keymap, e a segunda tradução só criou
+uma segunda verdade. A correção foi revertida, e ficou um teste que mede a
+propriedade real (toda binding é alcançável pelo caminho do produto) em vez de uma
+que media a própria duplicação.
 
-### S6 — Limpeza de código morto
+**O que ainda falta do S4:** nada — a regra do enunciado existe agora, como **R8**
+em `internal/architecture`. Ela varre as tabelas de `internal/config` e conta as
+leituras (seletores `.Campo`) em cada arquivo **que importa o config**; um campo sem
+leitor e sem dívida falha o build. A dívida nomeada tem 16 entradas, e a regra
+falha quando uma delas ganha leitor (a dívida que já não é dívida) ou quando um
+campo novo aparece sem leitor.
 
-`bubbles` trouxe 29 dependências transitivas. Auditar:
-`atotto/clipboard` (o plano listava como **não-candidata**), e qualquer coisa que
-o `go mod why` não justifique.
+**A regra encontrou uma dezesseisésima chave morta que o grep não via:**
+`[ui].gutter_width` — a largura da gutter é derivada do número de linhas pela
+própria `editorview`, e o campo documenta um valor que nada lê. Entrou na dívida.
+
+**O que a regra não prova, escrito na própria regra:** a contagem é lexical. Um
+campo cujo nome colide com o de outro tipo **no mesmo arquivo que importa o config**
+passa. É o mesmo trade-off de `Load`, que parseia imports sem verificar tipos, e
+está escrito em `config_fitness.go` para que ninguém acredite que ela prova mais do
+que prova.
 
 ---
 
@@ -130,7 +270,7 @@ o `go mod why` não justifique.
 
 | Biblioteca | Para | Nota |
 |---|---|---|
-| `chroma/v2` v2.27.0 | realce de sintaxe | API de token stream, não só string |
+| `chroma/v2` v2.27.0 | realce de sintaxe | API de token stream. **Custo medido no S1: +4,4 MB no binário** (7,7 → 12,0 MB) — `lexers` embute os ~250 lexers em XML e o `embed.FS` é privado, então um registro curado não é construível de fora. Se o tamanho virar problema no M5, a saída é `go:generate` do registro ou trocar de motor |
 | `doublestar/v4` v4.10.2 | globs de busca | substitui o `globAllows` caseiro |
 | `go-git/v5/plumbing/format/gitignore` | fecha a divergência **B25** | só o subpacote; o módulo é grande |
 | `glamour/v2` | preview Markdown | escolha do plano |

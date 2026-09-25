@@ -64,15 +64,15 @@ func frameCases() []frameCase {
 		{name: "find-bar", width: 100, height: 24, arrange: func(m *Model) {
 			m.application.Store.OpenEmpty()
 			_ = m.application.Apply(action.Find)
-			m.application.Find.Query = "alfa"
+			m.setFindQuery("alfa")
 			m.application.Find.Matches = nil
 		}},
 		{name: "find-bar-replace", width: 100, height: 24, arrange: func(m *Model) {
 			m.application.Store.OpenEmpty()
 			_ = m.application.Apply(action.Find)
 			_ = m.application.Apply(action.Replace)
-			m.application.Find.Query = "alfa"
-			m.application.Find.Replace = "ALFA"
+			m.setFindQuery("alfa")
+			m.setFindReplace("ALFA")
 		}},
 
 		// The overlays are deliberately absent from the golden matrix.
@@ -92,17 +92,15 @@ func frameCases() []frameCase {
 				_ = document.InsertText("alfa beta\ngama alfa\nbeta alfa\n")
 			}
 			_ = m.application.Apply(action.Find)
-			m.application.Find.Query = "alfa"
-			m.application.Find.Recompute(documentText(m))
+			m.setFindQuery("alfa")
 			_ = m.application.Apply(action.FindNext)
 		}},
 
 		{name: "find-bar-invalid-regex", width: 100, height: 24, arrange: func(m *Model) {
 			m.application.Store.OpenEmpty()
 			_ = m.application.Apply(action.Find)
-			m.application.Find.Query = "[sem fechar"
 			m.application.Find.Options.UseRegex = true
-			m.application.Find.Recompute("alfa")
+			m.setFindQuery("[sem fechar")
 		}},
 	}
 }
@@ -233,19 +231,10 @@ func lineAt(lines []string, index int) string {
 	return ""
 }
 
-// documentText is the active buffer's text, for the cases that need to search it.
-func documentText(m *Model) string {
-	document, err := m.application.Store.Active()
-	if err != nil {
-		return ""
-	}
-	return document.Buffer().String()
-}
-
 // openOverlay opens an overlay the way the model does, so a test exercises the
 // same path a key would.
 func openOverlay(model *Model, kind overlay.Kind) {
-	_, items, title, _ := overlayContent(action.CommandPalette, model.keys)
+	_, items, title, _ := model.overlayContent(action.CommandPalette)
 	if kind == overlay.WhichKey || kind == overlay.Help {
 		items, title = bindingItems(model.keys), "Atalhos"
 	}

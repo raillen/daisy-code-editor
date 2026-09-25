@@ -12,8 +12,10 @@
 package tui
 
 import (
+	"sort"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/ori-team/oride/internal/action"
@@ -24,6 +26,7 @@ import (
 	"github.com/ori-team/oride/internal/i18n"
 	"github.com/ori-team/oride/internal/keymap"
 	"github.com/ori-team/oride/internal/search"
+	"github.com/ori-team/oride/internal/syntax"
 	"github.com/ori-team/oride/internal/tui/component"
 	"github.com/ori-team/oride/internal/tui/editorview"
 	"github.com/ori-team/oride/internal/tui/findbar"
@@ -64,6 +67,39 @@ type Model struct {
 	// selection live here rather than inside a surface because they are state,
 	// and state belongs where the dump can see it.
 	overlay overlay.Model
+
+	// highlight holds the syntax roles of the active document. They are computed
+	// in a Cmd, not while rendering, because a keystroke must not pay for the
+	// whole file.
+	highlight highlightCache
+
+	// query and replace are the search bar's text fields, from the component
+	// `textinput`. As strings canônicas continuam no modelo — é de lá que o dump
+	// do oráculo lê — e o componente é quem escreve, apaga e rola a cauda.
+	query   textinput.Model
+	replace textinput.Model
+}
+
+// highlightCache is the roles of one version of one document.
+//
+// Keyed by version because a tokenise that finishes after the next keystroke
+// describes a document that no longer exists: painting it would put the colours
+// of the old text on the new. The path is part of the key because renaming a
+// document changes its language without changing a single byte of its version.
+type highlightCache struct {
+	document editor.ID
+	version  uint64
+	path     string
+	lines    []syntax.Line
+	filled   bool
+}
+
+// highlightedMsg is the answer of a tokenise, coming back from its Cmd.
+type highlightedMsg struct {
+	document editor.ID
+	version  uint64
+	path     string
+	lines    []syntax.Line
 }
 
 // New builds the model over an application.
@@ -75,7 +111,41 @@ func New(application *app.App, keys *keymap.Map) Model {
 		catalog:     i18n.LoadRegistry(application.Workspace).Get(i18n.ParseID(application.Config.Locale)),
 		theme:       resolveTheme(application),
 		surface:     focus.Editor,
+		query:       newFindField(),
+		replace:     newFindField(),
 	}
+}
+
+// newFindField builds one field of the search bar.
+//
+// **O cursor virtual fica desligado**, e a razão é o golden: o cursor do
+// `textinput` pisca, e uma saída que depende do relógio é uma saída que um golden
+// fixaria por acidente numa máquina e reprovaria noutra. Desligado, o campo
+// desenha texto e nada mais — que é o que a barra já fazia, porque o cursor do
+// terminal é do runtime.
+//
+// A consequência é uma dívida dita: **a barra de busca não tem cursor visível**.
+// Arrumar isso é posicionar o cursor real do runtime sobre o campo, e é trabalho
+// de M4 — não um detalhe que se resolve trocando o componente.
+func newFindField() textinput.Model {
+	field := textinput.New()
+	field.Prompt = ""
+	field.Placeholder = "digite…"
+	// Um a menos, porque o componente reserva uma célula para o cursor — que aqui
+	// está desligado. Pedir 28 e receber 29 deslocaria as flags da busca em
+	// relação a tudo que a barra já desenhava, e a barra não é a dona do campo.
+	field.SetWidth(findbar.FieldWidth - 1)
+	field.SetVirtualCursor(false)
+	// Os estilos do componente são **zerados**, e não os do tema. O campo é
+	// desenhado dentro de uma linha que a barra já pinta com o fundo dela; um
+	// estilo dentro do estilo é cor dentro de cor, e o pior caso é o perfil sem
+	// cor, onde o componente emittingia sequências de escape que o perfil promete
+	// não emitir. `TestNoColourFramesCarryNoEscapeSequences` é o que mede.
+	field.SetStyles(textinput.Styles{})
+	// O componente só aceita teclas quando está com foco. Sem isto, a barra
+	// ignora a digitação inteira.
+	field.Focus()
+	return field
 }
 
 // WithProfile rebuilds the theme for a colour profile.
@@ -136,7 +206,21 @@ func (m Model) Init() tea.Cmd { return nil }
 //
 // It never blocks: anything slow returns a Cmd. The switch is over message types
 // rather than a chain of conditions, so an unhandled message is visibly unhandled.
+//
+// The highlighting is refreshed on the way out rather than inside a case: it
+// depends on the document's version, not on the message that arrived, so a Cmd
+// scheduled by any message — and by a message that only moved the window — has to
+// be able to ask for it.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	return next, tea.Batch(cmd, next.clipboardWrite(), next.highlightRoles())
+}
+
+// update is the message switch, without the highlighting that follows every one.
+//
+// It returns the model rather than the interface, so the caller does not have to
+// assert its way back to the type it started from.
+func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	switch message := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.size = layout.Size{Width: message.Width, Height: message.Height}
@@ -150,8 +234,92 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		return m, nil
+
+	case highlightedMsg:
+		m.keepHighlight(message)
+		return m, nil
 	}
 	return m, nil
+}
+
+// keepHighlight stores the roles that still describe the document on screen.
+//
+// An answer for a version that has moved on is dropped rather than painted: it
+// is not stale by a little, it describes text the user has already changed.
+func (m *Model) keepHighlight(message highlightedMsg) {
+	document, err := m.application.Store.Active()
+	if err != nil {
+		return
+	}
+	if document.ID() != message.document || document.Version() != message.version {
+		return
+	}
+	m.highlight = highlightCache{
+		document: message.document,
+		version:  message.version,
+		path:     message.path,
+		lines:    message.lines,
+		filled:   true,
+	}
+}
+
+// clipboardWrite turns a copy into a command the terminal can act on.
+//
+// The model holds the OSC 52 sequence and the composition root writes it, because
+// the model does not own stdout: writing an escape from there would put escapes in
+// the conformance dump, and the harness compares that dump byte for byte.
+func (m Model) clipboardWrite() tea.Cmd {
+	sequence := m.application.ClipboardWrite
+	if sequence == "" {
+		return nil
+	}
+	m.application.ClipboardWrite = ""
+	return tea.Println(sequence)
+}
+
+// highlightRoles schedules the tokenise of the active document, if it is needed.
+//
+// The text is read on this side and lexed on the other: reading the buffer from
+// the Cmd's goroutine would race the keystroke that is being handled right now,
+// and a data race is not a price worth paying for a lexer. What crosses the
+// boundary is a copy of the document — one pass over its bytes per version, not
+// per frame.
+func (m Model) highlightRoles() tea.Cmd {
+	document, err := m.application.Store.Active()
+	if err != nil {
+		return nil
+	}
+	id, version := document.ID(), document.Version()
+	path, _ := document.Path()
+	if m.highlight.filled && m.highlight.document == id &&
+		m.highlight.version == version && m.highlight.path == path {
+		return nil
+	}
+
+	highlighter := syntax.For(path, m.application.Config.Languages)
+	lines := linesOf(document)
+	return func() tea.Msg {
+		return highlightedMsg{
+			document: id,
+			version:  version,
+			path:     path,
+			lines:    highlighter.Highlight(lines),
+		}
+	}
+}
+
+// linesOf is the whole document, one string per line, without line breaks.
+func linesOf(document *editor.Document) []string {
+	source := document.Buffer()
+	lines := make([]string, 0, source.LineCount())
+	for line := range source.LineCount() {
+		text, err := source.LineText(line)
+		if err != nil {
+			break
+		}
+		lines = append(lines, strings.TrimRight(text, "\n"))
+	}
+	return lines
 }
 
 // handleKey routes one keystroke.
@@ -170,6 +338,10 @@ func (m *Model) handleKey(key tea.KeyPressMsg) {
 		return
 	}
 
+	// O runtime e a tabela falam línguas diferentes em alguns nomes — `pgdown` e
+	// `pagedown` — e a tradução é feita por `keymap.Parse`, dentro de `ApplyKey`.
+	// Ninguém traduz aqui: duas traduções são duas verdades, e a segunda erra sem
+	// aviso.
 	chord := key.Keystroke()
 
 	// The focused surface gets the key first. Before this, the arrows moved the
@@ -303,6 +475,11 @@ func (m Model) Frame() string {
 		return ""
 	}
 
+	// A paginação precisa da altura do editor, e só a apresentação a conhece. É
+	// injeção, não leitura de ambiente: o mesmo caminho serve para o runtime e
+	// para um teste que quer uma página de dez linhas.
+	m.application.EditorHeight = regions.Editor.Height
+
 	rows := make([]string, 0, m.size.Height)
 	rows = append(rows, menubar.Render(m.size.Width, m.menuView()))
 	rows = append(rows, tabs.Render(m.size.Width, m.tabsView()))
@@ -419,7 +596,7 @@ func (m Model) editorView(regions layout.Regions) editorview.View {
 	}
 	view.Selection = selectionOf(document)
 	view.Matches, view.CurrentMatch = matchesOf(document, m.application.Find)
-	view.Lines, view.Offset = visibleLines(document, regions.Editor.Height, view.Caret.Line)
+	view.Lines, view.Offset = m.visibleLines(document, regions.Editor.Height, view.Caret.Line)
 	return view
 }
 
@@ -485,22 +662,31 @@ func matchesOf(document *editor.Document, found search.State) ([]editorview.Matc
 	return matches, current
 }
 
-// visibleLines extracts the rows the viewport can show.
+// visibleLines extracts the rows the viewport can show, with the roles of their
+// bytes when they are known.
 //
 // The model owns the window because it is state, and because extracting every line
 // of the document on each frame would be O(file) per keystroke for a screen that
 // shows forty rows.
-func visibleLines(document *editor.Document, height, caretLine int) ([]string, int) {
+//
+// A line outside the highlighted range is plain. That happens for one frame after
+// a document opens — the roles are still being computed — and it is the same
+// trade every editor makes rather than blocking the first paint on a lexer.
+func (m Model) visibleLines(document *editor.Document, height, caretLine int) ([]editorview.Line, int) {
 	buffer := document.Buffer()
 	start, end := component.Window(buffer.LineCount(), height, caretLine, 0)
 
-	lines := make([]string, 0, end-start)
+	lines := make([]editorview.Line, 0, end-start)
 	for line := start; line < end; line++ {
 		text, err := buffer.LineText(line)
 		if err != nil {
 			break
 		}
-		lines = append(lines, strings.TrimRight(text, "\n"))
+		visible := editorview.Line{Text: strings.TrimRight(text, "\n")}
+		if line < len(m.highlight.lines) {
+			visible.Tokens = m.highlight.lines[line].Tokens
+		}
+		lines = append(lines, visible)
 	}
 	return lines, start
 }
@@ -581,9 +767,11 @@ func (m *Model) handleFocusedSurfaceKey(chord string) bool {
 
 // handleFindKey routes a keystroke inside the search bar.
 //
-// Typing goes into the query and the matches are recomputed on every keystroke, so
-// the highlight follows what is being typed. Nothing here reaches the document:
-// the capture rule holds in both directions.
+// The bar's own keys stay ours — close, next, previous, reveal the replacement:
+// they are the product's semantics, not text editing. Everything else goes to the
+// `textinput` component, which is where insertion, deletion by rune, the
+// placeholder and the tail-scrolling live. A second implementation of those in
+// this method is exactly what the S3 item exists to remove.
 func (m *Model) handleFindKey(key tea.KeyPressMsg) {
 	chord := key.Keystroke()
 
@@ -603,49 +791,52 @@ func (m *Model) handleFindKey(key tea.KeyPressMsg) {
 		// together.
 		m.application.Find.ShowReplace = !m.application.Find.ShowReplace
 		return
-	case "backspace":
-		m.backspaceFind()
-		return
 	}
 
-	text := key.Text
-	if text == "" && isTypable(chord) {
-		text = chord
-	}
-	if text != "" && isTypable(text) {
-		m.appendFind(text)
-	}
+	m.editFindField(key)
 }
 
-// appendFind adds typed text to whichever field is being edited, then searches.
-func (m *Model) appendFind(text string) {
+// editFindField hands the key to the active field and copies the result back into
+// the model.
+//
+// The copy is one-directional and immediate: the model is the source of truth
+// because the oracle's dump reads it, and the component is the editor. Two sources
+// of truth that drift are the same class of bug as two places measuring width.
+func (m *Model) editFindField(key tea.KeyPressMsg) {
 	if m.application.Find.ShowReplace {
-		m.application.Find.Replace += text
+		updated, _ := m.replace.Update(key)
+		m.replace = updated
+		m.setFindReplace(m.replace.Value())
 		return
 	}
-	m.application.Find.Query += text
+
+	updated, _ := m.query.Update(key)
+	m.query = updated
+	if m.application.Find.Query == m.query.Value() {
+		// Uma tecla de navegação dentro do campo não muda a busca; recomputar
+		// aqui gastaria uma varredura do documento por tecla.
+		return
+	}
+	m.setFindQuery(m.query.Value())
+}
+
+// setFindQuery is the one place the query changes: the component's field and the
+// model's search state, together.
+//
+// Two writers would be two truths, and a test (or a future action) that writes
+// one of them would leave a bar whose text and whose results disagree. A method
+// rather than two assignments because the invariant is the point.
+func (m *Model) setFindQuery(query string) {
+	m.query.SetValue(query)
+	m.application.Find.Query = query
 	m.recomputeFind()
 }
 
-// backspaceFind removes the last rune from whichever field is being edited.
-//
-// A rune, not a byte: an accented letter would otherwise take two presses to
-// delete and leave an invalid fragment behind.
-func (m *Model) backspaceFind() {
-	target := &m.application.Find.Query
-	if m.application.Find.ShowReplace {
-		target = &m.application.Find.Replace
-	}
-
-	runes := []rune(*target)
-	if len(runes) == 0 {
-		return
-	}
-	*target = string(runes[:len(runes)-1])
-
-	if !m.application.Find.ShowReplace {
-		m.recomputeFind()
-	}
+// setFindReplace is the counterpart for the replacement field, which does not
+// search: it is only typed and read.
+func (m *Model) setFindReplace(replace string) {
+	m.replace.SetValue(replace)
+	m.application.Find.Replace = replace
 }
 
 // recomputeFind re-runs the search against the document.
@@ -661,7 +852,11 @@ func (m *Model) recomputeFind() {
 }
 
 // overlayNone is the model's value for no overlay open.
-const overlayNone = "none"
+//
+// Derivado do pacote do modelo, e não declarado aqui: o valor é um contrato
+// comparado com o Rust, e duas cópias da mesma string em dois pacotes é a
+// divergência esperando o dia.
+const overlayNone = app.OverlayNone
 
 // wants is what the model asks the layout to show.
 func (m Model) wants() layout.Wants {
@@ -692,15 +887,21 @@ func (m Model) findHeight() int {
 // A constant rather than a literal because the string is a contract: it is
 // compared against the Rust in the conformance harness, and a typo here would
 // become a parity failure rather than a compile error.
-const overlayFind = "find"
+const overlayFind = app.OverlayFind
+
+// The pickers' names come from the model too, and for the same reason.
+const (
+	overlayThemePicker  = app.OverlayThemePicker
+	overlayLocalePicker = app.OverlayLocalePicker
+)
 
 // findView builds the search bar's view from the search state.
 func (m Model) findView() findbar.View {
 	found := m.application.Find
 
 	return findbar.View{
-		Query:         found.Query,
-		Replace:       found.Replace,
+		Field:         m.query.View(),
+		ReplaceField:  m.replace.View(),
 		ShowReplace:   found.ShowReplace,
 		CaseSensitive: found.Options.CaseSensitive,
 		IgnoreAccents: found.Options.IgnoreAccents,
@@ -792,10 +993,11 @@ func (m Model) overlaySize() (int, int) {
 //
 // Driven by the keymap rather than by hard-coded chords, so remapping the palette
 // key still opens the palette.
-func overlayContent(bound action.Action, keys *keymap.Map) (overlay.Kind, []overlay.Item, string, bool) {
+func (m Model) overlayContent(bound action.Action) (overlay.Kind, []overlay.Item, string, bool) {
+	keys := m.keys
 	switch bound {
 	case action.CommandPalette:
-		return overlay.Palette, paletteItems(), "Comandos", true
+		return overlay.Palette, m.paletteItems(), m.catalog.Palette.PaletteHint, true
 	case action.WhichKey:
 		return overlay.WhichKey, bindingItems(keys), "Atalhos", true
 	case action.Help, action.Welcome:
@@ -804,12 +1006,20 @@ func overlayContent(bound action.Action, keys *keymap.Map) (overlay.Kind, []over
 	return overlay.None, nil, "", false
 }
 
-// paletteItems is the command palette's rows.
-func paletteItems() []overlay.Item {
+// paletteItems is the command palette's rows, labelled in the session's locale.
+//
+// O rótulo vem do catálogo e o **id** viaja no `Value`: a lista precisa saber o que
+// executar, e o catálogo sabe o que **chamar** a coisa. Uma paleta que mostra
+// `toggle_tree` e outra que mostra "Alternar árvore" executam a mesma tecla — e a
+// segunda é a que o leitor consegue ler.
+func (m Model) paletteItems() []overlay.Item {
 	commands := action.Palette()
 	items := make([]overlay.Item, 0, len(commands))
 	for _, command := range commands {
-		items = append(items, overlay.Item{Label: command.String()})
+		items = append(items, overlay.Item{
+			Label: m.catalog.Label(command.String()),
+			Value: string(command),
+		})
 	}
 	return items
 }
@@ -855,8 +1065,171 @@ func (m *Model) handleOverlayKey(key tea.KeyPressMsg) {
 		}
 	}
 
+	// Uma tecla digitável **abre** o filtro. O componente só entra em modo filtro
+	// pela tecla `/`, que é a convenção de lista; numa paleta de comandos o leitor
+	// digita o que quer e Enter executa, e esperar `/` antes de cada busca seria uma
+	// tecla a mais entre lembrar o comando e executá-lo.
+	if !m.overlay.FilteringNow() && isTypable(key.Keystroke()) && key.Text != "" {
+		m.overlay.StartFilter(key.Text)
+		return
+	}
+
+	// Enter aplica a linha destacada — o caminho que faltava. A paleta listava
+	// comandos e não rodava nenhum: um filtro que mostra o que se pode fazer e não
+	// faz nada é a mesma mentira de um atalho sem tratamento.
+	//
+	// Enter aplica **com o filtro aberto também**, e a interceptação é antes da
+	// lista: o componente gasta o Enter em "aceitar o filtro" (AcceptWhileFiltering),
+	// e num seletor isso é uma tecla jogada fora entre digitar e escolher. Quem
+	// filtra e aperta Enter quer o item, não o estado do filtro.
+	if key.Keystroke() == "enter" {
+		m.applyOverlaySelection()
+		return
+	}
+
 	updated, _ := m.overlay.Update(key)
 	m.overlay = updated
+}
+
+// applyOverlaySelection acts on the highlighted row and closes the overlay.
+//
+// Quem decide o que a linha significa é a raiz, e não a superfície: a lista devolve
+// a escolha e o modelo sabe o que um id de ação, um nome de tema ou um locale
+// provocam. Uma linha sem valor — a lista de ajuda — fecha sem executar, e fingir
+// que executou seria a tecla fazendo nada com um clique.
+func (m *Model) applyOverlaySelection() {
+	kind := m.overlay.Kind()
+	selected, ok := m.overlay.Selected()
+	m.overlay.Close()
+	if !ok || selected.Value == "" {
+		return
+	}
+
+	switch {
+	case kind == overlay.Theme:
+		m.applyTheme(selected.Value)
+		return
+	case kind == overlay.Locale:
+		m.applyLocale(selected.Value)
+		return
+	}
+
+	parsed, err := action.Parse(selected.Value)
+	if err != nil {
+		// Um id que o registro não conhece é um bug de quem montou a lista, e
+		// engolir seria o mesmo defeito das teclas sem tratamento.
+		m.application.Status = "comando desconhecido: " + selected.Value
+		return
+	}
+	_ = m.application.Apply(parsed)
+
+	// O comando pode ter aberto outra sobreposição — o `which_key`, por exemplo.
+	// Abrir a próxima **depois** de fechar a atual é o que impede a lista de
+	// apagar a que acabou de nascer.
+	if m.application.Overlay == overlayNone {
+		return
+	}
+	width, height := m.overlaySize()
+	m.overlay.Open(m.kindFor(m.application.Overlay), m.titleFor(m.application.Overlay),
+		m.itemsFor(m.application.Overlay), width, height)
+}
+
+// kindFor, titleFor and itemsFor resolve one overlay by the model's name.
+//
+// Um lugar só para a tradução, porque três funções que traduzem o mesmo nome
+// podem discordar — e o sintoma seria uma sobreposição que abre com o título de
+// outra, que é o tipo de bug que o que o golden não pega.
+func (m Model) kindFor(name string) overlay.Kind {
+	switch name {
+	case overlayThemePicker:
+		return overlay.Theme
+	case overlayLocalePicker:
+		return overlay.Locale
+	}
+	// A barra de busca não é uma lista, e nenhuma outra sobreposição é nomeada pelo
+	// modelo: as demais nascem de uma ação, e é `openOverlayFor` que as abre.
+	return overlay.None
+}
+
+func (m Model) titleFor(name string) string {
+	switch name {
+	case overlayThemePicker:
+		return "Temas"
+	case overlayLocalePicker:
+		return "Idioma"
+	}
+	return ""
+}
+
+func (m Model) itemsFor(name string) []overlay.Item {
+	switch name {
+	case overlayThemePicker:
+		return m.themeItems()
+	case overlayLocalePicker:
+		return m.localeItems()
+	}
+	return nil
+}
+
+// themeItems is the picker's rows: every theme the registry knows, sorted, with
+// the current one marked.
+//
+// A marca é **texto** e não cor: a regra do projeto é que nenhum estado é
+// comunicado só por cor, e "qual tema está ativo" é exatamente o estado que um
+// tema ruim torna invisível.
+func (m Model) themeItems() []overlay.Item {
+	registry := config.LoadThemeRegistry(m.application.Workspace)
+	names := registry.ListNames()
+	sort.Strings(names)
+
+	// O rótulo é o **nome de exibição** ("Tokyo Night") e o valor é o nome
+	// normalizado ("tokyo-night"), porque é o que `Config.Theme` guarda e o que o
+	// registro resolve. Aplicar o nome de exibição resolve um tema que não existe,
+	// e o sintoma é um seletor que "funciona" e não muda nada.
+	current := config.NormalizeThemeName(m.application.Config.Theme)
+	items := make([]overlay.Item, 0, len(names))
+	for _, name := range names {
+		detail := ""
+		id := config.NormalizeThemeName(name)
+		if id == current {
+			detail = "ativo"
+		}
+		items = append(items, overlay.Item{Label: name, Detail: detail, Value: id})
+	}
+	return items
+}
+
+// localeItems is the locale picker's rows, each with the menu label the reader
+// would recognise rather than the id.
+func (m Model) localeItems() []overlay.Item {
+	registry := i18n.LoadRegistry(m.application.Workspace)
+	locales := registry.Available()
+	sort.Slice(locales, func(i, j int) bool { return locales[i] < locales[j] })
+
+	current := i18n.ParseID(m.application.Config.Locale)
+	items := make([]overlay.Item, 0, len(locales))
+	for _, locale := range locales {
+		detail := ""
+		if locale == current {
+			detail = "ativo"
+		}
+		items = append(items, overlay.Item{Label: string(locale), Detail: detail, Value: string(locale)})
+	}
+	return items
+}
+
+// applyTheme adopts a theme and rebuilds the styles.
+func (m *Model) applyTheme(name string) {
+	m.application.Config.Theme = name
+	m.theme = theme.New(m.palette().UI, m.palette().Syntax, m.theme.Profile())
+	m.application.Status = "tema: " + name
+}
+
+// applyLocale adopts a locale and reloads the catalog.
+func (m *Model) applyLocale(id string) {
+	m.application.Config.Locale = id
+	m.catalog = i18n.LoadRegistry(m.application.Workspace).Get(i18n.ParseID(id))
+	m.application.Status = "idioma: " + id
 }
 
 // openOverlayFor opens the overlay a chord resolves to, if any.
@@ -870,7 +1243,10 @@ func (m *Model) openOverlayFor(chord string) bool {
 		return false
 	}
 
-	kind, items, title, opens := overlayContent(bound, m.keys)
+	// Um comando que abre uma sobreposição é aplicado pelo modelo, que é quem sabe
+	// o nome dela; a paleta em si é aberta por aqui, porque é a única que não vem de
+	// um comando e sim de um acorde.
+	kind, items, title, opens := m.overlayContent(bound)
 	if !opens {
 		return false
 	}

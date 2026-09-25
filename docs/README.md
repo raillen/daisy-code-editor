@@ -19,7 +19,7 @@ Implementa o princípio de **Documentação Canônica Viva**: o repositório é 
 - 🤝 [**Como Contribuir**](../CONTRIBUTING.pt-BR.md) — Invariantes arquiteturais, TDD, estilo de código e pull requests.
 
 ## Roteador Central
-Consulte [`ATLAS.md`](ATLAS.md) como ponto de entrada para navegação guiada por intenção (usuário, desenvolvedor, operador, agente).
+Consulte [`PRUMO.md`](PRUMO.md) como ponto de entrada para navegação guiada por intenção (usuário, desenvolvedor, operador, agente).
 
 ## Inventário de Subdiretórios
 - `guides/`: Documentação e manuais voltados ao usuário final em **Português** (`guides/pt/`) e **Inglês** (`guides/en/`).

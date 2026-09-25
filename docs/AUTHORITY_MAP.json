@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "current_version": "0.6.0",
+  "documents": [
+    {
+      "path": "docs/en/**",
+      "role": "projection",
+      "owner": "human-maintained",
+      "canonical_source": "docs/** (o equivalente em pt-BR)",
+      "note": "Projeção em inglês. Hoje é abreviada: docs/en/design.md tem 85 linhas onde a fonte tem 410. Uma projeção mais curta que a fonte é dívida, não resumo — o M6 a reescreve como projeção de verdade, com frescor por digest."
+    },
+    {
+      "path": "docs/guides/en/**",
+      "role": "projection",
+      "owner": "human-maintained",
+      "canonical_source": "docs/guides/pt/**",
+      "note": "Guias em inglês projetados das guias em português, que são a fonte canônica."
+    },
+    {
+      "path": "docs/planning/**",
+      "role": "historical",
+      "owner": "human-maintained",
+      "note": "Roadmaps e planos de fase: registro do que foi decidido na época. Legitimamente citam versões e abordagens obsoletas, e por isso são exemptas da checagem de drift."
+    },
+    {
+      "path": "docs/migration/**",
+      "role": "historical",
+      "owner": "human-maintained",
+      "note": "Ledger de paridade e plano de refatoração: registro vivo da migração Rust → Go. Fala de uma implementação que existiu (crates/) e de versões antigas; é histórico por natureza, e o que vale nele é o veredito de cada item, não a versão citada."
+    },
+    {
+      "path": "docs/architecture/adr/**",
+      "role": "historical",
+      "owner": "human-maintained",
+      "note": "ADR é registro de decisão. Uma decisão superada continua no arquivo — é isso que o torna auditável."
+    },
+    {
+      "path": "docs/**",
+      "role": "canonical",
+      "owner": "human-maintained",
+      "note": "Fonte canônica em pt-BR, com exceção das projeções e dos registros acima, que são classificados antes."
+    },
+    {
+      "path": "AGENTS.md",
+      "role": "canonical",
+      "owner": "human-maintained"
+    },
+    {
+      "path": "ENTRYPOINT.md",
+      "role": "canonical",
+      "owner": "human-maintained"
+    },
+    {
+      "path": "README.md",
+      "role": "canonical",
+      "owner": "human-maintained"
+    },
+    {
+      "path": "README.pt-BR.md",
+      "role": "canonical",
+      "owner": "human-maintained"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "role": "canonical",
+      "owner": "human-maintained"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "role": "canonical",
+      "owner": "human-maintained"
+    }
+  ]
+}

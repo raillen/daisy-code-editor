@@ -160,6 +160,33 @@ func TestRulesCanFail(t *testing.T) {
 				return
 			}
 
+			if rule.Name == "R8-configuracao-tem-leitor" {
+				// Needs a real filesystem, and a configuration package that owes
+				// something: a workspace without internal/config owes nothing.
+				broken := t.TempDir()
+				// `GitStatus` seria engolido pelo mapa de dívida do Oride, que é
+				// deste projeto: a fixture usa um nome que a dívida não cobre, ou
+				// a regra estaria sendo provada por um acidente que ela não mede.
+				writeConfigFixture(t, broken, "package config\n\ntype TreeConfig struct {\n\tWidth      int\n\tColumns    int\n\tUnread     bool\n}\n")
+				if got := rule.Check(Workspace{Root: broken, Graph: clean}); len(got) == 0 {
+					t.Fatal("a regra não acusou um campo de configuração sem leitor")
+				}
+
+				// E a outra metade: a mesma configuração com o campo lido tem de
+				// ficar quieta. Uma regra que só sabe reclamar é uma regra que
+				// ninguém aguenta.
+				read := t.TempDir()
+				// A fixture repete os campos da tabela real, dívida incluída: o mapa
+				// de dívida é deste projeto, e uma fixture com outras tabelas só
+				// mediria a lista de dívida, não a regra.
+				writeConfigFixture(t, read, "package config\n\ntype TreeConfig struct {\n\tWidth      int\n\tGitStatus  bool\n\tColumns    int\n}\n")
+				writeProductFixture(t, read, "package panel\n\nimport \"github.com/ori-team/oride/internal/config\"\n\nfunc width(c config.TreeConfig) int { return c.Width }\n\nfunc columns(c config.TreeConfig) int { return c.Columns }\n")
+				if got := rule.Check(Workspace{Root: read, Graph: clean}); len(got) != 0 {
+					t.Errorf("a regra acusou uma configuração lida: %v", got)
+				}
+				return
+			}
+
 			graph, ok := violating[rule.Name]
 			if !ok {
 				t.Fatalf("a regra %s não tem caso de violação — não está sendo provada", rule.Name)
@@ -182,6 +209,32 @@ func TestRulesCanFail(t *testing.T) {
 				t.Errorf("a regra acusou um grafo limpo: %v", got)
 			}
 		})
+	}
+}
+
+// writeConfigFixture writes the configuration package of a fixture repository.
+func writeConfigFixture(t *testing.T, root, source string) {
+	t.Helper()
+
+	dir := filepath.Join(root, "internal", "config")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("criando fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("escrevendo fixture: %v", err)
+	}
+}
+
+// writeProductFixture writes a product package that reads the fixture fields.
+func writeProductFixture(t *testing.T, root, source string) {
+	t.Helper()
+
+	dir := filepath.Join(root, "internal", "panel")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("criando fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "panel.go"), []byte(source), 0o644); err != nil {
+		t.Fatalf("escrevendo fixture: %v", err)
 	}
 }
 

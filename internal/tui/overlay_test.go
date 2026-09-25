@@ -193,13 +193,26 @@ func TestTypingSearchesAsItGoes(t *testing.T) {
 func TestBackspaceInTheQueryRemovesARuneNotAByte(t *testing.T) {
 	model := sized(t, newModel(t, nil), 100, 30)
 	model.application.Overlay = overlayFind
-	model.application.Find.Query = "aç"
+
+	// Digitado, e não atribuído: o campo é do componente `textinput`, e um teste
+	// que escreve no modelo sem escrever no campo mediria uma barra que o
+	// usuário nunca vê.
+	for _, r := range "aç" {
+		updated, _ := model.Update(tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
+		model = updated.(Model)
+	}
+	if got := model.application.Find.Query; got != "aç" {
+		t.Fatalf("consulta = %q, esperado \"aç\"", got)
+	}
 
 	updated, _ := model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyBackspace}))
 	model = updated.(Model)
 
 	if got := model.application.Find.Query; got != "a" {
 		t.Errorf("consulta = %q, esperado \"a\"", got)
+	}
+	if got := model.query.Value(); got != "a" {
+		t.Errorf("o campo do componente = %q, o modelo diz %q", got, "a")
 	}
 }
 

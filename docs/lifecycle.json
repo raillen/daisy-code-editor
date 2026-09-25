@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "release_gates": [
+    "prumo docs verify sem achado determinístico (link quebrado, documento sem classificação, drift de versão)",
+    "prumo docs audit sem contrato aplicável em `missing` que o gate declare bloqueante",
+    "prumo docs release recusa o release com evidência stale, e o recuso é o mecanismo que impede a dissonância de voltar",
+    "go test ./... e go test ./conformance/... verdes, com CGO_ENABLED=0 verificado a cada mudança"
+  ],
+  "version_policy": {
+    "current": "0.2.0",
+    "supported": [],
+    "deprecated": [],
+    "removed": [],
+    "historical_exempt": true
+  },
+  "deprecated": [
+    {
+      "path": "docs/en/design.md",
+      "replacement": "docs/design.md",
+      "since": "0.2.0",
+      "reason": "Projeção abreviada: 85 linhas contra 410 da fonte pt-BR. Uma projeção mais curta que a fonte é dívida, não resumo — a fonte canônica é a única versão completa até o M6 reescrever a projeção com frescor por digest."
+    }
+  ]
+}

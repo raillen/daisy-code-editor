@@ -13,6 +13,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/ori-team/oride/internal/config"
+	"github.com/ori-team/oride/internal/syntax"
 )
 
 // Profile is what the terminal can render.
@@ -88,13 +89,14 @@ func (t Theme) CurrentMatch() lipgloss.Style {
 	return t.style(t.ui.CursorBG, "", t.ui.StatusDirty, true)
 }
 
-// Comment is the syntax role the surfaces use first.
+// Syntax is the style of a syntax role.
 //
-// One role for now rather than twenty: the mapping from a chroma token to a role
-// arrives with the highlighting engine, and declaring nineteen unused accessors
-// would be abstraction that does not pay.
-func (t Theme) Comment() lipgloss.Style {
-	return t.style(t.ui.Background, "", t.syntax.Comment, false)
+// One accessor for the twenty roles rather than twenty accessors: the roles are
+// data, the field each one reads is data, and a switch spelled out here would be
+// a second place for a role to be missing. A role with no colour resolves to the
+// zero style, which paints nothing — the same promise NoColor makes.
+func (t Theme) Syntax(role syntax.Role) lipgloss.Style {
+	return t.style(t.ui.Background, "", syntax.Colour(t.syntax, role), false)
 }
 
 // style builds a style, resolving nothing when colour is suppressed.

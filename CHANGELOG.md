@@ -2,7 +2,70 @@
 
 ## Unreleased
 
+### Changed
+- **Barra de busca agora usa o componente `textinput` (S3):** inserção, apagar por
+  rune, placeholder e a cauda da consulta longa saíram do código próprio e
+  passaram para a biblioteca. O quadro ficou byte a byte igual — os quatro goldens
+  da barra passaram sem regerar. A barra de busca segue **sem cursor visível**:
+  o cursor do componente pisca, e um golden não pode depender do relógio.
+
 ### Added
+- **A paleta de comandos executa, e mostra nomes em vez de ids:** `Enter` na linha
+  destacada roda o comando (antes a paleta listava e não executava nada), os 26
+  comandos que os menus nomeiam aparecem traduzidos ("Salvar", "Alternar árvore"), e
+  digitar já abre o filtro sem precisar de `/`.
+- **Seletor de tema e de idioma:** `Ctrl+Shift+S`-style pickers listam os 10 temas
+  e os locales disponíveis, marcam o ativo em texto, e `Enter` aplica — trocando os
+  estilos e recarregando o catálogo. Fechar com `Esc` cancela sem aplicar.
+- **Painéis, foco e recarga funcionam:** `Ctrl+E` alterna o foco entre árvore e
+  editor (e abre a árvore se ela estiver escondida), `F5` relê a árvore do disco,
+  `Ctrl+R` recarrega o arquivo do disco **mantendo o caret** — e diz o motivo
+  quando não consegue, em vez de devolver um erro que engole a tecla. `Ctrl+M`
+  liga e desliga o mouse, e a mensagem explica por que o padrão é desligado.
+- **Abas, paginação e área de transferência funcionam:** `Ctrl+N` (nova aba),
+  `Ctrl+PgUp`/`Ctrl+PgDn` (trocar de aba), `Ctrl+W` (fechar aba), `PageUp`/
+  `PageDown` (paginação pela altura da janela) e `Ctrl+C`/`Ctrl+V`/`Ctrl+X`
+  (copiar, colar, cortar) eram anunciados no keymap e não faziam nada. A cópia
+  segue a regra do editor de linha: a seleção, ou a linha inteira quando não há
+  seleção; e usa OSC 52, então também vai para o clipboard do sistema e funciona
+  sobre SSH.
+
+### Fixed
+- **Regra de aptidão da configuração (S4):** uma regra de arquitetura nova
+  (`R8`) falha o build quando um campo de configuração não tem leitor fora do
+  pacote `config` e não está na dívida nomeada. Ela encontrou sozinha uma
+  dezesseisésima chave morta — `[ui].gutter_width`.
+- **13 teclas que não faziam nada agora funcionam** (abas, paginação, cópia,
+  painéis, foco e recarga): 81 ações têm tecla no keymap, 49 são tratadas e **28
+  continuam mortas**, todas nomeadas com o motivo e o que falta para cada uma.
+- **40 teclas mortas agora são dívida nomeada (S4):** 81 ações têm tecla no
+  keymap, 37 eram tratadas e **40 não faziam nada** — e a tabela de
+  `docs/ui-ux/keymap.md` é gerada dessas mesmas bindings, ou seja, a documentação
+  anunciava atalhos que o programa ignorava. A nova regra falha o build quando uma
+  ação anunciada perde o tratamento, e a lista de dívida é pública.
+- **Toda binding é agora provada alcançável pelo terminal (S4):** o teste sintetiza
+  a tecla, tira a grafia que o runtime entregaria e pergunta ao keymap a que ação
+  resolve. Uma binding com um nome que o terminal não produz falha no momento em
+  que é escrita.
+- **Teste de fumaça da TUI (S5):** a suíte agora dirige uma sessão inteira como
+  um usuário — abrir, navegar a árvore, abrir arquivo, digitar, buscar, fechar —
+  e afirma estado, não frame. É o item que faltava no gate: nove checks mediam
+  frames, testes e paridade sem perguntar se uma tecla faz alguma coisa.
+- **Medida de largura unificada (S2):** `layout` passou a medir com a mesma engine
+  dos componentes `bubbles`, e caractere ambíguo passou a contar como estreito. A
+  tabela ambígua do `go-runewidth` inclui "é" e não inclui "ã", então toda linha
+  acentuada saía **uma coluna mais larga** que a linha vizinha — visível em editor,
+  árvore, barra de status e em qualquer campo truncado. `Slice`, `Truncate` e
+  `Cells` passaram a medir por cluster de grafema em vez de por rune, o que
+  impede cortar acento combinado, emoji com ZWJ e bandeira ao meio.
+
+### Added
+- **Realce de sintaxe (S1):** Motor `chroma/v2` sem CGO, com os vinte papéis da
+  tabela `[syntax]` ligados de fato — dezenove deles eram parseados e lidos por
+  ninguém desde o primeiro marco da migração. O mapeamento é por família de
+  linguagem, `[[languages]]` ganhou leitor, e o realce é assíncrono e cacheado por
+  documento, versão e caminho, para que uma tecla não pague por lexar o arquivo
+  inteiro.
 - **Project Atlas Framework v0.4.2:** Governança canônica do projeto via `atlas.json`, manifesto de orquestração e agentes em `.ai/`, rastreabilidade de estado em `PROJECT_STATE.md` e roteador em `ENTRYPOINT.md` e `docs/ATLAS.md`.
 - **Harness Google Antigravity:** Compilação nativa de regras e habilidades de workforce em `.agents/` via `atlas compile --target antigravity`.
 - **Diretrizes de Contribuição Bilíngues:** Adicionados `CONTRIBUTING.md` (Inglês) e `CONTRIBUTING.pt-BR.md` (Português) detalhando invariantes arquiteturais, TDD, quality gates e fluxo de Pull Requests.

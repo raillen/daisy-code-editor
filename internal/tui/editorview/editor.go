@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/ori-team/oride/internal/syntax"
 	"github.com/ori-team/oride/internal/tui/layout"
 	"github.com/ori-team/oride/internal/tui/theme"
 )
@@ -17,7 +18,7 @@ import (
 // reach into the document, and a viewport does not need the whole file to draw
 // one screen.
 type View struct {
-	Lines        []string
+	Lines        []Line
 	Offset       int
 	Caret        Position
 	HasCaret     bool
@@ -30,6 +31,19 @@ type View struct {
 	Theme theme.Theme
 }
 
+// Line is one row of text and the roles of its bytes.
+//
+// The roles travel with the text rather than in a second array beside it: two
+// index-aligned arrays are a coupling nothing checks, and a line that lost its
+// tokens would still be a line, painted plain, with nothing saying why.
+type Line struct {
+	Text string
+	// Tokens carry byte offsets into Text, which is the index the buffer and the
+	// highlighter both use. A line with no tokens is plain text, not a line that
+	// failed to be highlighted.
+	Tokens []syntax.Token
+}
+
 // TotalLines is the document's length, which the gutter is sized from.
 func (v View) TotalLines() int { return v.Offset + len(v.Lines) }
 
@@ -40,6 +54,11 @@ type Match struct {
 }
 
 // Position is a caret location, zero-based, in document coordinates.
+//
+// The column counts scalars, because that is what the buffer counts and every
+// coordinate the model hands over arrives through ByteToCaret. The painting
+// measures it into cells — the conversion lives in layout.Cells, and the reason
+// it cannot be skipped is in that function's contract.
 type Position struct {
 	Line   int
 	Column int
@@ -52,7 +71,7 @@ type Selection struct {
 	Empty bool
 }
 
-// isCollapsed reports whether the range covers no cells.
+// isCollapsed reports whether the range covers nothing.
 //
 // A zero-value Selection has Empty false and Start equal to End, so a surface that
 // trusted the flag alone would paint a collapsed range — and, worse, would take the
@@ -113,14 +132,14 @@ func Render(width, height int, view View) []string {
 // index is a position in the visible slice; the gutter shows the document line
 // number, which is what a reader expects to see beside the text.
 func renderLine(width, gutterWidth, index int, view View) string {
-	text := view.Lines[index]
+	line := view.Lines[index]
 	number := view.Offset + index
 
 	if gutterWidth == 0 {
 		// Without a gutter there is no line number, but there is still a
-		// selection: returning the padded text here skipped the painting
-		// entirely, and every line came out plain.
-		return paintSelection(text, number, width, view)
+		// selection and there are still roles: returning the padded text here
+		// skipped the painting entirely, and every line came out plain.
+		return paintLine(line, number, width, view)
 	}
 
 	marker := " "
@@ -131,32 +150,42 @@ func renderLine(width, gutterWidth, index int, view View) string {
 
 	// The gutter is styled and the text is not, so the line stays selectable by
 	// copy: a background over the text would be captured by a terminal copy.
-	body := paintSelection(text, number, width-gutterWidth, view)
+	body := paintLine(line, number, width-gutterWidth, view)
 	return layout.Pad(view.Theme.Gutter().Render(gutter), gutterWidth) + body
 }
 
 // cell is what a column of the line is, before any styling.
 //
-// A cell array rather than a chain of conditions per rune: selection and matches
-// overlap, and deciding the winner once per cell is what makes the precedence
-// explicit instead of an accident of the order the styles were applied.
-type cell int
+// A cell array rather than a chain of conditions per rune: selection, matches
+// and syntax overlap, and deciding the winner once per cell is what makes the
+// precedence explicit instead of an accident of the order the styles were
+// applied.
+type cell struct {
+	kind cellKind
+	role syntax.Role
+}
+
+// cellKind is what a column is, ignoring which syntax role paints it.
+type cellKind int
 
 const (
-	cellPlain cell = iota
+	cellPlain cellKind = iota
+	cellToken
 	cellMatch
 	cellCurrentMatch
 	cellSelection
 )
 
-// paintSelection draws the line with its matches and selection tinted.
+// paintLine draws the line with its roles, matches and selection tinted.
 //
 // Precedence is decided per cell: the selection wins over a match, because a
-// reader who has selected text is asking about the selection.
-func paintSelection(text string, line, width int, view View) string {
-	kinds := classify(text, line, width, view)
+// reader who has selected text is asking about the selection, and a match wins
+// over a role, because a highlight the reader asked for outranks a colour the
+// theme chose.
+func paintLine(line Line, number, width int, view View) string {
+	kinds := classify(line, number, width, view)
 	if !hasStyled(kinds) {
-		return layout.Pad(text, width)
+		return layout.Pad(line.Text, width)
 	}
 
 	var out strings.Builder
@@ -168,7 +197,7 @@ func paintSelection(text string, line, width int, view View) string {
 			run++
 		}
 
-		segment := layout.Pad(layout.Slice(text, position, run), run)
+		segment := layout.Pad(layout.Slice(line.Text, position, run), run)
 		out.WriteString(styleFor(kind, view.Theme).Render(segment))
 		position += run
 	}
@@ -176,30 +205,44 @@ func paintSelection(text string, line, width int, view View) string {
 }
 
 // classify decides what each column of the line is.
-//
-// The array is in cells, matching the unit the layout measures in: a wide
-// character occupies two of them, and marking one of the two would tint half a
-// character.
-func classify(text string, line, width int, view View) []cell {
+func classify(line Line, number, width int, view View) []cell {
 	kinds := make([]cell, width)
+	paintTokens(kinds, line, width)
 
-	for _, match := range matchesOn(line, view.Matches) {
-		mark(kinds, text, match.Start, match.End, cellMatch)
+	for _, match := range matchesOn(number, view.Matches) {
+		mark(kinds, line.Text, match.Start, match.End, cell{kind: cellMatch})
 	}
 	if view.CurrentMatch >= 0 && view.CurrentMatch < len(view.Matches) {
 		current := view.Matches[view.CurrentMatch]
-		if current.Start.Line <= line && line <= current.End.Line {
-			mark(kinds, text, current.Start, current.End, cellCurrentMatch)
+		if current.Start.Line <= number && number <= current.End.Line {
+			mark(kinds, line.Text, current.Start, current.End, cell{kind: cellCurrentMatch})
 		}
 	}
 
-	if !view.Selection.Empty && !view.Selection.isCollapsed() && lineIsSelected(line, view.Selection) {
-		start, end := selectedColumns(line, text, view.Selection)
+	if !view.Selection.Empty && !view.Selection.isCollapsed() && lineIsSelected(number, view.Selection) {
+		start, end := selectedColumns(number, line.Text, view.Selection)
 		for column := start; column < end && column < width; column++ {
-			kinds[column] = cellSelection
+			kinds[column] = cell{kind: cellSelection}
 		}
 	}
 	return kinds
+}
+
+// paintTokens tints the columns the highlighter gave a role.
+//
+// Offsets are bytes and the array is cells, so the conversion happens per token
+// boundary rather than per byte: a token is painted as a run, and the two
+// measurements cannot disagree about where it starts.
+func paintTokens(kinds []cell, line Line, width int) {
+	for _, token := range line.Tokens {
+		from := layout.Cells(line.Text, token.Start)
+		to := layout.Cells(line.Text, token.End)
+		for column := from; column < to && column < len(kinds); column++ {
+			if kinds[column].kind == cellPlain {
+				kinds[column] = cell{kind: cellToken, role: token.Role}
+			}
+		}
+	}
 }
 
 // matchesOn lists the matches touching a line.
@@ -224,27 +267,29 @@ func mark(kinds []cell, text string, start, end Position, kind cell) {
 
 // hasStyled reports whether anything on the line needs styling.
 //
-// The plain path stays the common one: most lines of most frames have neither a
-// match nor a selection, and building styled output for them would cost escape
-// sequences on every row.
+// The plain path stays the common one for a document with no lexer: most lines
+// of most frames have no role, no match and no selection, and building styled
+// output for them would cost escape sequences on every row.
 func hasStyled(kinds []cell) bool {
 	for _, kind := range kinds {
-		if kind != cellPlain {
+		if kind.kind != cellPlain {
 			return true
 		}
 	}
 	return false
 }
 
-// styleFor maps a kind onto the style that draws it.
+// styleFor maps a cell onto the style that draws it.
 func styleFor(kind cell, theme theme.Theme) lipgloss.Style {
-	switch kind {
+	switch kind.kind {
 	case cellSelection:
 		return theme.Selection()
 	case cellCurrentMatch:
 		return theme.CurrentMatch()
 	case cellMatch:
 		return theme.Match()
+	case cellToken:
+		return theme.Syntax(kind.role)
 	}
 	return lipgloss.NewStyle()
 }
@@ -256,22 +301,29 @@ func lineIsSelected(line int, selection Selection) bool {
 
 // selectedColumns is the selected range on one line, in cells.
 //
+// The columns arrive as scalars, because the buffer counts scalars, and they are
+// measured into cells here. The conversion is this function's job and nobody
+// else's: the buffer's column and the layout's cell are two units for the same
+// distance, and a selection after a wide character was a column short every time
+// it was compared without measuring.
+//
 // The first and last lines of a range are partial; every line between them is
 // covered whole. A column past the end of the line would make the padding
 // arithmetic produce a negative width, so it is clamped.
 func selectedColumns(line int, text string, selection Selection) (start, end int) {
+	lineWidth := layout.Width(text)
+
 	switch {
 	case line == selection.Start.Line && line == selection.End.Line:
-		start, end = selection.Start.Column, selection.End.Column
+		start, end = layout.Cells(text, selection.Start.Column), layout.Cells(text, selection.End.Column)
 	case line == selection.Start.Line:
-		start, end = selection.Start.Column, layout.Width(text)
+		start, end = layout.Cells(text, selection.Start.Column), lineWidth
 	case line == selection.End.Line:
-		start, end = 0, selection.End.Column
+		start, end = 0, layout.Cells(text, selection.End.Column)
 	default:
-		start, end = 0, layout.Width(text)
+		start, end = 0, lineWidth
 	}
 
-	lineWidth := layout.Width(text)
 	start = min(max(0, start), lineWidth)
 	end = min(max(start, end), lineWidth)
 	return start, end

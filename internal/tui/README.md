@@ -28,8 +28,17 @@ linha que a compõe, sem alcançar o modelo.
 | Pacote | Papel | Importa `app`? |
 |---|---|---|
 | `layout` | geometria pura: onde cada superfície cai, e como o texto cabe nela | não |
+| `theme` | a única coisa que sabe que cor existe:resolve um papel em estilo | não |
 | `component` | primitivas compartilhadas, quando a duplicação aparecer medida | não |
-| `editor` `tree` `tabs` `statusbar` `menubar` `palette` `whichkey` `help` `modal` | uma superfície cada | não |
+| `focus` | o grafo de foco como dado, sem saber de surfaces | não |
+| `overlay` | as sobreposições, pelo componente `list` | não |
+| `editorview` `tree` `tabs` `statusbar` `menubar` `findbar` | uma superfície cada | não |
 
-`component/` ainda **não existe**: o contrato §1.6 proíbe abstração especulativa, e
-ele nasce na fatia em que a duplicação for medida, não antes.
+Nenhum importa `app` — a regra `R3` falha o build se um deles passar a importar.
+
+**O realce é assíncrono, e a cache é por versão.** Os papéis de sintaxe chegam
+numa `Cmd` e são guardados por `(documento, versão, caminho)`: uma tecla não pode
+pagar por lexar o arquivo inteiro, e uma resposta que chega depois da próxima
+digitação descreve um documento que não existe mais — pintar seria botar as cores
+do texto velho no novo. A renomeação entra na chave porque trocar a extensão
+muda a linguagem sem mudar um byte da versão.

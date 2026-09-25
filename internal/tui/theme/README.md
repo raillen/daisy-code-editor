@@ -19,9 +19,14 @@ suprimir cor e pinta uma é um erro, não uma escolha.
 produto entrega. Filtrar aqui evita entregar à biblioteca de estilo um valor que
 ela não resolve.
 
-**Uma função de papel por enquanto**, não vinte: o mapeamento de token do chroma
-para papel chega com o motor de realce, e declarar dezenove acessores sem uso
-seria abstração que não paga.
+**Um acessor para os vinte papéis**, e não vinte acessores. Os papéis são dado, o
+campo que cada um lê é dado, e um `switch` escrito aqui seria um segundo lugar
+para um papel faltar. `Theme.Syntax(papel)` delega a leitura ao `internal/syntax`,
+que é quem conhece a tabela `[syntax]`; um papel sem cor resolvida devolve o estilo
+zero, que não pinta — a mesma promessa que o modo sem cor faz.
+
+**O `chroma` é o motor e o `theme` não sabe disso.** A superfície pede um papel, o
+realce entrega um papel, e a cor é resolvida num lugar só.
 
 **Depende de `layout.Width` medir texto com ANSI**, o que é o que permite uma
 linha estilizada continuar ocupando exatamente as células que ocupa sem estilo.

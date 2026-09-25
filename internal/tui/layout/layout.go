@@ -9,8 +9,7 @@ package layout
 import (
 	"strings"
 
-	"github.com/charmbracelet/x/ansi"
-	"github.com/mattn/go-runewidth"
+	"github.com/clipperhouse/displaywidth"
 )
 
 // WidthClass is how much room the terminal offers.
@@ -192,36 +191,128 @@ func splitBody(body Region, wants Wants) (tree, editor Region, overlaid bool) {
 // editor on a short terminal.
 const overlaidTreeHeight = 12
 
-// Condition measures text the way the layout assumes.
+// measure is the single authority for how wide a string is on screen.
 //
-// Ambiguous-width characters count as wide. Erring that way costs a column;
-// erring the other way misaligns the rest of the row, which is visible and
-// wrong.
-var condition = &runewidth.Condition{EastAsianWidth: true}
+// It is the engine the `bubbles` components measure with — `clipperhouse/
+// displaywidth` — configurado uma vez, e não uma segunda implementação: três
+// medidas convivendo é o terreno exato do sexto bug de largura, que é a classe de
+// bug mais frequente deste projeto. As duas decisões são o contrário do que este
+// pacote fazia antes, e as duas são deliberadas:
+//
+//   - **Ambíguo conta como estreito.** A regra antiga era o contrário, na
+//     intenção de errar para o lado largo. A medição mostrou o custo: a tabela
+//     ambígua do `runewidth` inclui `à á è é ê ì í ò ó ù ú ü` e **não** inclui
+//     `ã õ â ç` — ou seja, num produto em português, "são" mediava quatro células
+//     num terminal que desenha três. Errar para o largo não custava só uma
+//     coluna: desincronizava esta medição da que os componentes usam, e o
+//     resultado era a linha do editor mais larga que a da árvore ao lado.
+//   - **Sequência de escape não ocupa célula.** O próprio `displaywidth` sabe
+//     disso quandoconfigured; sem isso, estilizar uma linha mudaria a largura
+//     medida e tudo à direita deslizaria.
+//
+// A menor unidade de exibição é o **cluster de grafema**, não o rune: um acento
+// combinado, um emoji com ZWJ e uma bandeira são um caractere na tela e varios
+// runes no texto. Por isso `Slice`, `Truncate` e `Cells` também percorrem
+// clusters — medir por rune é a forma curta de errar.
+var measure = displaywidth.Options{
+	EastAsianWidth:       false,
+	ControlSequences:     true,
+	ControlSequences8Bit: true,
+}
 
 // Width measures a string in terminal cells.
 //
-// Escape sequences occupy no cells, so they are stripped before measuring. Without
-// this, styling a row would change its measured width and every line to its right
-// would shift — the bug would appear only once colour arrived, and only visually.
-//
-// The escape scan is a fast path rather than an optimisation for its own sake:
-// every row of every frame is measured, and most rows carry no escape at all.
+// O caminho rápido é ASCII puro, e é por isso que ele existe: toda linha de todo
+// frame é medida, e a maioria não tem nada não-ASCII.
 func Width(text string) int {
-	if strings.IndexByte(text, escape) < 0 {
-		return condition.StringWidth(text)
+	if isPrintableASCII(text) {
+		return len(text)
 	}
-	return condition.StringWidth(ansi.Strip(text))
+	return measure.String(text)
 }
 
-// escape is the control character that begins an ANSI sequence.
-const escape = 0x1b
+// isPrintableASCII is the fast path's whole condition: a string of bytes that each
+// print as exactly one cell needs no cluster walk and no escape scan.
+func isPrintableASCII(text string) bool {
+	for index := range len(text) {
+		if text[index] < 0x20 || text[index] > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
+// Cells converts a byte offset into a terminal cell column.
+//
+// The document counts scalars and bytes; the layout counts cells, and the two
+// are the same distance only while every character is one cell wide. This is the
+// one conversion between them, and it exists because a selection, a match or a
+// syntax role that began after a wide character was painted a column short —
+// silently, and only on the lines that had a wide character before it.
+//
+// Clusters, não runes: um offset que cai dentro de um cluster arredonda para o
+// começo dele, porque a outra escolha pintaria meia caractere à esquerda. Um
+// offset além do fim satura na largura do texto.
+//
+// The text must be plain. A byte offset into a string carrying ANSI is an offset
+// into the escape sequence, which is a different thing from a position.
+func Cells(text string, byteOffset int) int {
+	if byteOffset <= 0 {
+		return 0
+	}
+	if byteOffset > len(text) {
+		byteOffset = len(text)
+	}
+
+	column := 0
+	for _, piece := range clusters(text) {
+		if piece.end > byteOffset {
+			// O offset caiu dentro do cluster: a coluna é a do começo dele, e a
+			// escolha de arredondar para baixo é o que mantém o realce dentro do
+			// texto em vez de meio caractere à esquerda.
+			break
+		}
+		column += piece.cells
+	}
+	return column
+}
+
+// cluster is one grapheme cluster, with where it is and how wide it draws.
+type cluster struct {
+	text  string
+	cells int
+	start int
+	end   int
+}
+
+// clusters walks the grapheme clusters of a string.
+//
+// A lista é materializada porque três das funções acima precisam de dois passes
+// (medir e depois cortar) e because medir o texto inteiro para descobrir que ele
+// cabe é o caso comum.
+func clusters(text string) []cluster {
+	graphemes := measure.StringGraphemes(text)
+	out := make([]cluster, 0, len(text))
+
+	offset := 0
+	for graphemes.Next() {
+		value := graphemes.Value()
+		out = append(out, cluster{
+			text:  value,
+			cells: graphemes.Width(),
+			start: offset,
+			end:   offset + len(value),
+		})
+		offset += len(value)
+	}
+	return out
+}
 
 // Truncate cuts text to fit width cells, marking that it was cut.
 //
-// The marker is not decoration: a label that vanishes without a sign is
-// indistinguishable from a label that never existed, and the reader has no way
-// to tell a short value from a clipped one.
+// O marcador não é decoração: um rótulo que desaparece sem aviso é indistinguível
+// de um rótulo que nunca existiu, e o leitor não tem como distinguir um valor
+// curto de um valor cortado.
 func Truncate(text string, width int) string {
 	if width <= 0 {
 		return ""
@@ -230,38 +321,17 @@ func Truncate(text string, width int) string {
 		return text
 	}
 
+	// A largura do marcador é medida, nunca assumida: um "…" contado como duas
+	// células transbordava a linha em uma coluna, e foi um bug real aqui.
 	marker := ellipsis
-	if ellipsisWidth > width {
-		// The marker counts as two cells, so it does not fit in a one-column
-		// field. Returning it anyway would overflow the row by one column.
-		marker = fallbackMarker
-	}
-	limit := width - condition.StringWidth(marker)
-	var out strings.Builder
-	used := 0
-	for _, r := range text {
-		cellWidth := condition.RuneWidth(r)
-		if used+cellWidth > limit {
-			break
-		}
-		out.WriteRune(r)
-		used += cellWidth
-	}
-	return out.String() + marker
+	limit := width - Width(marker)
+	return prefixCells(text, limit) + marker
 }
 
+// ellipsis is the cut marker. It is one cell wide, which is why it fits a
+// one-column field — the fallback that existed when this package counted it as
+// two has no condition left to fire.
 const ellipsis = "…"
-
-// ellipsisWidth is measured, never assumed.
-//
-// The marker is an ambiguous-width character, and this package's own rule counts
-// those as wide — so a hard-coded 1 disagreed with Width() and overflowed every
-// truncated row by one column. The constant is now derived from the same
-// measurement the rest of the package uses.
-var ellipsisWidth = condition.StringWidth(ellipsis)
-
-// fallbackMarker fits a single column, for the case where the ellipsis does not.
-const fallbackMarker = "."
 
 // Slice extracts width cells from text, starting at a cell offset.
 //
@@ -269,26 +339,54 @@ const fallbackMarker = "."
 // a substring by byte is how a row with a wide character in it ends up one column
 // short. It lives here because three callers needed it — the list overlay, the
 // composition root's overlay painting, and the editor's selection.
+//
+// Por cluster, e nunca por rune: cortar no meio de um cluster produz um caractere
+// que o terminal não sabe desenhar, e um emoji com ZWJ cortado ocupa uma célula
+// que não existe.
 func Slice(text string, from, width int) string {
 	if width <= 0 {
 		return ""
 	}
 
-	skipped := 0
-	taken := 0
+	// Aritmética em **células**, do começo ao fim: `from` e `width` são colunas,
+	// e comparar uma coluna com o deslocamento de byte de um cluster é exatamente
+	// a troca de unidade que produz o bug.
+	skipped, taken := 0, 0
 	var out strings.Builder
-
-	for _, r := range text {
-		cellWidth := condition.RuneWidth(r)
-		if skipped+cellWidth <= from {
-			skipped += cellWidth
-			continue
+	for _, piece := range clusters(text) {
+		switch {
+		case skipped+piece.cells <= from:
+			skipped += piece.cells
+		case skipped < from:
+			// O cluster começa antes da coluna pedida e termina depois dela: a
+			// coluna está dentro do cluster, e o que se devolve é o cluster
+			// inteiro — a metade dele não é um caractere.
+			return piece.text
+		case taken+piece.cells > width:
+			return out.String()
+		default:
+			out.WriteString(piece.text)
+			taken += piece.cells
 		}
-		if taken+cellWidth > width {
+	}
+	return out.String()
+}
+
+// prefixCells is the longest prefix of text that draws at most width cells, cut at
+// a cluster boundary.
+func prefixCells(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	used := 0
+	var out strings.Builder
+	for _, piece := range clusters(text) {
+		if used+piece.cells > width {
 			break
 		}
-		out.WriteRune(r)
-		taken += cellWidth
+		out.WriteString(piece.text)
+		used += piece.cells
 	}
 	return out.String()
 }
