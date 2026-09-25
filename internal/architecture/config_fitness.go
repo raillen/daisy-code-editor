@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/ori-team/oride/internal/config"
 )
 
 // configField is one field of a configuration table.
@@ -104,6 +106,16 @@ func ConfigurationFitness(root string) ([]string, error) {
 		return nil, nil
 	}
 
+	// As cores de `[ui]` que **semeiam** a camada de tokens são leitoras, mesmo
+	// que a leitura aconteça dentro do config: elas são o valor de omissão de um
+	// tema que não declara `[tokens]`, e `internal/config.TokenDefaultFields` — a
+	// lista ao lado da função que faz a leitura — é quem as nomeia. Um campo fora
+	// dessa lista continua sendo um campo sem consumidor.
+	seeded := map[string]bool{}
+	for _, name := range config.TokenDefaultFields() {
+		seeded[name] = true
+	}
+
 	var out []string
 	for _, field := range fields {
 		key := field.Table + "." + field.Name
@@ -113,7 +125,7 @@ func ConfigurationFitness(root string) ([]string, error) {
 			}
 			continue
 		}
-		if readers[field.Name] == 0 {
+		if readers[field.Name] == 0 && !(seeded[field.Name] && field.Table == "UIConfig") {
 			out = append(out, fmt.Sprintf("%s não tem leitor fora de internal/config", key))
 		}
 	}

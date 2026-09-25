@@ -19,6 +19,11 @@ type ThemeDefinition struct {
 	// defaults reaches every theme instead of drifting from a copy.
 	UI     UIConfig
 	Syntax SyntaxColors
+	// Tokens is the semantic layer: what each **intent** resolves to. It is
+	// optional — a theme that declares none inherits `defaultTokens`, which is
+	// the direct colours above. É essa opcionalidade que mantém os dez temas
+	// gerados do oráculo byte a byte iguais enquanto a camada existe.
+	Tokens *Tokens
 }
 
 // BuiltInThemes returns the shipped themes, with inherited colours filled in.
@@ -38,6 +43,14 @@ func completeTheme(theme ThemeDefinition) ThemeDefinition {
 	}
 	if theme.Syntax == (SyntaxColors{}) {
 		theme.Syntax = defaults.Syntax
+	}
+	// A camada de tokens nasce **depois** das cores diretas, porque é delas que
+	// ela herda: um token que caísse no zero seria indistinguível de um tema
+	// `no-color`, e a diferença entre "não defini" e "não tenho cor" é exatamente
+	// o que a camada precisa preservar.
+	if theme.Tokens == nil {
+		inherited := defaultTokens(theme.UI)
+		theme.Tokens = &inherited
 	}
 	return theme
 }
@@ -65,6 +78,9 @@ func NewThemeRegistry() *ThemeRegistry {
 	for _, theme := range BuiltInThemes() {
 		registry.Register(theme)
 	}
+	// `no-color` por último, e fora do arquivo gerado: é um tema que o oráculo
+	// não tem, porque lá a mesma coisa é um perfil do terminal.
+	registry.Register(NoColourTheme())
 	return registry
 }
 
@@ -104,6 +120,74 @@ type rawTheme struct {
 	IsDark *bool      `toml:"is_dark"`
 	UI     *rawUI     `toml:"ui"`
 	Syntax *rawSyntax `toml:"syntax"`
+	// Tokens is the semantic layer, and it merges **field by field**: um tema
+	// que declara `text_muted` e deixa o resto de fora herda o resto. Um struct
+	// de strings normais trataria a ausência como "cor vazia", que é o mesmo
+	// valor de `no-color` — e a diferença entre "não defini" e "não tenho cor" é
+	// exatamente o que esta camada existe para não perder.
+	Tokens *rawTokens `toml:"tokens"`
+}
+
+// rawTokens is `[tokens]` as it arrives from a file: every field optional.
+type rawTokens struct {
+	Surface      *string `toml:"surface"`
+	Panel        *string `toml:"panel"`
+	PanelText    *string `toml:"panel_text"`
+	BorderSubtle *string `toml:"border_subtle"`
+	Text         *string `toml:"text"`
+	TextMuted    *string `toml:"text_muted"`
+	Accent       *string `toml:"accent"`
+	Success      *string `toml:"success"`
+	Warning      *string `toml:"warning"`
+	Error        *string `toml:"error"`
+	Focus        *string `toml:"focus"`
+}
+
+// mergeTokens applies the declared tokens over an inherited layer.
+//
+// Uma sequência de `if` e não um mapa de ponteiros: um mapa de `**string` é
+// escreve o mesmo campo duas vezes, e o teste que pega isso é o compilador — mas
+// um compilador que aceita `**string` não está dizendo nada. A sequência
+// também nomeia o token na linha, que é o que o teste de merge cita.
+func mergeTokens(base Tokens, raw *rawTokens) *Tokens {
+	if raw == nil {
+		return nil
+	}
+	merged := base
+	if raw.Surface != nil {
+		merged.Surface = *raw.Surface
+	}
+	if raw.Panel != nil {
+		merged.Panel = *raw.Panel
+	}
+	if raw.PanelText != nil {
+		merged.PanelText = *raw.PanelText
+	}
+	if raw.BorderSubtle != nil {
+		merged.BorderSubtle = *raw.BorderSubtle
+	}
+	if raw.Text != nil {
+		merged.Text = *raw.Text
+	}
+	if raw.TextMuted != nil {
+		merged.TextMuted = *raw.TextMuted
+	}
+	if raw.Accent != nil {
+		merged.Accent = *raw.Accent
+	}
+	if raw.Success != nil {
+		merged.Success = *raw.Success
+	}
+	if raw.Warning != nil {
+		merged.Warning = *raw.Warning
+	}
+	if raw.Error != nil {
+		merged.Error = *raw.Error
+	}
+	if raw.Focus != nil {
+		merged.Focus = *raw.Focus
+	}
+	return &merged
 }
 
 // LoadFromDir registers every `.toml` theme in a directory.
@@ -170,6 +254,13 @@ func loadThemeFile(path string) (ThemeDefinition, error) {
 	}
 	if raw.Syntax != nil {
 		mergeSyntax(&theme.Syntax, raw.Syntax)
+	}
+	// Os tokens herdam das cores diretas **já mescladas**, para que um tema de
+	// arquivo que declara `[ui].line_number` e nenhum token tenha o token mudo
+	// seguindo a cor que ele mesmo acabou de declarar.
+	if raw.Tokens != nil {
+		inherited := defaultTokens(theme.UI)
+		theme.Tokens = mergeTokens(inherited, raw.Tokens)
 	}
 	return theme, nil
 }

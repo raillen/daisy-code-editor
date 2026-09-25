@@ -10,6 +10,12 @@
   o cursor do componente pisca, e um golden não pode depender do relógio.
 
 ### Added
+- **Camada de tokens semânticos no tema** (`[tokens]`): um tema passa a nomear
+  **intenções** — `surface`, `panel`, `text`, `text_muted`, `accent`, `success`,
+  `warning`, `error`, `focus` — em vez de repetir cores. É o modelo do Zed, e é o
+  que torna possível um tema **`no-color`**: uma paleta que afirma não ter cor
+  nenhuma e é verificada como tal, em vez de um perfil que desliga a cor porque o
+  terminal não sabe fazer.
 - **A paleta de comandos executa, e mostra nomes em vez de ids:** `Enter` na linha
   destacada roda o comando (antes a paleta listava e não executava nada), os 26
   comandos que os menus nomeiam aparecem traduzidos ("Salvar", "Alternar árvore"), e

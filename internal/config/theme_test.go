@@ -9,9 +9,14 @@ import (
 // TestBuiltInThemeNames pins the shipped set. A theme disappearing from the
 // picker is a product change, and the list is the cheapest place to notice.
 func TestBuiltInThemeNames(t *testing.T) {
+	// Os dez primeiros vêm do oráculo e são gerados; o último é Go-only e por
+	// isso mora fora do arquivo gerado. A lista é a revisão de produto: um tema
+	// que some do seletor é uma mudança de produto, e esta é a passagem mais
+	// barata para notá-la.
 	want := []string{
 		"Default Dark", "Dracula", "Nord", "One Dark", "Tokyo Night",
 		"Catppuccin Mocha", "Monokai", "Solarized Light", "Solarized Dark", "GitHub Dark",
+		"No Color",
 	}
 
 	registry := NewThemeRegistry()

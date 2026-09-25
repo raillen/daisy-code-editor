@@ -15,6 +15,16 @@ to the process environment*.
 invariante inteiro do modo sem cor, e ele mora num lugar só: um tema que afirma
 suprimir cor e pinta uma é um erro, não uma escolha.
 
+**Os tokens semânticos são carregados, não declarados.** `Gutter()` resolve o
+fundo por `surface` e a tinta por `text_muted`; `StatusDirty()` pinta de `warning`.
+Um tema que declara `text_muted = "#ff0000"` muda a gutter sem tocar em `[ui]` —
+e é `TestTheTokenLayerChangesWhatTheProductPaints` que olha a **saída** para
+provar. Uma camada que ninguém lê é a mesma configuração inerte que o plano
+descreveu do `internal/config` inteiro.
+
+**Um token `none` é o estilo zero**, e não um estilo sem cor: ele não desenha
+fundo nem muda a frente, que é o que "não tenho cor" quer dizer.
+
 **`""` e `"reset"` significam "sem cor"**, e ambos são normais nos temas que o
 produto entrega. Filtrar aqui evita entregar à biblioteca de estilo um valor que
 ela não resolve.

@@ -200,3 +200,99 @@ func TestEverySyntaxRolePaintsItsOwnColour(t *testing.T) {
 		t.Errorf("o papel None pintou %q", got)
 	}
 }
+
+// TestNoColourThemeReallyPaintsNothing é a afirmação que dá nome à camada.
+//
+// Um tema `no-color` que **promete** não ter cor e entrega uma é a mentira que a
+// camada de tokens existe para tornar impossível — e um perfil sem cor não a
+// impede, porque o perfil desliga a cor por incapacidade do terminal, enquanto o
+// tema afirma uma coisa sobre a **paleta**.
+//
+// O teste é sobre a **saída renderizada**, não sobre o valor resolvido: um token
+// que resolve para uma cor que o estilo não reconhece é um no-op silencioso, e foi
+// exatamente assim que este projeto já entregou um editor monocromático com todos
+// os testes verdes.
+func TestNoColourThemeReallyPaintsNothing(t *testing.T) {
+	registry := config.NewThemeRegistry()
+	noColour, ok := registry.Get("no-color")
+	if !ok {
+		t.Fatal("o tema no-color não está no registro")
+	}
+
+	built := NewWithTokens(noColour.UI, noColour.Syntax, noColour.Tokens, TrueColor)
+	for _, role := range []struct {
+		name   string
+		styled lipgloss.Style
+	}{
+		{"surface", built.Surface()},
+		{"panel", built.Panel()},
+		{"text", built.Text()},
+		{"muted", built.Muted()},
+		{"accent", built.Accent()},
+		{"success", built.Success()},
+		{"warning", built.Warning()},
+		{"error", built.Error()},
+		{"focus", built.Focus()},
+	} {
+		if rendered := role.styled.Render("x"); strings.ContainsRune(rendered, 0x1b) {
+			t.Errorf("o token %s pintou: %q", role.name, rendered)
+		}
+	}
+}
+
+// TestTheTokenLayerReachesTheFrame é o outro lado: um token que ninguém pinta é
+// uma chave de configuração inerte — a classe de defeito que este projeto passou
+// a caçar. Por isso o `muted` precisa **sair** num tema com cor.
+func TestTheTokenLayerReachesTheFrame(t *testing.T) {
+	shipped := config.Default()
+	built := NewWithTokens(shipped.UI, shipped.Syntax, nil, TrueColor)
+
+	if !strings.ContainsRune(built.Muted().Render("x"), 0x1b) {
+		t.Error("o token muted não pintou nada com a paleta padrão")
+	}
+	if built.Muted().Render("x") == built.Accent().Render("x") {
+		t.Error("muted e accent pintam igual: um dos dois tokens não está sendo lido")
+	}
+}
+
+// TestTheTokenLayerChangesWhatTheProductPaints é a prova de que a camada está
+// **carregada**: um tema que declara `text_muted` muda a gutter.
+//
+// Sem este teste a camada seria a mesma coisa que o plano descreveu do
+// `internal/config` inteiro — parseada, testada, e lida por ninguém. É a diferença
+// entre "a chave existe" e "a chave age", e ela só aparece olhando a **saída**.
+func TestTheTokenLayerChangesWhatTheProductPaints(t *testing.T) {
+	shipped := config.Default()
+	declared := config.DefaultTokens(shipped.UI)
+
+	// Um tema que declara só o token mudo: o resto herda, e a gutter muda só
+	// porque o token mudou.
+	declared.TextMuted = "#ff00ff"
+	themed := NewWithTokens(shipped.UI, shipped.Syntax, &declared, TrueColor)
+
+	if got, want := themed.Gutter().Render("1"), themed.Muted().Render("1"); !strings.Contains(got, "38;2;255;0;255") {
+		t.Errorf("a gutter não seguiu o token text_muted: %q (o token daria %q)", got, want)
+	}
+
+	// E o fundo vem do token `surface`, o que é a outra metade da troca: um tema
+	// que declara a superfície muda o fundo da gutter sem tocar em `[ui]`.
+	declared.Surface = "#010203"
+	surfaced := NewWithTokens(shipped.UI, shipped.Syntax, &declared, TrueColor)
+	if got := surfaced.Gutter().Render("1"); !strings.Contains(got, "48;2;1;2;3") {
+		t.Errorf("a gutter não seguiu o token surface: %q", got)
+	}
+}
+
+// TestAnUndeclaredTokenKeepsTheProductDefault fecha o outro lado do merge, e é o
+// que garante que um tema de arquivo não precisa declarar os dez tokens para
+// usar um.
+func TestAnUndeclaredTokenKeepsTheProductDefault(t *testing.T) {
+	shipped := config.Default()
+	declared := config.DefaultTokens(shipped.UI)
+	declared.Accent = "#00ff00"
+
+	themed := NewWithTokens(shipped.UI, shipped.Syntax, &declared, TrueColor)
+	if got, want := themed.Muted().Render("x"), New(shipped.UI, shipped.Syntax, TrueColor).Muted().Render("x"); got != want {
+		t.Errorf("um token não declarado mudou: %q em vez de %q", got, want)
+	}
+}

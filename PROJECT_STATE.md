@@ -351,7 +351,39 @@ de toda decisão de layout: **a mediana de um terminal de 80 colunas**. O
 Cada item ganha o seu contrato em `docs/ui-ux/` **no mesmo commit** que o entrega:
 o documento de contrato vem depois do código, nunca antes.
 
-**Próximo, na nova ordem:** os tokens semânticos, e atrás deles o soft wrap.
+### Tokens semânticos + tema `no-color` · **completo** (item 1 da direção)
+
+- ✅ **`[tokens]`** com as onze intenções do modelo do Zed (`surface`, `panel`,
+  `panel_text`, `border_subtle`, `text`, `text_muted`, `accent`, `success`,
+  `warning`, `error`, `focus`), e a **mesclagem é campo a campo** — um tema de
+  arquivo que declara `text_muted` herda os outros dez. Com struct de strings
+  normais, "não declarado" e "cor vazia" seriam o mesmo valor, e cor vazia é o que
+  o tema `no-color` afirma: a diferença entre as duas coisas é a razão dos
+  ponteiros.
+- ✅ **A camada é carregada, não declarada.** `Gutter()` resolve o fundo por
+  `surface` e a tinta por `text_muted`; `Status()` por `panel`/`panel_text`;
+  `StatusDirty()` por `warning`. `TestTheTokenLayerChangesWhatTheProductPaints`
+  olha a **saída** e prova que declarar um token muda o produto — porque uma
+  camada que ninguém lê é a mesma configuração inerte que o plano descreveu do
+  `internal/config` inteiro.
+- ✅ **Inerte por padrão, e isso é testado.** Os dez temas vêm do oráculo por um
+  arquivo gerado; os tokens herdados são comparados com as cores diretas campo a
+  campo, e **os dez goldens passaram sem regerar**.
+- ✅ **Tema `no-color`**, registrado à mão fora de `themes.go` (que é gerado e
+  reescrito pelo `--check`): um tema que o oráculo não tem, porque lá a mesma coisa
+  é um perfil do terminal. A diferença é **quem afirma** — o perfil desliga a cor
+  porque o terminal não sabe; o tema afirma que a paleta não tem cor nenhuma.
+  `TestNoColourThemeReallyPaintsNothing` falha o build se um token dele pintar.
+- ⚠️ **A R8 pegou a minha própria mudança**, e está certo: `StatusBG` perdeu o
+  leitor quando `Status()` passou a resolver por token. A verdade é que a cor
+  continua lida — como **omissão** de um tema sem a camada — e a regra passou a
+  conhecer `config.TokenDefaultFields()`, a lista que mora ao lado da função que
+  faz a leitura (um campo renomeado quebra a compilação) e que
+  `TestTokenDefaultFieldsMatchWhatIsRead` impede de envelhecer. A premissa da regra
+  ("lido só dentro do config é lido por ninguém") estava errada depois desta
+  mudança, e está corrigida no código e na regra.
+
+**Próximo, na nova ordem: o soft wrap com a linha atual marcada.**
 
 ## Camada de documentação do Prumo
 

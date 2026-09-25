@@ -33,10 +33,16 @@ const (
 )
 
 // Theme resolves colours into styles for one profile.
+//
+// Duas camadas, e a ordem importa: uma **superfície** pede um **token**, e o
+// token resolve para uma cor. A superfície nunca nomeia cor — é o que permite
+// que o mesmo código pinte a gutter de `text_muted` num tema e noutro, sem que
+// alguém precise saber qual valor usar.
 type Theme struct {
 	profile Profile
 	ui      config.UIConfig
 	syntax  config.SyntaxColors
+	tokens  config.Tokens
 }
 
 // New builds a theme.
@@ -45,11 +51,81 @@ type Theme struct {
 // able to ask for NoColor without writing to the process environment, which is
 // shared state.
 func New(ui config.UIConfig, syntax config.SyntaxColors, profile Profile) Theme {
-	return Theme{profile: profile, ui: ui, syntax: syntax}
+	return NewWithTokens(ui, syntax, nil, profile)
+}
+
+// NewWithTokens builds a theme with its semantic layer.
+//
+// `tokens` nulo herda das cores diretas, e é o caminho de todo tema que não
+// declara a camada — os dez gerados do oráculo entre eles. A opcionalidade não é
+// conveniência: é o que mantém o quadro deles byte a byte igual.
+func NewWithTokens(ui config.UIConfig, syntax config.SyntaxColors, tokens *config.Tokens, profile Profile) Theme {
+	layer := config.DefaultTokens(ui)
+	if tokens != nil {
+		layer = *tokens
+	}
+	return Theme{profile: profile, ui: ui, syntax: syntax, tokens: layer}
 }
 
 // Profile reports what this theme renders for.
 func (t Theme) Profile() Profile { return t.profile }
+
+// The semantic tokens, as the surfaces ask for them.
+//
+// Um acessor por token, e não um `Token(name string)`: o nome é string e uma
+// string errada é um token que não pinta, silenciosamente. Com o acessor, o
+// compilador guarda.
+
+// Surface is the editor's background.
+func (t Theme) Surface() lipgloss.Style { return t.token(t.tokens.Surface) }
+
+// Panel is a surface that is not the editor.
+func (t Theme) Panel() lipgloss.Style { return t.token(t.tokens.Panel) }
+
+// PanelText is the text on a panel, which reads at a different weight than the
+// editor's body text — e é por isso que é um token e não `Text` de novo.
+func (t Theme) PanelText() lipgloss.Style { return t.token(t.tokens.PanelText) }
+
+// Text is body text.
+func (t Theme) Text() lipgloss.Style { return t.token(t.tokens.Text) }
+
+// Muted is secondary text: gutter, line numbers, hints.
+func (t Theme) Muted() lipgloss.Style { return t.token(t.tokens.TextMuted) }
+
+// Accent marks what is active or selected.
+func (t Theme) Accent() lipgloss.Style { return t.token(t.tokens.Accent) }
+
+// Success is a state that is fine.
+func (t Theme) Success() lipgloss.Style { return t.token(t.tokens.Success) }
+
+// Warning is a state that needs attention without being an error.
+func (t Theme) Warning() lipgloss.Style { return t.token(t.tokens.Warning) }
+
+// Error is a diagnostic.
+//
+// E o token que **nunca** pode ser a única pista: a regra do projeto é que nenhum
+// estado vive só na cor, e um token de erro que é só cor é um estado que some
+// num terminal sem cor. As superfícies que o usam escrevem o texto junto.
+func (t Theme) Error() lipgloss.Style { return t.token(t.tokens.Error) }
+
+// Focus marks the surface that has the keyboard.
+func (t Theme) Focus() lipgloss.Style { return t.token(t.tokens.Focus) }
+
+// token resolves one token into a style that paints nothing when the token says
+// "no colour".
+func (t Theme) token(value string) lipgloss.Style {
+	if config.IsNoColour(value) {
+		// Um token `none` é o estilo zero, e não um estilo sem cor: ele não
+		// desenha fundo nem muda a frente, o que é o que "não tenho cor" quer
+		// dizer.
+		return lipgloss.NewStyle()
+	}
+	return t.style("", "", value, false)
+}
+
+// Tokens exposes the resolved layer, for the surfaces that compose a style out of
+// two tokens (a borda de um painel, por exemplo).
+func (t Theme) Tokens() config.Tokens { return t.tokens }
 
 // Selection marks selected text.
 func (t Theme) Selection() lipgloss.Style {
@@ -57,18 +133,28 @@ func (t Theme) Selection() lipgloss.Style {
 }
 
 // Gutter dims the line numbers.
+//
+// Fundo pela **intenção** (`surface`) e tinta pela **intenção** (`text_muted`), e
+// não pelas cores diretas: é isso que faz a camada ser carregada em vez de
+// existir. Um tema que declara `text_muted = "#ff0000"` muda a gutter sem tocar
+// em `[ui]`, que é o ponto de ter uma camada.
 func (t Theme) Gutter() lipgloss.Style {
-	return t.style(t.ui.Background, "", t.ui.LineNumber, false)
+	return t.style(t.tokens.Surface, "", t.tokens.TextMuted, false)
 }
 
 // Status is the bottom bar.
 func (t Theme) Status() lipgloss.Style {
-	return t.style(t.ui.StatusBG, "", t.ui.StatusFG, false)
+	return t.style(t.tokens.Panel, "", t.tokens.PanelText, false)
 }
 
 // StatusDirty is the bottom bar when the document has unsaved edits.
+//
+// A tinta vem do token `warning`: "há algo que precisa de atenção" é uma
+// **intenção**, e o mesmo token serve para um arquivo modificado, um LSP
+// carregando e uma tarefa que falhou. E continua **em negrito**, porque nenhum
+// estado deste projeto vive só na cor.
 func (t Theme) StatusDirty() lipgloss.Style {
-	return t.style(t.ui.StatusBG, "", t.ui.StatusDirty, true)
+	return t.style(t.tokens.Panel, "", t.tokens.Warning, true)
 }
 
 // Match marks a search result.
