@@ -72,6 +72,33 @@ type App struct {
 	Tree *fs.Tree
 	// Find is the in-buffer search state.
 	Find search.State
+	// GitBranch is the branch of the workspace, and GitAhead/GitBehind how far it
+	// is from its upstream.
+	//
+	// Preenchido pela raiz de composição, num `Cmd`: `git` é um **processo**, e
+	// o modelo não cria processo por frame. A barra precisa saber a branch, e é
+	// por isso que estes campos existem — um status que não mostra a branch é um
+	// status que obriga o leitor a abrir outro terminal para saber em que está.
+	GitBranch   string
+	GitAhead    int
+	GitBehind   int
+	HasUpstream bool
+
+	// Diagnostics is how many errors the attached server reported, e é o número
+	// que a barra mostra — **só** quando há cliente. Sem servidor, zero
+	// diagnósticos é ausência de medição, e a barra diz que o LSP está desligado
+	// em vez de fingir que está tudo bem.
+	Diagnostics int
+
+	// LSPAttached is whether a language server is actually running for this
+	// session.
+	//
+	// A distinção é o ponto: `[lsp].enabled` diz o que o usuário **pediu**, e isto
+	// diz o que existe. Uma barra que mostra "0 erros" com o LSP desligado está
+	// afirmando uma saúde que ninguém mediu — e é por isso que o contador de
+	// diagnósticos só aparece quando há cliente.
+	LSPAttached bool
+
 	// EditorHeight is how many rows the editor viewport had at the last frame.
 	//
 	// Injetado, nunca lido do terminal: a paginação anda N linhas, e N é o número
@@ -390,6 +417,7 @@ func (a *App) state() (Dump, error) {
 		Tree:             a.treeDump(),
 		SCM:              []SCMDump{},
 		LSPFailures:      []string{},
+		Diagnostics:      a.Diagnostics,
 		TerminalAttached: a.TerminalAttached,
 		ShouldQuit:       a.Quit,
 		Config: ConfigDump{

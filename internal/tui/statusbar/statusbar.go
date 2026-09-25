@@ -3,6 +3,7 @@ package statusbar
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/ori-team/oride/internal/tui/layout"
 	"github.com/ori-team/oride/internal/tui/theme"
@@ -14,14 +15,33 @@ import (
 // function of what it is told, which is what lets it be tested at any width
 // without a terminal.
 type View struct {
-	File       string
-	Dirty      bool
-	Focus      string
-	Message    string
-	CaretLine  int
-	CaretCol   int
-	HasCaret   bool
-	CursorMode string
+	File      string
+	Dirty     bool
+	Focus     string
+	Message   string
+	CaretLine int
+	CaretCol  int
+	HasCaret  bool
+	// Mode is the document's language, e é o campo que responde "o que este
+	// arquivo é" sem abrir um seletor.
+	Mode string
+	// Branch is the workspace's git branch, and Ahead/Behind how far it is from
+	// its upstream. HasUpstream diz se existe upstream — sem isso, "↑0 ↓0" é uma
+	// afirmação sobre um dado que ninguém leu.
+	Branch      string
+	Ahead       int
+	Behind      int
+	HasUpstream bool
+	// Diagnostics é a contagem de erros, e HasDiagnostics diz se ela é **real**.
+	//
+	// A separação é o que impede a mentira: com o LSP desligado, "0 erros" é uma
+	// saúde que ninguém mediu, e a barra precisa dizer "LSP off" em vez disso.
+	Diagnostics    int
+	HasDiagnostics bool
+	// LSP é o estado do cliente — "on", "off" — escrito por extenso de propósito:
+	// a regra do projeto é que nenhum estado é comunicado só por cor, e um glifo
+	// de LSP seria exatamente isso.
+	LSP string
 	// Theme styles the bar. The zero value renders plain, which is what a
 	// no-colour terminal and every test want.
 	Theme theme.Theme
@@ -71,6 +91,33 @@ func Render(width int, view View) string {
 
 // description is the left-hand part: what is open, where focus is, and any
 // transient message.
+// git is the branch with its distance from upstream.
+//
+// O marcador `●` é texto e precede a branch, e é ele que faz a barra continuar
+// legível em terminal sem cor: "main ↑2" é a informação; o ponto é o aviso de que
+// há uma.
+func git(view View) string {
+	if view.Branch == "" {
+		return ""
+	}
+	out := "● " + view.Branch
+	if !view.HasUpstream {
+		return out
+	}
+	return out + " ↑" + strconv.Itoa(view.Ahead) + " ↓" + strconv.Itoa(view.Behind)
+}
+
+// diagnostics é a contagem de erros, e ela **só aparece** quando alguém mediu.
+func diagnostics(view View) string {
+	if !view.HasDiagnostics || view.Diagnostics == 0 {
+		return ""
+	}
+	if view.Diagnostics == 1 {
+		return "1 erro"
+	}
+	return strconv.Itoa(view.Diagnostics) + " erros"
+}
+
 func description(view View) string {
 	file := view.File
 	if file == "" {
@@ -81,6 +128,9 @@ func description(view View) string {
 	}
 
 	parts := []string{" " + file}
+	if view.Mode != "" {
+		parts = append(parts, view.Mode)
+	}
 	if view.Focus != "" {
 		parts = append(parts, view.Focus)
 	}
@@ -95,11 +145,27 @@ func description(view View) string {
 }
 
 // position is the right-hand part: the caret's line and column.
+// position is the right-hand block: git, diagnostics, LSP and the caret — com o
+// caret **no fim**, porque é o campo que se lê por posição e um valor que anda é
+// um valor que passa batido.
+//
+// A barra continua útil sem documento aberto: sem caret, os outros três campos
+// permanecem, e uma barra que esvazia no documento novo é uma barra que mente
+// sobre o programa estar vivo.
 func position(view View) string {
-	if !view.HasCaret {
+	parts := make([]string, 0, 4)
+	for _, part := range []string{git(view), diagnostics(view), view.LSP} {
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	if view.HasCaret {
+		parts = append(parts, "Ln "+strconv.Itoa(view.CaretLine)+", Col "+strconv.Itoa(view.CaretCol))
+	}
+	if len(parts) == 0 {
 		return " "
 	}
-	return "Ln " + strconv.Itoa(view.CaretLine) + ", Col " + strconv.Itoa(view.CaretCol) + " "
+	return strings.Join(parts, " · ") + " "
 }
 
 // spaces repeats a space.

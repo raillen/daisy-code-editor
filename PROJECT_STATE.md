@@ -409,9 +409,29 @@ o documento de contrato vem depois do código, nunca antes.
 - ✅ O contrato está em `docs/ui-ux/layout.md`, com **cada regra ligada ao teste que
   a verifica** — no mesmo commit da entrega.
 
-**Próximo, na nova ordem: o status como superfície de informação** — modo da
-linguagem, contagem de erros, branch e estado do LSP, que são quatro dados que já
-existem no modelo e nenhum tem onde aparecer.
+### Status como superfície de informação · **completo** (item 3 da direção)
+
+- ✅ **Modo da linguagem** vem do **mesmo resolvedor** que faz o realce
+  (`syntax.LanguageOf`): uma barra que escreve "Rust" ao lado de um arquivo
+  realçado como Go é uma barra em que o leitor não acredita em nenhum dos dois.
+- ✅ **Branch e distância do upstream**, lidas num `Cmd` num tique de **dois
+  segundos** — `git` é um processo, e a regra do projeto é que capacidade se injeta
+  e não se lê do ambiente: um `fork` por tecla seria um `fork` por tecla. `git`
+  fora de um repositório não é erro, é a barra sem branch.
+- ✅ **A barra se recusa a afirmar uma saúde que ninguém mediu:** o número de erros
+  **só aparece com cliente LSP anexado**. Sem servidor, "0 erros" é ausência de
+  medição vestida de news.
+- ✅ **`[lsp].enabled` tem leitor** (a barra escreve "LSP off" quando o usuário
+  desligou) — a R8 contava entre as inertes.
+- ✅ **O caret continua na ponta da direita**, que é o campo lido por posição, e a
+  barra **não esvazia sem documento**: a branch e o LSP continuam visíveis.
+- ⚠️ **A lacuna que ficou fora da tela:** `[lsp].enabled` ligado sem cliente é uma
+  dívida de produto — o cliente existe em `internal/lsp` e a app nunca o sobe. Um
+  `LSP —` permanente na barra seria ruído que faz o leitor parar de ler a barra
+  inteira, então isso é do estado e do ledger, não de cada frame.
+
+**Próximo, na nova ordem: o painel inferior com abas** — Terminal │ Problemas │
+Busca em um lugar, que é o modelo do Lapce e usa a região que o layout já reserva.
 
 ## Camada de documentação do Prumo
 

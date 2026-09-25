@@ -54,6 +54,36 @@ func For(path string, languages []config.LanguageConfig) Highlighter {
 	return Disabled
 }
 
+// LanguageOf is the **display** name of a path's language — "Go", "Rust",
+// "Markdown" — e "" quando ninguém o reconhece.
+//
+// A primeira letra sobe porque o nome do lexer é minúsculo ("go", "rust") e um
+// identificador de modo na barra de status é um rótulo, não um id. A troca
+// acontece **aqui**, num lugar só: a barra recebe o rótulo pronto e não precisa
+// saber a diferença.
+//
+// Vem do **mesmo** resolvedor que faz o realce, e é essa a razão de existir como
+// função e não como mapa: a barra de status e o realce não podem discordar sobre
+// qual é a linguagem de um arquivo — um editor que realça Go e escreve "Rust" na
+// barra é um editor em que o leitor não acredita em nenhum dos dois.
+func LanguageOf(path string, languages []config.LanguageConfig) string {
+	highlighter := For(path, languages)
+	if !highlighter.Enabled() {
+		return ""
+	}
+	return displayName(highlighter.lexer.Config().Name)
+}
+
+// displayName upper-cases the first letter of a lexer name.
+func displayName(name string) string {
+	if name == "" {
+		return ""
+	}
+	runes := []rune(name)
+	runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]
+	return string(runes)
+}
+
 // newHighlighter reads the family off the lexer rather than being told it.
 //
 // The family decides the mapping, and a mapping chosen by the caller is a

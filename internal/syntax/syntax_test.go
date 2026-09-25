@@ -293,3 +293,26 @@ func firstRole(line Line) Role {
 	}
 	return line.Tokens[0].Role
 }
+
+// TestLanguageOfAgreesWithTheHighlighter é a razão de a função existir: a barra de
+// status e o realce saem do **mesmo** resolvedor.
+//
+// Um editor que realça Go e escreve "Rust" na barra não tem nenhum dos dois
+// certainos, e o leitor perde a confiança nos dois ao mesmo tempo.
+func TestLanguageOfAgreesWithTheHighlighter(t *testing.T) {
+	for path, want := range map[string]string{
+		"main.go":     "Go",
+		"lib.rs":      "Rust",
+		"notes.md":    "Markdown",
+		"config.toml": "TOML",
+		"notas.qqq":   "",
+		"":            "",
+	} {
+		if got := LanguageOf(path, nil); got != want {
+			t.Errorf("LanguageOf(%q) = %q, esperava %q", path, got, want)
+		}
+	}
+	if !For("main.go", nil).Enabled() {
+		t.Error("o mesmo caminho não resolveu um lexer: LanguageOf e o realce discordam")
+	}
+}

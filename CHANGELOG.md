@@ -10,6 +10,17 @@
   o cursor do componente pisca, e um golden não pode depender do relógio.
 
 ### Added
+- **A barra de status virou superfície de informação:** modo da linguagem, branch
+  do git com `↑ahead ↓behind`, e o estado do LSP. O número de erros **só aparece
+  quando há cliente LSP** — sem servidor, "0 erros" é ausência de medição, e a
+  barra se recusa a dizer que está tudo bem. A branch é lida fora do caminho do
+  frame, num tique de dois segundos.
+
+### Changed
+- **`[lsp].enabled` tem efeito:** a barra escreve `LSP off` quando o usuário
+  desliga. Ele era lido por ninguém desde o port.
+
+### Added
 - **Soft wrap ligado por padrão, com a linha atual marcada:** uma linha de 121
   caracteres num terminal de 60 aparece **inteira**, partida em linhas de tela, em
   vez de mostrar 59 caracteres e um `…` sem caminho para o resto. A quebra é por

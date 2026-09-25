@@ -24,6 +24,7 @@ import (
 	"github.com/ori-team/oride/internal/buffer"
 	"github.com/ori-team/oride/internal/config"
 	"github.com/ori-team/oride/internal/editor"
+	"github.com/ori-team/oride/internal/git"
 	"github.com/ori-team/oride/internal/i18n"
 	"github.com/ori-team/oride/internal/keymap"
 	"github.com/ori-team/oride/internal/search"
@@ -231,7 +232,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// coisa. É o caminho inverso do que `moveFocus` faz, e ele precisa existir
 	// tanto quanto o outro.
 	next.syncSurface()
-	return next, tea.Batch(cmd, next.clipboardWrite(), next.highlightRoles(), next.terminalCmd())
+	return next, tea.Batch(cmd, next.clipboardWrite(), next.highlightRoles(),
+		next.terminalCmd(), next.gitCmd())
 }
 
 // syncSurface follows the model's focus into the presentation.
@@ -283,6 +285,13 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.keepHighlight(message)
 		return m, nil
 
+	case gitStateMsg:
+		m.application.GitBranch = message.branch
+		m.application.GitAhead = message.ahead
+		m.application.GitBehind = message.behind
+		m.application.HasUpstream = message.tracked
+		return m, nil
+
 	case terminalReadyMsg:
 		m.pty = message.pty
 		m.application.TerminalAttached = message.pty != nil
@@ -310,6 +319,49 @@ type terminalReadyMsg struct {
 // até a próxima tecla. As linhas **não** viajam na mensagem: quem as tem é o
 // handle, e copiá-las seria um segundo lugar com o mesmo scrollback.
 type terminalPollMsg struct{}
+
+// gitStateMsg is a branch read coming back from a `Cmd`.
+//
+// Sem campo de erro de propósito: `git` fora de um repositório é o caso comum —
+// um arquivo novo, um workspace sem `.git` — e a resposta é uma barra sem branch,
+// que é a verdade. Um erro aqui viraria status na tela por um `git` que ninguém
+// pediu.
+type gitStateMsg struct {
+	branch  string
+	ahead   int
+	behind  int
+	tracked bool
+}
+
+// gitCmd re-reads the workspace's branch, on a slow tick.
+//
+// **Lento e deliberado.** `git` é um processo, e a regra do projeto é que
+// capacidade se injeta e não se lê do ambiente: um `git` por tecla seria um
+// `fork` por tecla. Dois segundos é o que o GitHub Desktop e o VS Code usam, e é
+// imperceptível para quem está lendo a branch.
+//
+// A leitura acontece na `Cmd`, nunca no caminho do frame: o modelo recebe o
+// resultado por mensagem, e um `git` que falha **não** derruba o editor — a
+// barra simplesmente não mostra a branch.
+func (m Model) gitCmd() tea.Cmd {
+	workspace := m.application.Workspace
+	if workspace == "" {
+		return nil
+	}
+	return tea.Tick(gitPollInterval, func(time.Time) tea.Msg {
+		branch := git.Branch(workspace)
+		message := gitStateMsg{branch: branch}
+		if branch != "" {
+			if ahead, behind, ok := git.AheadBehind(workspace); ok {
+				message.ahead, message.behind, message.tracked = ahead, behind, true
+			}
+		}
+		return message
+	})
+}
+
+// gitPollInterval is how often the branch is re-read.
+const gitPollInterval = 2 * time.Second
 
 // terminalCmd schedules the shell when the panel needs one, or a refresh of the
 // rows when it already has it.
@@ -915,15 +967,39 @@ func (m Model) visibleLines(document *editor.Document, height, caretLine int) ([
 // statusView builds the status bar's view.
 func (m Model) statusView() statusbar.View {
 	view := statusbar.View{
-		Focus:   string(m.surface),
-		Message: m.application.Status,
-		Theme:   m.theme,
+		Focus:       string(m.surface),
+		Message:     m.application.Status,
+		Branch:      m.application.GitBranch,
+		Ahead:       m.application.GitAhead,
+		Behind:      m.application.GitBehind,
+		HasUpstream: m.application.HasUpstream,
+		Theme:       m.theme,
+	}
+	// O estado do LSP é escrito por extenso, e a barra só fala dele quando o
+	// usuário o **desligou**: um "LSP —" permanente na barra seria ruído que faz o
+	// leitor parar de ler a barra inteira, e o que ele/configurou é o que a barra
+	// deve relatar. A contagem de erros aparece só com cliente anexado — sem
+	// servidor, "0 erros" é ausência de medição, não saúde.
+	//
+	// A lacuna real — ligado no config e sem cliente — é uma dívida de produto
+	// (M4, sobe o cliente LSP), e ela é do PROJECT_STATE e do ledger, não de
+	// cada frame.
+	if !m.application.Config.LSP.Enabled {
+		view.LSP = "LSP off"
 	}
 
 	document, err := m.application.Store.Active()
 	if err != nil {
 		return view
 	}
+	// O modo vem do mesmo resolvedor que faz o realce: uma barra que escreve "Rust"
+	// ao lado de um arquivo realçado como Go é uma barra em que o leitor não
+	// acredita.
+	if path, hasPath := document.Path(); hasPath {
+		view.Mode = syntax.LanguageOf(path, m.application.Config.Languages)
+	}
+	view.Diagnostics = m.application.Diagnostics
+	view.HasDiagnostics = m.application.LSPAttached
 	view.File = document.TabTitle()
 	view.Dirty = document.IsDirty()
 	if caret, caretErr := document.Caret(); caretErr == nil {
