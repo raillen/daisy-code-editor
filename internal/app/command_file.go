@@ -5,6 +5,15 @@ import (
 	"github.com/ori-team/oride/internal/editor"
 )
 
+// Os nomes das sobreposições de seletor, no vocabulário do oráculo: o dump
+// compara essa string, e um nome inventado aqui seria uma divergência silenciosa.
+const (
+	OverlayCommandPalette = "CommandPalette"
+	OverlayHelp           = "Help"
+	OverlayOpenFile       = "OpenFile"
+	OverlayOpenFolder     = "OpenFolder"
+)
+
 // fileCommands are the actions about the session and the documents in it.
 func fileCommands() map[action.Action]Handler {
 	return map[action.Action]Handler{
@@ -23,6 +32,46 @@ func fileCommands() map[action.Action]Handler {
 		// Tabs. The store already had the three operations; what was missing was
 		// the dispatch, which is why `ctrl+n` and `ctrl+w` were advertised in a
 		// generated table and did nothing.
+		// O seletor de arquivo é uma sobreposição, e sobreposição é estado do
+		// **modelo** porque o oráculo a dumpha. Sem esta linha, `Ctrl+P` era uma
+		// tecla anunciada que não fazia nada — e a mais cara de não fazer nada,
+		// porque é a via rápida de abrir arquivo.
+		action.OpenFileFuzzy: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Overlay = OverlayOpenFile
+			a.Status = "abrir arquivo: digite para filtrar · Enter abre · Esc cancela"
+			return nil
+		}),
+
+		action.CommandPalette: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Overlay = OverlayCommandPalette
+			return nil
+		}),
+
+		// Which-key, ajuda e welcome mostram a **mesma** lista: um atalho que
+		// abre uma coluna de continuação e outro que abre a página inteira são o
+		// mesmo conjunto de bindings, lido de dois jeitos. O oráculo também os
+		// treat como uma sobreposição só (`Overlay::Help`).
+		action.WhichKey: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Overlay = OverlayHelp
+			return nil
+		}),
+
+		action.Help: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Overlay = OverlayHelp
+			return nil
+		}),
+
+		action.Welcome: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Overlay = OverlayHelp
+			return nil
+		}),
+
+		action.OpenFolder: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Overlay = OverlayOpenFolder
+			a.Status = "abrir pasta: digite para filtrar · Enter abre · Esc cancela"
+			return nil
+		}),
+
 		action.NextTab: modelHandler(func(a *App, _ *editor.Document) error { return a.cycleTab(1) }),
 		action.PrevTab: modelHandler(func(a *App, _ *editor.Document) error { return a.cycleTab(-1) }),
 

@@ -214,3 +214,57 @@ func TestEscapeClosesAPickerWithoutApplying(t *testing.T) {
 		t.Errorf("Esc mudou o tema para %q", model.application.Config.Theme)
 	}
 }
+
+// TestQuickOpenListsTheWorkspaceAndOpens is `Ctrl+P` — a via **mais rápida** para
+// abrir arquivo, que estava anunciada no keymap gerado e não fazia nada.
+//
+// E é a prova de que a sobreposição é do modelo: a tecla escreve
+// `App.Overlay = "OpenFile"` e a tela projeta a lista. A versão anterior abria a
+// lista **só** quando o método privado era chamado, e nenhuma tecla chegava lá.
+func TestQuickOpenListsTheWorkspaceAndOpens(t *testing.T) {
+	model := sized(t, newModel(t, nil), 100, 30)
+	model.application.Tree = stubTree(t)
+	model.application.ShowTree = true
+
+	model = pressChord(t, model, chordFor(t, model.keys, action.OpenFileFuzzy))
+	if !model.overlay.Active() {
+		t.Fatal("Ctrl+P não abriu o seletor de arquivo")
+	}
+
+	items, ok := model.overlay.Selected()
+	if !ok || items.Value == "" {
+		t.Fatalf("a lista não tem nenhuma linha com caminho: %+v", items)
+	}
+
+	model = typeText(t, model, "main.go")
+	model = press(t, model, tea.Key{Code: tea.KeyEnter})
+
+	if _, has := model.application.Store.ActiveID(); !has {
+		t.Fatal("Enter no seletor não abriu o arquivo")
+	}
+	if model.overlay.Active() {
+		t.Error("o seletor continuou aberto depois de abrir")
+	}
+	if model.application.Focus != app.FocusEditor {
+		t.Errorf("abrir pelo seletor não devolveu o foco ao editor (foco = %q)", model.application.Focus)
+	}
+}
+
+// TestEscapeClosesTheQuickOpenWithoutOpening: cancelar é o caminho que o leitor
+// espera num seletor, e Enter sem querer não pode ser irreversível.
+func TestEscapeClosesTheQuickOpenWithoutOpening(t *testing.T) {
+	model := sized(t, newModel(t, nil), 100, 30)
+	model.application.Tree = stubTree(t)
+	model.application.ShowTree = true
+
+	model = pressChord(t, model, chordFor(t, model.keys, action.OpenFileFuzzy))
+	model = typeText(t, model, "main")
+	model = press(t, model, tea.Key{Code: tea.KeyEscape})
+
+	if model.overlay.Active() {
+		t.Error("Esc não fechou o seletor")
+	}
+	if _, has := model.application.Store.ActiveID(); has {
+		t.Error("Esc abriu um arquivo")
+	}
+}

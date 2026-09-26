@@ -494,6 +494,45 @@ eu procurava já tinha mudado), e só o teste novo do painel revelou.
   Só para a frente, e a razão também está no keymap: não existe `focus_prev_pane`.
 - **53 tratadas, 24 mortas.**
 
+### Navegação: mouse, `Ctrl+P` e o `Tab` · **completo**
+
+O relato de uso foi: *navegação horrível, nada funciona, nem mouse nem teclado,
+arquivos não abrem*. Medido, e as três coisas eram verdade:
+
+- **O mouse não existia.** A TUI **declarava** a capacidade no `tea.View` e não
+  tratava nenhuma `MouseMsg` — e com `[editor].mouse = false` por padrão o terminal
+  nem enviava evento. Agora: **clique** seleciona a linha da árvore e o **segundo
+  clique na mesma linha abre o arquivo** (é o que o Zed faz, e evita abrir o
+  arquivo errado por um clique que ninguém revisou); o clique na árvore **traz o
+  teclado junto**; o clique fora dos painéis devolve o foco ao editor; a **roda**
+  move a visão; e sobreposição aberta captura a roda. O default virou **ligado**
+  (divergência **B20**), e `mouse = false` devolve a seleção nativa.
+- **`Ctrl+P` era a via mais rápida para abrir arquivo e estava morta** — anunciada no
+  keymap gerado, sem tratamento. E `Ctrl+O` também. Agora `Ctrl+P` lista os
+  arquivos do workspace, filtra ao digitar, e `Enter` abre com o foco no editor.
+- **Quatro `Tab`s** para alcançar a árvore, e outras quatro de volta. Agora são
+  **uma**: os painéis vêm antes do chrome, e menu/abas/status saíram do ciclo do
+  `Tab` — são alvo de clique, e o teclado chega neles pela paleta.
+
+**O defeito de fundo, e é o que importa mais que os três:** a sobreposição era
+**dupla**. A paleta abria na tela (`openOverlayFor`) e o resto abria no modelo
+(`App.Overlay`), e **não havia link entre as duas** — a ação escrevia
+`App.Overlay = "OpenFile"` e a tela nunca olhava. Por isso `Ctrl+P` e os **dois
+seletores** (tema e idioma) eram inalcançáveis, e eu não tinha visto porque os
+testes deles montavam a lista à mão.
+
+Agora há **uma** verdade: `App.Overlay` decide, e `syncOverlay` projeta depois de
+todo despacho — o caminho da tecla, o da paleta e qualquer caminho futuro. Fechar
+também é mexer no modelo. E `Esc` fecha a sobreposição **com filtro digitado**,
+que é o que o Zed e o Lapce fazem; a convenção do componente (limpar o filtro
+antes) é de editor modal.
+
+**Um teste estava reaching demais:** `pressChord` chamava `openOverlayFor` **direto**,
+pulando o `Update` inteiro. Ele passava, a peça estava certa e o produto errado.
+Agora monta a tecla e vai pelo `Update` — o mesmo caminho que o terminal.
+
+**59 ações tratadas, 22 mortas.**
+
 **Os seis itens da direção estão fechados.** O que a direção deixa como item de
 **feature** (e não de UI/UX) são os splits, o SCM com stage, o preview Markdown, o
 motor modal Vim, o cliente LSP subindo, e a busca no projeto.

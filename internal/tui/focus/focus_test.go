@@ -12,7 +12,10 @@ func onlyEditor(s Surface) bool { return s == Editor }
 // docs/ui-ux/focus-graph.md. A reordering here changes where Tab goes for every
 // user, so the order is asserted rather than assumed.
 func TestOrderMatchesTheDocumentedGraph(t *testing.T) {
-	want := []Surface{Editor, MenuBar, Tabs, Tree, SCM, Terminal, StatusBar}
+	// A ordem é a tabela de `docs/ui-ux/focus-graph.md`, e o motivo de ela existir
+	// como tabela no documento é este teste: uma pressão de `Tab` a mais até a
+	// árvore é o tipo de coisa que se nota no uso e não no código.
+	want := []Surface{Editor, Tree, SCM, Terminal, MenuBar, Tabs, StatusBar}
 
 	got := New().Order()
 	if len(got) != len(want) {
@@ -30,7 +33,9 @@ func TestOrderMatchesTheDocumentedGraph(t *testing.T) {
 func TestTabCyclesForwardAndWraps(t *testing.T) {
 	graph := New()
 
-	walk := []Surface{MenuBar, Tabs, Tree, SCM, Terminal, StatusBar, Editor}
+	// Só os painéis entram no ciclo: menu, abas e status são alvo do mouse, e o `Tab`
+	// que parava num rótulo era quatro pressões de distância do editor.
+	walk := []Surface{Tree, SCM, Terminal, Editor}
 	from := Editor
 	for _, want := range walk {
 		from = graph.Next(from, allVisible, false)
@@ -43,7 +48,9 @@ func TestTabCyclesForwardAndWraps(t *testing.T) {
 func TestShiftTabCyclesBackwards(t *testing.T) {
 	graph := New()
 
-	walk := []Surface{StatusBar, Terminal, SCM, Tree, Tabs, MenuBar, Editor}
+	// Ao contrário: terminal → SCM → árvore → editor. A volta é o mesmo ciclo no
+	// sentido inverso, e o chrome não participa dos dois.
+	walk := []Surface{Terminal, SCM, Tree, Editor}
 	from := Editor
 	for _, want := range walk {
 		from = graph.Next(from, allVisible, true)
@@ -117,12 +124,16 @@ func TestOrderIsACopy(t *testing.T) {
 	}
 }
 
-// TestEverySurfaceIsReachable proves the graph has no unreachable node: a surface
-// declared but never reached by Tab is a surface nobody can focus.
-func TestEverySurfaceIsReachable(t *testing.T) {
+// TestEveryPanelIsReachableByTab is a distinção que vale a pena fixar: o `Tab`
+// alcança **painéis**, e o chrome é alvo do clique.
+//
+// Focar menu, abas e barra de status pelo teclado só custava atalhos no caminho
+// mais usado do editor — e o custo era medido: quatro `Tab`s para a árvore, e
+// outras quatro de volta.
+func TestEveryPanelIsReachableByTab(t *testing.T) {
 	graph := New()
 
-	seen := map[Surface]bool{}
+	seen := map[Surface]bool{Editor: true}
 	from := Editor
 	for range graph.Order() {
 		from = graph.Next(from, allVisible, false)
@@ -130,8 +141,27 @@ func TestEverySurfaceIsReachable(t *testing.T) {
 	}
 
 	for _, surface := range graph.Order() {
+		if chrome[surface] {
+			if seen[surface] {
+				t.Errorf("%v não deveria entrar no ciclo do Tab", surface)
+			}
+			continue
+		}
 		if !seen[surface] {
-			t.Errorf("%v nunca é alcançável por Tab", surface)
+			t.Errorf("o painel %v não é alcançável por Tab", surface)
+		}
+	}
+}
+
+// TestTheChromeIsStillAFocusTarget is a outra face: sair do ciclo do `Tab` **não**
+// tira a superfície do grafo. Um clique na barra de abas continua focusing o
+// editor, e o `Surface` continua existindo para isso.
+func TestTheChromeIsStillAFocusTarget(t *testing.T) {
+	graph := New()
+
+	for _, surface := range graph.Order() {
+		if !graph.Holds(surface) {
+			t.Errorf("%v saiu do grafo: sair do Tab não é sair do foco", surface)
 		}
 	}
 }

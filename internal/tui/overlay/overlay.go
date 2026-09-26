@@ -26,6 +26,9 @@ const (
 	// two is only what gets done with the chosen name.
 	Theme
 	Locale
+	// OpenFile is the file picker: `Ctrl+P`, the fastest way to open a file, which
+	// was advertised in the generated keymap and did nothing.
+	OpenFile
 	QuitConfirm
 	CloseConfirm
 )

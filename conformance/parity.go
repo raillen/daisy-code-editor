@@ -119,26 +119,35 @@ func stripUnimplemented(report *Report) *Report {
 }
 
 // dropDecidedPaths removes the decided divergences nested under one state key.
+//
+// **Todas**, e não a primeira: com dois campos divergentes sob `config`, devolver
+// na primeira faz a segunda continuar sendo comparada — e o primeiro sintoma é
+// uma falha de paridade que ninguém sabe explicar, porque a lista de divergências
+// declara duas e o relatório acusa uma.
 func dropDecidedPaths(prefix string, value any) any {
+	decided := map[string]bool{}
 	for path := range DivergentByDecision {
 		head, rest, nested := strings.Cut(path, ".")
-		if head != prefix {
+		if nested && head == prefix {
+			decided[rest] = true
+		}
+	}
+	if len(decided) == 0 {
+		return value
+	}
+
+	state, ok := value.(map[string]any)
+	if !ok {
+		return value
+	}
+	trimmed := make(map[string]any, len(state))
+	for key, inner := range state {
+		if decided[key] {
 			continue
 		}
-		state, ok := value.(map[string]any)
-		if !ok {
-			return value
-		}
-		trimmed := make(map[string]any, len(state))
-		for key, inner := range state {
-			if nested && key == rest {
-				continue
-			}
-			trimmed[key] = inner
-		}
-		return trimmed
+		trimmed[key] = inner
 	}
-	return value
+	return trimmed
 }
 
 // Compare compares two reports for the same case, without tolerance.

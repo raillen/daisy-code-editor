@@ -131,7 +131,13 @@ func Default() Config {
 		// caracteres num terminal de 60 tem de ser legível por inteiro, e cortar a
 		// cauda sem caminho para ela é pior que qualquer outro defeito de tela.
 		SoftWrap: true,
-		Mouse:    false,
+		// Mouse ligado por padrão, e é uma divergência declarada (B20): o oráculo
+		// entrega desligado, porque no terminal o mouse capturado tira do usuário a
+		// seleção nativa. Com a TUI tratando clique e roda — o que ela não fazia —
+		// um editor de código em que o mouse não faz nada tem metade da navegação
+		// partida. `mouse = false` devolve a seleção nativa, e o caminho continua
+		// inteiro pelo teclado.
+		Mouse: true,
 		Editor: EditorConfig{
 			TabSize:           4,
 			InsertSpaces:      true,

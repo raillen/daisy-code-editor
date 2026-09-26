@@ -120,6 +120,20 @@ func (t *Tree) MoveSelection(delta int) {
 	t.selected = ((t.selected+delta)%total + total) % total
 }
 
+// IndexAtRow is the selected index a click on a visible row lands on, and -1 when
+// the row is not there.
+//
+// O clique precisa do **índice selecionado**, não da linha: `SetSelected` é
+// limitado às linhas visíveis, e um clique numa linha de padding — o espaço
+// depois da última — não é uma linha.
+func (t *Tree) IndexAtRow(row int) int {
+	rows := t.FlatRows()
+	if row < 0 || row >= len(rows) {
+		return -1
+	}
+	return row
+}
+
 // SelectedRow returns the row under the selection.
 func (t *Tree) SelectedRow() (Row, bool) {
 	if t.selected == 0 {

@@ -58,6 +58,16 @@ type Region struct {
 // Empty reports a region with no area.
 func (r Region) Empty() bool { return r.Width <= 0 || r.Height <= 0 }
 
+// Contains reports whether a cell is inside the region, e é o que decide o que um
+// clique acertou.
+//
+// A comparação é em **células da tela**: um clique numa linha em branco acima da
+// última linha real ainda é na região, e dizer que não é faria o clique no vazio
+// não fazer nada — que é o que se espera de um clique no vazio.
+func (r Region) Contains(x, y int) bool {
+	return !r.Empty() && x >= r.X && x < r.X+r.Width && y >= r.Y && y < r.Y+r.Height
+}
+
 // Wants is what the model asks to show.
 //
 // A value rather than a set of booleans threaded through the call: four

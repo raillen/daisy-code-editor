@@ -28,6 +28,17 @@
   que ninguém mediu.
 
 ### Fixed
+- **A navegação foi consertada, e as três causas eram reais:** o mouse **não
+  existia** (a TUI declarava a capacidade e não tratava nenhum clique — agora
+  seleciona e abre na segunda passada, traz o teclado junto, e a roda rola);
+  `Ctrl+P` e `Ctrl+O`, as vias mais rápidas de abrir arquivo, eram **teclas mortas**;
+  e a árvore levava **quatro `Tab`s**, agora uma. O `mouse` vem ligado por padrão
+  (divergência `B20`) e `mouse = false` devolve a seleção nativa do terminal.
+- **A sobreposição deixou de ter duas verdades.** A paleta abria na tela e o resto
+  abria no modelo, sem link: por isso `Ctrl+P` e os dois seletores eram
+  inalcançáveis. Agora `App.Overlay` decide e a tela projeta.
+
+### Fixed
 - **O terminal não aceita mais teclado quando outra aba está à frente:** o foco
   podia descansar num painel invisível, o que a regra do projeto proíbe.
 

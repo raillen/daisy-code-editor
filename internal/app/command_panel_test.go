@@ -126,32 +126,35 @@ func TestTreeRefreshWithNoTreeIsNotAnError(t *testing.T) {
 }
 
 // TestToggleMouseFlipsTheConfigurationAndSaysWhy é a tecla que muda a
-// capacidade do terminal, e a mensagem precisa explicar a desgraça: quem acabou de
-// desligar a seleção de texto do terminal não liga as duas coisas sozinho.
+// capacidade do terminal, e a mensagem precisa explicar o que acontece nas duas direções:
+// quem liga e de quem desliga: desligar devolve a seleção nativa do terminal, e
+// ligar tira a seleção do leitor.
+//
+// O default **ligado** é B20, e o teste começa pelo estado em que a sessão está.
 func TestToggleMouseFlipsTheConfigurationAndSaysWhy(t *testing.T) {
 	a := buildWired(t, "x")
 
-	if a.Config.Mouse {
-		t.Fatal("o mouse começa ligado, e o padrão documentado é desligado")
+	if !a.Config.Mouse {
+		t.Fatal("o mouse deveria começar ligado (B20)")
 	}
+	if err := a.Apply(action.ToggleMouse); err != nil {
+		t.Fatalf("toggle mouse: %v", err)
+	}
+	if a.Config.Mouse {
+		t.Error("a tecla não desligou o mouse")
+	}
+	if !strings.Contains(a.Status, "padrão") {
+		t.Errorf("status = %q, desligar precisa dizer que a seleção nativa volta", a.Status)
+	}
+
 	if err := a.Apply(action.ToggleMouse); err != nil {
 		t.Fatalf("toggle mouse: %v", err)
 	}
 	if !a.Config.Mouse {
-		t.Error("a tecla não ligou o mouse")
+		t.Error("a segunda vez a tecla não religou o mouse")
 	}
 	if !strings.Contains(a.Status, "ON") {
 		t.Errorf("status = %q", a.Status)
-	}
-
-	if err := a.Apply(action.ToggleMouse); err != nil {
-		t.Fatalf("toggle mouse: %v", err)
-	}
-	if a.Config.Mouse {
-		t.Error("a segunda vez a tecla não desligou o mouse")
-	}
-	if !strings.Contains(a.Status, "padrão") {
-		t.Errorf("status = %q, desligar precisa dizer por que o padrão é desligado", a.Status)
 	}
 }
 

@@ -43,17 +43,26 @@ func sized(t *testing.T, model Model, width, height int) Model {
 	return sizedModel
 }
 
-// TestMouseIsOffByDefault is the gate the milestone names. The documented default
-// is off, and off has to mean off: an editor that captures the mouse without being
-// asked takes text selection away from the terminal.
+// TestMouseIsOnByDefaultWithAnOptOut is a **mudança** do default, e o motivo está
+// em B20: com o clique e a roda tratados, um editor de código em que o mouse não
+// faz nada tem metade da navegação partida — e o relatório de uso disse exatamente
+// isso. `mouse = false` devolve a seleção nativa do terminal, e é o caminho para
+// quem prefere isso.
 func TestMouseIsOffByDefault(t *testing.T) {
 	model := newModel(t, nil)
 
-	if got := model.View().MouseMode; got != tea.MouseModeNone {
-		t.Errorf("modo de mouse = %v, esperado MouseModeNone", got)
+	if got := model.View().MouseMode; got != tea.MouseModeCellMotion {
+		t.Errorf("modo de mouse = %v, esperado MouseModeCellMotion", got)
 	}
 	if !config.Default().Mouse {
-		t.Skip()
+		t.Error("o padrão mudou: com o mouse ligado, o modo declarado é de captura")
+	}
+
+	// E a saída continua sendo do leitor: sem mouse, o terminal volta a oferecer a
+	// seleção nativa, e o produto não interfere.
+	off := model.WithMouseOff()
+	if got := off.View().MouseMode; got != tea.MouseModeNone {
+		t.Errorf("com mouse desligado, modo = %v, esperado MouseModeNone", got)
 	}
 }
 

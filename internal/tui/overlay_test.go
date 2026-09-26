@@ -33,18 +33,75 @@ func chordFor(t *testing.T, keys *keymap.Map, id action.Action) string {
 // key builds a keystroke the model understands.
 func key(text string) tea.KeyPressMsg { return tea.KeyPressMsg(tea.Key{Text: text}) }
 
-// pressChord opens whatever a chord resolves to.
+// pressChord sends a chord as the runtime would, pelo `Update`.
 //
-// It calls the model's own resolution rather than reconstructing a keystroke from
-// the chord: Bubble Tea builds the chord from the key's fields, and a test that
-// rebuilt it would be testing that encoding rather than this code.
+// A versão anterior chamava `openOverlayFor` **direto**, o que pulava o `Update`
+// inteiro — e foi exatamente esse atalho que escondeu o defeito que esta rodada
+// conserta: a ação punha `Overlay = "OpenFile"` no modelo e a tela nunca olhava,
+// porque quem abria a sobreposição era o método privado, não o `Update`. Um teste
+// que chama a peça por fora testa a peça; a peça estava certa e o produto errado.
+//
+// A tecla é **montada** a partir do chord, e o `keymap.Parse` normaliza a caixa —
+// então o teste exercita o mesmo caminho que o terminal exercita.
 func pressChord(t *testing.T, model Model, chord string) Model {
 	t.Helper()
 
-	if !model.openOverlayFor(chord) {
-		t.Fatalf("o chord %q não abriu nenhuma sobreposição", chord)
+	updated, _ := model.Update(tea.KeyPressMsg(keyEventFor(t, chord)))
+	next, ok := updated.(Model)
+	if !ok {
+		t.Fatalf("Update devolveu %T", updated)
 	}
-	return model
+	return next
+}
+
+// keyEventFor is the keystroke a terminal would send for a chord.
+//
+// Os casos que a tabela usa: uma letra com modificadores, ou uma tecla nomeada
+// (up, enter, pgdown…). Qualquer outro token é erro do teste, não produto — e
+// falhar aqui é melhor do que mandar uma tecla que o terminal nunca manda.
+func keyEventFor(t *testing.T, chord string) tea.Key {
+	t.Helper()
+
+	parts := strings.Split(chord, "+")
+	code := parts[len(parts)-1]
+	event := tea.Key{}
+
+	for _, modifier := range parts[:len(parts)-1] {
+		switch modifier {
+		case "ctrl":
+			event.Mod |= tea.ModCtrl
+		case "alt":
+			event.Mod |= tea.ModAlt
+		case "shift":
+			event.Mod |= tea.ModShift
+		default:
+			t.Fatalf("modificador desconhecido em %q", chord)
+		}
+	}
+
+	if named, found := namedKeyCodes()[code]; found {
+		event.Code = named
+		return event
+	}
+
+	runes := []rune(code)
+	if len(runes) != 1 {
+		t.Fatalf("chord %q não é uma tecla que o terminal manda", chord)
+	}
+	event.Code = runes[0]
+	return event
+}
+
+// namedKeyCodes are the named keys the default keymap uses.
+func namedKeyCodes() map[string]rune {
+	return map[string]rune{
+		"up": tea.KeyUp, "down": tea.KeyDown, "left": tea.KeyLeft, "right": tea.KeyRight,
+		"enter": tea.KeyEnter, "tab": tea.KeyTab, "esc": tea.KeyEscape, "space": tea.KeySpace,
+		"backspace": tea.KeyBackspace, "delete": tea.KeyDelete, "home": tea.KeyHome, "end": tea.KeyEnd,
+		"pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown,
+		"f1": tea.KeyF1, "f2": tea.KeyF2, "f3": tea.KeyF3, "f4": tea.KeyF4, "f5": tea.KeyF5,
+		"f6": tea.KeyF6, "f8": tea.KeyF8, "f12": tea.KeyF12,
+	}
 }
 
 // TestOverlayCapturesEveryKeystroke is the first rule of the focus graph, and the

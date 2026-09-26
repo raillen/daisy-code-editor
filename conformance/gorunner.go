@@ -44,6 +44,11 @@ var NotYetImplemented = map[string]string{
 // continua visível no relatório, com o item do ledger, e o caso segue sendo um
 // caso de paridade para todo o resto.
 var DivergentByDecision = map[string]string{
+	"config.mouse": "B20 — o mouse vem ligado por padrão. O oráculo entrega desligado, " +
+		"porque no terminal o mouse capturado tira do usuário a seleção nativa. Com a TUI " +
+		"tratando clique e roda, um editor em que o mouse não faz nada tem metade da " +
+		"navegação partida; `mouse = false` devolve a seleção nativa, e o caminho " +
+		"completo continua sendo o teclado.",
 	"config.soft_wrap": "B19 — o wrap vem ligado por padrão, como no Zed e como o plano de produto " +
 		"pede (docs/design.md, secao P0: default on em .md); o oráculo entrega desligado. " +
 		"Linha de 121 caracteres num terminal de 60 é o caso comum de código, e cortar a cauda " +

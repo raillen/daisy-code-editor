@@ -240,8 +240,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// coisa. É o caminho inverso do que `moveFocus` faz, e ele precisa existir
 	// tanto quanto o outro.
 	next.syncSurface()
+	next.syncOverlay()
 	return next, tea.Batch(cmd, next.clipboardWrite(), next.highlightRoles(),
 		next.terminalCmd(), next.gitCmd())
+}
+
+// syncOverlay makes the TUI overlay follow the model's `Overlay`.
+//
+// **Este link não existia**, e é por isso que `Ctrl+P` — a via mais rápida para
+// abrir arquivo, e uma tecla anunciada no keymap gerado — não abria nada: a ação
+// punha `Overlay = "OpenFile"` no modelo e a tela continuava sem lista. O mesmo
+// valia para os dois seletores, que existem e são inalcançáveis.
+//
+// A regra é a de `syncSurface`, e a razão é a mesma: `App.Overlay` é a verdade
+// (o oráculo a dumpha), e a apresentação é uma projeção dela. Sincronizar depois
+// **de todo** despacho cobre o caminho da tecla, o caminho da paleta e qualquer
+// caminho que um dia alguém escrever — em vez de lembrá-los em três lugares.
+func (m *Model) syncOverlay() {
+	name := m.application.Overlay
+	if name == app.OverlayNone {
+		m.overlay.Close()
+		return
+	}
+	if m.overlay.Active() && m.overlay.Kind() == m.kindFor(name) {
+		return
+	}
+	if m.kindFor(name) == overlay.None {
+		return
+	}
+
+	width, height := m.overlaySize()
+	m.overlay.Open(m.kindFor(name), m.titleFor(name), m.itemsFor(name), width, height)
 }
 
 // syncSurface follows the model's focus into the presentation.
@@ -288,6 +317,12 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		return m, nil
+
+	case tea.MouseClickMsg:
+		return m.handleClick(message), nil
+
+	case tea.MouseWheelMsg:
+		return m.handleWheel(message), nil
 
 	case highlightedMsg:
 		m.keepHighlight(message)
@@ -517,6 +552,152 @@ func linesOf(document *editor.Document) []string {
 	return lines
 }
 
+// handleClick acts on a mouse click, e é a metade que faltava do produto.
+//
+// Até aqui a TUI **declarava** a capacidade do mouse no `tea.View` e não tratava
+// nenhuma mensagem: o clique não fazia nada, e com `[editor].mouse = false` o
+// terminal nem enviava evento. Um editor de código em que o mouse não faz nada é
+// um editor com metade da navegação partida — e a outra metade, o `Tab`, exigia
+// quatro pressões para chegar na árvore.
+//
+// O que o clique faz, na ordem em que o leitor espera: **selecionar** na primeira
+// passada, **abrir** na segunda sobre a mesma linha. É o que o Zed faz, e é o que
+// evita o pior defeito de um clique em lista — abrir o arquivo errado por um
+// clique que ninguém revisou.
+func (m Model) handleClick(message tea.MouseClickMsg) Model {
+	if message.Button != tea.MouseLeft {
+		return m
+	}
+	regions := m.regions()
+
+	switch {
+	case regions.Tree.Contains(message.X, message.Y):
+		row := message.Y - regions.Tree.Y
+		index := m.application.Tree.IndexAtRow(row)
+		if index < 0 {
+			return m
+		}
+		if index == m.application.Tree.SelectedIndex() {
+			m.activateTreeRow(index)
+			return m
+		}
+		m.application.Tree.SetSelected(index)
+		m.application.Focus = app.FocusTree
+		m.surface = focus.Tree
+		return m
+
+	case regions.Tabs.Contains(message.X, message.Y):
+		if index, ok := m.tabAt(message.X); ok {
+			m.activateTab(index)
+		}
+		return m
+
+	case regions.Bottom.Contains(message.X, message.Y):
+		m.surface = focus.Editor
+		m.application.Focus = app.FocusEditor
+		return m
+	}
+
+	//fora dos painéis, o clique volta para o editor: é onde o leitor escreve.
+	m.surface = focus.Editor
+	m.application.Focus = app.FocusEditor
+	return m
+}
+
+// handleWheel rola a superfície sob o cursor, em três linhas por entalhe.
+func (m Model) handleWheel(message tea.MouseWheelMsg) Model {
+	delta := 3
+	switch message.Button {
+	case tea.MouseWheelDown:
+		delta = 3
+	case tea.MouseWheelUp:
+		delta = -3
+	}
+
+	m.scrollBy(delta)
+	return m
+}
+
+// scrollBy moves the caret by whole lines, que é o que a roda faz em qualquer
+// editor: a roda desloca a **visão**, e sem estado de rolagem próprio a
+// -visualização** que se move é o caret.
+func (m *Model) scrollBy(lines int) {
+	if lines == 0 {
+		return
+	}
+	move := action.MoveDownPlain
+	if lines < 0 {
+		move = action.MoveUpPlain
+		lines = -lines
+	}
+	for range lines {
+		if err := m.application.Apply(move); err != nil {
+			return
+		}
+	}
+}
+
+// activateTreeRow abre o arquivo da linha selecionada, que é o que o `Enter` da
+// árvore já fazia.
+func (m *Model) activateTreeRow(index int) {
+	rows := m.application.Tree.FlatRows()
+	if index < 0 || index >= len(rows) {
+		return
+	}
+	row := rows[index]
+	if row.IsDir {
+		if row.Expanded {
+			_ = m.application.Tree.CollapseOrParent()
+		} else {
+			_ = m.application.Tree.ExpandSelected()
+		}
+		return
+	}
+	if _, err := m.application.Store.OpenPath(row.Path); err == nil {
+		m.application.Focus = app.FocusEditor
+		m.surface = focus.Editor
+	}
+}
+
+// activateTab is the store's tab switch by index, e o store é quem tem a lista —
+// a composição só conhece a ordem que a barra de abas desenha.
+func (m *Model) activateTab(index int) {
+	ids := m.application.Store.TabIDs()
+	if index < 0 || index >= len(ids) {
+		return
+	}
+	if err := m.application.Store.SetActive(ids[index]); err != nil {
+		return
+	}
+	m.application.Focus = app.FocusEditor
+	m.surface = focus.Editor
+}
+
+// regions is the layout for the current size, and the click handler asks for it
+// once instead of recomputing per message.
+func (m Model) regions() layout.Regions {
+	return layout.Compute(m.size, m.wants())
+}
+
+// tabAt is which tab the click column lands on.
+func (m Model) tabAt(column int) (int, bool) {
+	// Uma coluna por caractere mais o separador, medidos: um `x * 8` aqui seria
+	// uma constante presumida, que é a família de bug que o projeto já
+	// contabiliza cinco vezes.
+	x := column
+	for index, summary := range m.application.Store.TabSummaries() {
+		cells := layout.Width(summary.Title) + tabGapCells
+		if x <= cells {
+			return index, true
+		}
+		x -= cells
+	}
+	return 0, false
+}
+
+// tabGapCells é o espaço entre abas, medido pelo mesmo componente que desenha.
+const tabGapCells = 2
+
 // handleKey routes one keystroke.
 //
 // Focus traversal is handled before the keymap, because Tab is navigation in
@@ -726,6 +907,17 @@ func (m Model) View() tea.View {
 	view.WindowTitle = windowTitle
 	view.MouseMode = m.mouseMode()
 	return view
+}
+
+// WithMouseOff devolve a seleção nativa do terminal, e é o caminho de saída de
+// B20: com o mouse capturado, o leitor perde a seleção de texto do próprio terminal.
+//
+// Um método em vez de mexer na configuração global porque a configuração é do
+// documento aberto: trocá-la aqui desfaria a soma de "o que o arquivo diz" e "o que
+// a sessão está usando".
+func (m Model) WithMouseOff() Model {
+	m.application.Config.Mouse = false
+	return m
 }
 
 // mouseMode derives the mode from configuration.
@@ -1247,6 +1439,11 @@ func (m *Model) recomputeFind() {
 const (
 	overlayNone = app.OverlayNone
 	overlayFind = app.OverlayFind
+
+	// Os seletores de arquivo chegam do modelo pelo mesmo caminho dos outros: o
+	// nome vem do app, e a tela só sabe o que fazer com ele.
+	appOverlayOpenFile   = app.OverlayOpenFile
+	appOverlayOpenFolder = app.OverlayOpenFolder
 )
 
 // wants is what the model asks the layout to show.
@@ -1467,15 +1664,16 @@ func (m *Model) handleOverlayKey(key tea.KeyPressMsg) {
 		return
 	}
 
-	// Escape has two owners and they must not both act: while the filter is open it
-	// belongs to the filter, and closing on the first Escape would discard a
-	// half-typed filter the reader meant to correct.
+	// Esc fecha a sobreposição, com filtro digitado ou não.
+	//
+	// A convenção do componente é outra — primeiro o filtro, depois a
+	// sobreposição — e ela é de editor modal: o leitor que abriu o seletor, digitou
+	// três letras e apertou Esc quer sair, não perder três letras e ter que apertar
+	// de novo. No Zed e no Lapce, Esc fecha.
 	chord := key.Keystroke()
 	if chord == "escape" || chord == "esc" || chord == "ctrl+c" {
-		if !m.overlay.Filtering() {
-			m.overlay.Close()
-			return
-		}
+		m.application.Overlay = app.OverlayNone
+		return
 	}
 
 	// Uma tecla digitável **abre** o filtro. O componente só entra em modo filtro
@@ -1513,7 +1711,10 @@ func (m *Model) handleOverlayKey(key tea.KeyPressMsg) {
 func (m *Model) applyOverlaySelection() {
 	kind := m.overlay.Kind()
 	selected, ok := m.overlay.Selected()
-	m.overlay.Close()
+	// Fechar é mexer no **modelo**: a tela projetando um `App.Overlay` que continua
+	// aberto é a sobreposição que não fecha — que é o que acontecia com os dois
+	// seletores e com a paleta.
+	m.application.Overlay = app.OverlayNone
 	if !ok || selected.Value == "" {
 		return
 	}
@@ -1524,6 +1725,9 @@ func (m *Model) applyOverlaySelection() {
 		return
 	case kind == overlay.Locale:
 		m.applyLocale(selected.Value)
+		return
+	case kind == overlay.OpenFile:
+		m.openPath(selected.Value)
 		return
 	}
 
@@ -1547,6 +1751,31 @@ func (m *Model) applyOverlaySelection() {
 		m.itemsFor(m.application.Overlay), width, height)
 }
 
+// OpenFile é a lista de arquivos do workspace para o seletor `Ctrl+P`.
+//
+// A lista vem do **disco**, e a ordenação é por nome, com o diretório antes: quem
+// digita `src` procura o diretório, e um arquivo chamado `src.go` não é o que a
+// pessoa está procurando.
+func (m Model) openFileItems() []overlay.Item {
+	if m.application.Tree == nil {
+		return nil
+	}
+	rows := m.application.Tree.FlatRows()
+
+	items := make([]overlay.Item, 0, len(rows))
+	for _, row := range rows {
+		if row.Path == "" || row.IsDir == row.Expanded && row.Depth == 0 {
+			continue
+		}
+		items = append(items, overlay.Item{
+			Label:  row.Name,
+			Detail: row.Path,
+			Value:  row.Path,
+		})
+	}
+	return items
+}
+
 // kindFor, titleFor and itemsFor resolve one overlay by the model's name.
 //
 // Um lugar só para a tradução, porque três funções que traduzem o mesmo nome
@@ -1558,6 +1787,10 @@ func (m Model) kindFor(name string) overlay.Kind {
 		return overlay.Theme
 	case overlayLocalePicker:
 		return overlay.Locale
+	case appOverlayOpenFile, appOverlayOpenFolder:
+		return overlay.OpenFile
+	case app.OverlayCommandPalette, app.OverlayHelp:
+		return overlay.Palette
 	}
 	// A barra de busca não é uma lista, e nenhuma outra sobreposição é nomeada pelo
 	// modelo: as demais nascem de uma ação, e é `openOverlayFor` que as abre.
@@ -1570,6 +1803,14 @@ func (m Model) titleFor(name string) string {
 		return "Temas"
 	case overlayLocalePicker:
 		return "Idioma"
+	case appOverlayOpenFile:
+		return "Abrir arquivo"
+	case appOverlayOpenFolder:
+		return "Abrir pasta"
+	case app.OverlayCommandPalette:
+		return "Comandos"
+	case app.OverlayHelp:
+		return "Atalhos"
 	}
 	return ""
 }
@@ -1580,6 +1821,12 @@ func (m Model) itemsFor(name string) []overlay.Item {
 		return m.themeItems()
 	case overlayLocalePicker:
 		return m.localeItems()
+	case appOverlayOpenFile, appOverlayOpenFolder:
+		return m.openFileItems()
+	case app.OverlayCommandPalette:
+		return m.paletteItems()
+	case app.OverlayHelp:
+		return bindingItems(m.keys)
 	}
 	return nil
 }
@@ -1631,6 +1878,21 @@ func (m Model) localeItems() []overlay.Item {
 	return items
 }
 
+// openPath abre o arquivo escolhido no seletor, e o foco vai com ele: abrir e
+// ficar com o teclado na árvore é o pior resultado possível para quem perguntou
+// "abrir".
+func (m *Model) openPath(path string) {
+	if path == "" {
+		return
+	}
+	if _, err := m.application.Store.OpenPath(path); err != nil {
+		m.application.Status = "abrir: " + err.Error()
+		return
+	}
+	m.surface = focus.Editor
+	m.application.Focus = app.FocusEditor
+}
+
 // applyTheme adopts a theme and rebuilds the styles.
 func (m *Model) applyTheme(name string) {
 	m.application.Config.Theme = name
@@ -1656,15 +1918,27 @@ func (m *Model) openOverlayFor(chord string) bool {
 		return false
 	}
 
-	// Um comando que abre uma sobreposição é aplicado pelo modelo, que é quem sabe
-	// o nome dela; a paleta em si é aberta por aqui, porque é a única que não vem de
-	// um comando e sim de um acorde.
-	kind, items, title, opens := m.overlayContent(bound)
-	if !opens {
+	// A sobreposição é do **modelo**: a ação põe o nome em `App.Overlay` e a tela
+	// projeta. Abrir aqui seria uma segunda fonte de verdade, e foi exatamente o
+	// que hideou `Ctrl+P` e os dois seletores: a ação escrevia no modelo e a tela
+	// não olhava.
+	if !opensOverlay(bound) {
 		return false
 	}
+	return m.application.ApplyKey(chord) == nil
+}
 
-	width, height := m.overlaySize()
-	m.overlay.Open(kind, title, items, width, height)
-	return true
+// opensOverlay diz quais comandos mudam `App.Overlay`.
+//
+// A lista é o **espelho** do que os handlers fazem, e um espelho desatualizado é
+// a mesma mentira com outro nome: um comando que abre uma sobreposição e não
+// estiver aqui é aplicado (a ação escreve o nome) e o `openOverlayFor` devolve
+// falso, o que faria a tecla ser tratada duas vezes.
+func opensOverlay(bound action.Action) bool {
+	switch bound {
+	case action.CommandPalette, action.WhichKey, action.Help, action.Welcome,
+		action.OpenFileFuzzy, action.OpenFolder, action.SelectTheme, action.SelectLocale:
+		return true
+	}
+	return false
 }

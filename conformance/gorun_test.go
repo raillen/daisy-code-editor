@@ -243,8 +243,16 @@ func TestDecidedDivergencesCarryAReason(t *testing.T) {
 // que funciona.
 func TestOnlyTheDecidedPathIsDropped(t *testing.T) {
 	report := &Report{Frames: []Frame{{State: map[string]any{
-		"config": map[string]any{"soft_wrap": true, "theme": "default-dark", "tab_size": float64(4)},
-		"focus":  "editor",
+		"config": map[string]any{
+			// Dois campos divergem por decisão, e **um** que concorda: um caminho
+			// por vez seria a mesma armadilha duas vezes, e um que concorda é o
+			// que prova que a exclusão é por ponto.
+			"soft_wrap": true,
+			"mouse":     true,
+			"theme":     "default-dark",
+			"tab_size":  float64(4),
+		},
+		"focus": "editor",
 	}}}}
 
 	trimmed := stripUnimplemented(report)
@@ -257,10 +265,41 @@ func TestOnlyTheDecidedPathIsDropped(t *testing.T) {
 	if _, gone := config["soft_wrap"]; gone {
 		t.Error("o campo divergente não foi removido")
 	}
+	if _, gone := config["mouse"]; gone {
+		t.Error("o segundo campo divergente não foi removido")
+	}
 	if _, kept := config["theme"]; !kept {
 		t.Error("um campo que concorda foi removido junto: a exclusão tem que ser por ponto")
 	}
 	if _, kept := state["focus"]; !kept {
 		t.Error("a comparação parou de olhar o resto do estado")
+	}
+}
+
+// TestEveryDecidedPathUnderOneKeyIsDropped cobre o caso que a primeira versão do
+// descarte não cobria: **dois** campos divergentes sob `config`.
+//
+// A implementação devolvia no primeiro caminho encontrado, e a segunda divergência
+// continuava sendo comparada. O sintoma é a pior forma de falha de paridade: a
+// lista declara duas divergências, o relatório acusa uma, e ninguém sabe qual.
+func TestEveryDecidedPathUnderOneKeyIsDropped(t *testing.T) {
+	report := &Report{Frames: []Frame{{State: map[string]any{
+		"config": map[string]any{
+			"soft_wrap": true,
+			"mouse":     true,
+			"theme":     "default-dark",
+		},
+	}}}}
+
+	state := stripUnimplemented(report).Frames[0].State.(map[string]any)
+	config := state["config"].(map[string]any)
+
+	for _, decided := range []string{"soft_wrap", "mouse"} {
+		if _, present := config[decided]; present {
+			t.Errorf("o campo decidido %q continua na comparação", decided)
+		}
+	}
+	if _, kept := config["theme"]; !kept {
+		t.Error("um campo que concorda foi removido junto")
 	}
 }
