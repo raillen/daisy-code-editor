@@ -4,6 +4,7 @@ import (
 	"github.com/ori-team/oride/internal/action"
 	"github.com/ori-team/oride/internal/editor"
 	"github.com/ori-team/oride/internal/fs"
+	"github.com/ori-team/oride/internal/git"
 )
 
 // panelCommands are the actions about the panels and the focus between them.
@@ -47,13 +48,66 @@ func panelCommands() map[action.Action]Handler {
 				a.Status = "refresh: " + err.Error()
 				return nil
 			}
-			a.Status = "árvore recarregada"
+			a.Status = "tree refreshed"
 			return nil
 		}),
 
 		// Mouse is a toggle of a capability, and the message says both how to
 		// turn it on and why it is off by default — because a reader who just
 		// turned off mouse selection will not connect the two without being told.
+		// O painel SCM abre com a chave de lista, e é por isso que `DumpState` a
+		// copia: o oráculo emite `scm` na chave e o harness compara, e um painel
+		// que o dump não enxerga é um painel que a paridade não mede.
+		action.ToggleScm: modelHandler(func(a *App, _ *editor.Document) error {
+			a.SCM = !a.SCM
+			// A lista é lida **na ação**, como a referência faz
+			// (`refresh_scm_cache`): um painel que abre vazio e espera o tique é
+			// um painel que pisca — e a leitura é local e rápida (< 50 ms), o que
+			// é barato no caminho do `Update` e grátis no harness headless.
+			a.RefreshSCMEntries()
+			if a.SCM {
+				a.Focus = FocusSCM
+				a.Status = "SCM · ↑↓ · Enter abre · d diff · r refresh · Esc editor · Ctrl+Shift+G"
+				return nil
+			}
+			if a.Focus == FocusSCM {
+				a.Focus = FocusEditor
+			}
+			a.Status = "SCM oculto"
+			return nil
+		}),
+
+		action.FocusScm: modelHandler(func(a *App, _ *editor.Document) error {
+			a.SCM = true
+			a.Focus = FocusSCM
+			a.Status = "foco: scm"
+			return nil
+		}),
+
+		action.GitPull: modelHandler(func(a *App, _ *editor.Document) error {
+			// A rede não é do caminho do `Update`: uma `Cmd` roda o comando e a
+			// resposta volta por mensagem — bloquear a TUI num `pull` de segundos
+			// seria congelar o editor a cada sincronização.
+			a.PendingGitOp = "pull"
+			a.Status = "git pull: baixando…"
+			return nil
+		}),
+
+		action.GitPush: modelHandler(func(a *App, _ *editor.Document) error {
+			a.PendingGitOp = "push"
+			a.Status = "git push: enviando…"
+			return nil
+		}),
+
+		// O diff abre a sobreposição de leitura, e não um painel: um diff é uma
+		// pergunta transitória ("o que mudou aqui?"), e uma pergunta transitória
+		// não vira mobília. O nome `Overlay::Diff` é o do oráculo, porque o dump
+		// compara a chave.
+		action.ShowDiff: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Overlay = OverlayDiff
+			return nil
+		}),
+
 		action.ToggleMouse: modelHandler(func(a *App, _ *editor.Document) error {
 			a.Config.Mouse = !a.Config.Mouse
 			if a.Config.Mouse {
@@ -128,7 +182,7 @@ func panelCommands() map[action.Action]Handler {
 				a.Status = "reload: " + err.Error()
 				return nil
 			}
-			a.Status = "arquivo recarregado"
+			a.Status = "file reloaded"
 			return nil
 		}),
 	}
@@ -149,6 +203,27 @@ func nextBottomTab(current string) string {
 		}
 	}
 	return order[0]
+}
+
+// refreshSCMEntries re-reads the changed paths — e é a única escrita no campo.
+//
+// Síncrona, e de propósito: `git status` local é rápido (< 50 ms), e a ação
+// precisa da lista **agora** para pintá-la no próximo frame. A rede (`pull`/`push`)
+// é o que vai numa `Cmd`, e não isto.
+func (a *App) RefreshSCMEntries() {
+	a.SCMEntries = nil
+	a.SCMSelected = 0
+	if !a.GitEnabled || a.Workspace == "" {
+		return
+	}
+	entries := git.EntriesRelative(a.Workspace, a.Workspace)
+	for _, entry := range entries {
+		a.SCMEntries = append(a.SCMEntries, SCMDump{
+			Badge:  string(entry.Status.Badge()),
+			Status: string(entry.Status),
+			Path:   entry.Path,
+		})
+	}
 }
 
 // The bottom panel's tabs, and a default that nenhum caminho pode deixar vazio.

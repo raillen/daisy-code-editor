@@ -41,7 +41,7 @@ func (a *App) copySelectionOrLine(document *editor.Document) {
 	}
 
 	a.ClipboardWrite = clipboard.Copy(text)
-	a.Status = "copiado " + itoa(len(text)) + " bytes"
+	a.Status = "copied " + itoa(len(text)) + " bytes"
 }
 
 // cutSelectionOrLine copies and then deletes what it copied.
@@ -60,7 +60,7 @@ func (a *App) cutSelectionOrLine(document *editor.Document) error {
 		if err := document.DeleteSelection(); err != nil {
 			return err
 		}
-		a.Status = "cortado " + itoa(len(text)) + " bytes"
+		a.Status = "cut " + itoa(len(text)) + " bytes"
 		return nil
 	}
 	return a.deleteCurrentLine(document, text)
@@ -72,13 +72,13 @@ func (a *App) pasteInto(document *editor.Document) error {
 	if text == "" {
 		// A mensagem diz de onde a colagem vem, porque um `ctrl+v` que não cola
 		// sem explicação é indistinguível de um terminal que engoliu a tecla.
-		a.Status = "clipboard vazio (a cópia da sessão é a fonte)"
+		a.Status = "clipboard vazio (Ctrl+C copia · buffer interno se sem X11)"
 		return nil
 	}
 	if err := document.InsertText(text); err != nil {
 		return err
 	}
-	a.Status = "colado " + itoa(len(text)) + " bytes"
+	a.Status = "pasted " + itoa(len(text)) + " bytes"
 	return nil
 }
 
@@ -112,7 +112,7 @@ func (a *App) deleteCurrentLine(document *editor.Document, copied string) error 
 		return err
 	}
 	document.CollapseSelection()
-	a.Status = "cortado " + itoa(len(copied)) + " bytes"
+	a.Status = "cut " + itoa(len(copied)) + " bytes"
 	return nil
 }
 

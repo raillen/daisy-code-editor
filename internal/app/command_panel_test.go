@@ -183,8 +183,8 @@ func TestReloadReadsTheFileAndKeepsTheCaret(t *testing.T) {
 	if caret.Line != 1 {
 		t.Errorf("o caret foi para a linha %d, esperava a 1", caret.Line)
 	}
-	if !strings.Contains(a.Status, "recarregado") {
-		t.Errorf("status = %q", a.Status)
+	if a.Status != "file reloaded" {
+		t.Errorf("status = %q, e a frase é a do oráculo porque o dump a compara", a.Status)
 	}
 }
 

@@ -39,8 +39,8 @@ func TestCopyPasteRoundTrip(t *testing.T) {
 	if err := a.Apply(action.Copy); err != nil {
 		t.Fatalf("copy: %v", err)
 	}
-	if !strings.Contains(a.Status, "copiado 6 bytes") {
-		t.Errorf("status = %q, o leitor precisa do tamanho em bytes", a.Status)
+	if !strings.Contains(a.Status, "copied 6 bytes") {
+		t.Errorf("status = %q, o leitor precisa do tamanho em bytes — e a frase é a do oráculo, porque o dump a compara", a.Status)
 	}
 	if a.ClipboardWrite == "" {
 		t.Error("a cópia não produziu sequência OSC 52 para o terminal")
@@ -67,7 +67,7 @@ func TestCopyWithNoSelectionCopiesTheLine(t *testing.T) {
 	if err := a.Apply(action.Copy); err != nil {
 		t.Fatalf("copy: %v", err)
 	}
-	if !strings.Contains(a.Status, "copiado 8 bytes") {
+	if !strings.Contains(a.Status, "copied 8 bytes") {
 		t.Errorf("status = %q, esperava a linha inteira (8 bytes)", a.Status)
 	}
 

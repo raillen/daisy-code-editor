@@ -53,6 +53,37 @@ razão que fez o wrap virar **B19**. Três abas com um ciclo à frente é o que 
 produto oferece sem mentir sobre a referência
 (`TestThePanelTabIsReachableByKeyboard`, `TestEveryTabOfThePanelHasAWayToReachIt`).
 
+## O painel de versionamento, à direita
+
+`Ctrl+Shift+G` abre a coluna da direita com os caminhos que mudaram, no mesmo
+formato que o Rust mostra: a **letra** (`M`, `A`, `?`…) na borda direita, pintada
+por **intenção** (`warning`, `success`, `error`, `accent`) — nunca só na cor.
+
+| Tecla | Efeito |
+|---|---|
+| `↑` / `↓` | anda pelas mudanças |
+| `s` | adiciona ao índice (`git add`) |
+| `u` | tira do índice (`git restore --staged`), mantendo o trabalho |
+| `d` | mostra o `git diff` do arquivo numa sobreposição de leitura |
+| `r` | relê o disco |
+| `Enter` | abre o arquivo |
+| `Esc` | devolve o foco ao editor, sem fechar o painel |
+
+Verificado por `TestToggleScmOpensThePanelAndFocusesIt`,
+`TestTheScmKeysActOnTheSelectedLine` e `TestTheDiffOverlayIsReadable` — todos com
+um repositório de verdade, porque `porcelain` sem `.git` é um jeito elegante de
+não testar nada.
+
+Uma falha em qualquer tecla do painel é o **motivo na barra**, nunca o silêncio:
+um `s` que não adiciona e não diz nada é a mesma tecla morta que este projeto
+passou a caçar.
+
+O `git pull` e o `git push` vão por uma `Cmd`, porque rede não é do caminho do
+`Update`: o modelo registra a **intenção** e a raiz roda o processo. E o `scm` do
+dump é o que a paridade compara — por isso o painel e a tela tiram do **mesmo**
+`git`, e a lista é lida **na ação** (rápido e local, como a referência), não no
+tique.
+
 ## Fechar
 
 `Esc` na busca **recolhe o painel** quando a busca era a aba da frente: um painel

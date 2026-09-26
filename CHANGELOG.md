@@ -27,6 +27,15 @@
   problemas **diz** que o LSP está desligado em vez de oferecer um "0 problemas"
   que ninguém mediu.
 
+### Added
+- **Painel de versionamento à direita, com stage, diff, pull e push:**
+  `Ctrl+Shift+G` abre a coluna com os caminhos que mudaram, no formato da
+  referência. `s` adiciona ao índice e `u` tira (mantendo o trabalho), `d` mostra
+  o diff do arquivo numa sobreposição de leitura, `r` relê, `Enter` abre. `git
+  pull` e `git push` rodam fora do caminho do `Update`, e dizem o que o servidor
+  disse — inclusive quando não há upstream. A chave `scm` do dump leva entradas de
+  verdade, que é mais cobertura real de paridade.
+
 ### Fixed
 - **A navegação foi consertada, e as três causas eram reais:** o mouse **não
   existia** (a TUI declarava a capacidade e não tratava nenhum clique — agora

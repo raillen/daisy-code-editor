@@ -19,6 +19,7 @@ import (
 	"github.com/ori-team/oride/internal/config"
 	"github.com/ori-team/oride/internal/editor"
 	"github.com/ori-team/oride/internal/fs"
+	"github.com/ori-team/oride/internal/git"
 	"github.com/ori-team/oride/internal/keymap"
 	"github.com/ori-team/oride/internal/search"
 )
@@ -80,6 +81,24 @@ type App struct {
 	Tree *fs.Tree
 	// Find is the in-buffer search state.
 	Find search.State
+	// SCMEntries are the changed paths the workspace has, as the model sees them.
+	//
+	// Lidas quando o painel abre — e é por isso que `DumpState` as copia: o oráculo
+	// também as emite na chave `scm`, e um painel que o dump não enxerga é um
+	// painel que a paridade não mede. Sem repositório, a resposta é vazia, e não um
+	// erro: um workspace sem `.git` é um estado normal.
+	SCMEntries []SCMDump
+	// SCMSelected is which entry the keyboard is on, and it is cleared when the
+	// entries change out from under it: uma seleção que aponta para um arquivo
+	// que saiu da lista é uma tecla que age sobre outro arquivo, e esse é o
+	// defeito de lista que esta máquina projecta evitar.
+	SCMSelected int
+	// GitEnabled gates the git reads, in the oracle's own vocabulary: `git`
+	// habilita as consultas, e desligado por padrão para que um caso que não testa
+	// git não dependa do binário instalado — que é a regra do harness
+	// (conformance/case.go). O produto liga; os casos ligam quando testam.
+	GitEnabled bool
+
 	// GitBranch is the branch of the workspace, and GitAhead/GitBehind how far it
 	// is from its upstream.
 	//
@@ -91,6 +110,10 @@ type App struct {
 	GitAhead    int
 	GitBehind   int
 	HasUpstream bool
+
+	// PendingGitOp names a network operation ("pull"/"push") the composition root
+	// must run, because the model records the intent and never the process.
+	PendingGitOp string
 
 	// Diagnostics is how many errors the attached server reported, e é o número
 	// que a barra mostra — **só** quando há cliente. Sem servidor, zero
@@ -251,6 +274,7 @@ func (a *App) markSaved() error {
 		return nil
 	}
 	document.MarkSaved()
+	a.Status = "saved"
 	return nil
 }
 
@@ -379,6 +403,23 @@ type TreeRowDump struct {
 	Expanded bool   `json:"expanded"`
 }
 
+// scmDump is the workspace's changed paths, in badge order.
+func (a *App) scmDump() []SCMDump {
+	if !a.GitEnabled || a.Workspace == "" {
+		return []SCMDump{}
+	}
+	entries := git.EntriesRelative(a.Workspace, a.Workspace)
+	out := make([]SCMDump, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, SCMDump{
+			Badge:  string(entry.Status.Badge()),
+			Status: string(entry.Status),
+			Path:   entry.Path,
+		})
+	}
+	return out
+}
+
 // SCMDump is one source-control entry.
 type SCMDump struct {
 	Badge  string `json:"badge"`
@@ -431,7 +472,7 @@ func (a *App) state() (Dump, error) {
 		ShowTree:         a.ShowTree,
 		ShowSCM:          a.SCM,
 		Tree:             a.treeDump(),
-		SCM:              []SCMDump{},
+		SCM:              a.scmDump(),
 		LSPFailures:      []string{},
 		Diagnostics:      a.Diagnostics,
 		TerminalAttached: a.TerminalAttached,

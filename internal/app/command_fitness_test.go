@@ -43,8 +43,6 @@ var withoutHandler = map[action.Action]string{
 	"split_vertical":      "M4 — splits",
 	"split_horizontal":    "M4 — idem",
 	"close_pane":          "M4 — idem",
-	"toggle_scm":          "M4 — painel SCM",
-	"show_diff":           "M4 — diff",
 	"buffer_picker":       "M4 — abas",
 	"multi_picker":        "M4 — multi-cursor",
 	"jump_back":           "M4 — jump list",
@@ -59,9 +57,6 @@ var reachableFromThePaletteOnly = map[action.Action]string{
 	"project_replace":    "M4 — idem",
 	"resize_pane_grow":   "M4 — idem",
 	"resize_pane_shrink": "M4 — idem",
-	"focus_scm":          "M4 — idem",
-	"git_pull":           "M4 — SCM",
-	"git_push":           "M4 — idem",
 	"toggle_modal":       "M4 — motor modal Vim",
 	"run_tasks":          "M4 — task runner",
 }

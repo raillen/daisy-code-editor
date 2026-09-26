@@ -314,6 +314,55 @@ func run(cwd string, args ...string) error {
 	return nil
 }
 
+// output runs a git command and returns what it printed, separating the two
+// streams the way the reference does: `pull` e `push` reportam a **saída** do
+// comando (stdout quando deu certo, stderr quando falhou), porque a palavra do
+// servidor — "Already up to date", "rejected" — é o que o leitor precisa ler, e
+// não uma paráfrase nossa.
+func output(cwd string, args ...string) ([]byte, error) {
+	command := exec.Command("git", args...)
+	command.Dir = cwd
+
+	var stdout, stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Run(); err != nil {
+		message := strings.TrimSpace(stderr.String())
+		if message == "" {
+			message = strings.TrimSpace(stdout.String())
+		}
+		return nil, GitError{Code: exitCode(err), Message: message}
+	}
+	return stdout.Bytes(), nil
+}
+
+// Diff is the unified diff of one file.
+func Diff(cwd, path string) (string, error) {
+	out, err := output(cwd, "diff", "--", path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// Pull fetches and merges the upstream.
+func Pull(cwd string) (string, error) {
+	out, err := output(cwd, "pull")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// Push sends the branch upstream.
+func Push(cwd string) (string, error) {
+	out, err := output(cwd, "push")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 func exitCode(err error) int {
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {

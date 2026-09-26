@@ -13,6 +13,7 @@ package tui
 
 import (
 	"errors"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -39,6 +40,7 @@ import (
 	"github.com/ori-team/oride/internal/tui/menubar"
 	"github.com/ori-team/oride/internal/tui/overlay"
 	"github.com/ori-team/oride/internal/tui/panel"
+	"github.com/ori-team/oride/internal/tui/scm"
 	"github.com/ori-team/oride/internal/tui/statusbar"
 	"github.com/ori-team/oride/internal/tui/tabs"
 	"github.com/ori-team/oride/internal/tui/terminal"
@@ -78,6 +80,13 @@ type Model struct {
 	// in a Cmd, not while rendering, because a keystroke must not pay for the
 	// whole file.
 	highlight highlightCache
+
+	// diffLines are the unified diff the Diff overlay shows, for the path the
+	// reader asked about. Guardadas na apresentação, e não no modelo: o dump não
+	// as emite, e um diff é uma pergunta transitória, não estado do produto.
+	diffLines []string
+	// diffPath is the file the diff is about, e é o título da sobreposição.
+	diffPath string
 
 	// gitBadges é o estado do git por caminho, relativo ao workspace, e é lido
 	// no mesmo tique que a branch. Guardar no modelo e não na aplicação é
@@ -335,6 +344,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.application.GitBehind = message.behind
 		m.application.HasUpstream = message.tracked
 		m.gitBadges = message.badges
+		m.application.RefreshSCMEntries()
 		return m, nil
 
 	case terminalReadyMsg:
@@ -344,7 +354,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 			// Falha fechada: sem shell, o editor continua. Um painel que impede
 			// abrir porque o shell não subiu seria um editor quebrado por um
 			// detalhe do ambiente.
-			m.application.Status = "terminal indisponível: " + message.err.Error()
+			m.application.Status = "terminal unavailable (PTY)"
 		}
 		return m, nil
 	}
@@ -378,6 +388,10 @@ type gitStateMsg struct {
 	tracked bool
 	// badges é o estado do git por caminho, relativo ao workspace.
 	badges map[string]string
+	// entries são as linhas do painel SCM e o que o dump compara. Viajam na
+	// mensagem para que o painel e o dump vejam o **mesmo** `git` — uma leitura
+	// no tick e outra no frame podem discordar, e um painel que diz `main` ao lado
+	// de uma árvore que diz outra coisa é pior do que nenhum dos dois.
 }
 
 // gitCmd re-reads the workspace's branch, on a slow tick.
@@ -396,14 +410,7 @@ func (m Model) gitCmd() tea.Cmd {
 		return nil
 	}
 	return tea.Tick(gitPollInterval, func(time.Time) tea.Msg {
-		branch := git.Branch(workspace)
-		message := gitStateMsg{branch: branch, badges: gitBadgeMap(workspace, workspace)}
-		if branch != "" {
-			if ahead, behind, ok := git.AheadBehind(workspace); ok {
-				message.ahead, message.behind, message.tracked = ahead, behind, true
-			}
-		}
-		return message
+		return m.readGitState(workspace)
 	})
 }
 
@@ -1014,6 +1021,142 @@ func (m *Model) refreshAfterCommand(bound action.Action) {
 	}
 }
 
+// handleScmKey routes one keystroke with the focus on the source-control panel.
+//
+// As mesmas teclas da referência (`s`, `u`, `d`, `r`, `Enter`, `Esc`), e o mesmo
+// motivo de cada uma ser local à superfície: elas agem sobre a **linha
+// selecionada**, e linha selecionada é estado da tela, não do modelo.
+func (m *Model) handleScmKey(chord string) bool {
+	// Esc volta ao editor **mesmo sem entradas**: engolir a tecla porque a lista
+	// está vazia é a forma mais barata de trancar o leitor num painel que não
+	// mostra nada.
+	if chord == "escape" || chord == "esc" {
+		m.application.Focus = app.FocusEditor
+		m.surface = focus.Editor
+		return true
+	}
+
+	entries := m.application.SCMEntries
+	index := m.application.SCMSelected
+	if len(entries) == 0 {
+		// Sem entradas, nenhuma tecla de ação faz sentido — e devolvê-las ao
+		// keymap é o que permite `Ctrl+Shift+G` fechar num painel vazio.
+		return false
+	}
+	if index < 0 || index >= len(entries) {
+		index = 0
+	}
+
+	switch chord {
+	case "up":
+		m.application.SCMSelected = max(index-1, 0)
+		return true
+	case "down":
+		m.application.SCMSelected = min(index+1, len(entries)-1)
+		return true
+	case "s":
+		// Stage adds to the index, e o que a tecla faz é exatamente o que o git
+		// faz: `git add -- <path>`. Uma falha não é silêncio — é o motivo na
+		// barra, porque um `s` que não adiciona e não diz nada é a mesma tecla
+		// morta que este trabalho removeu.
+		if err := git.Stage(m.application.Workspace, entries[index].Path); err != nil {
+			m.application.Status = "stage: " + err.Error()
+			return true
+		}
+		m.application.Status = "staged: " + entries[index].Path
+		m.refreshGit()
+		return true
+	case "u":
+		if err := git.Unstage(m.application.Workspace, entries[index].Path); err != nil {
+			m.application.Status = "unstage: " + err.Error()
+			return true
+		}
+		m.application.Status = "unstaged: " + entries[index].Path
+		m.refreshGit()
+		return true
+	case "d":
+		// O diff abre a sobreposição de leitura, que é o `Overlay::Diff` do
+		// oráculo: uma pergunta transitória, não mobília.
+		if diff, err := git.Diff(m.application.Workspace, entries[index].Path); err != nil {
+			m.application.Status = "diff: " + err.Error()
+		} else {
+			m.application.Overlay = app.OverlayDiff
+			m.diffLines = strings.Split(diff, "\n")
+			m.diffPath = entries[index].Path
+		}
+		return true
+	case "r":
+		m.refreshGit()
+		m.application.Status = "scm recarregado"
+		return true
+	case "enter":
+		if _, err := m.application.Store.OpenPath(filepath.Join(m.application.Workspace, entries[index].Path)); err != nil {
+			m.application.Status = "abrir: " + err.Error()
+		} else {
+			m.application.Focus = app.FocusEditor
+			m.surface = focus.Editor
+		}
+		return true
+	}
+	return false
+}
+
+// refreshGit re-reads the workspace's status and entries, once, off the frame
+// path: `s`, `u` e `r` mudam o índice, e uma lista que continua mostrando o que
+// era é uma lista que mente. Chamar o `git` aqui é local e rápido (< 50 ms), e é
+// o mesmo dado que o tique lê a cada dois segundos.
+// readGitState is the one git read the root does, para que a branch, a
+// distância e os badges saiam do **mesmo** `git`: três leituras em instantes
+// diferentes podem discordar, e um painel que diz `main` ao lado de uma árvore
+// que diz outra coisa é pior do que nenhum dos dois.
+func (m *Model) readGitState(workspace string) gitStateMsg {
+	message := gitStateMsg{branch: git.Branch(workspace)}
+	if message.branch != "" {
+		if ahead, behind, ok := git.AheadBehind(workspace); ok {
+			message.ahead, message.behind, message.tracked = ahead, behind, true
+		}
+	}
+	message.badges = gitBadgeMap(workspace, workspace)
+	return message
+}
+
+// refreshGit re-reads the workspace's status and entries, once, off the frame
+// path: `s`, `u` e `r` mudam o índice, e uma lista que continua mostrando o que
+// era é uma lista que mente. Chamar o `git` aqui é local e rápido (< 50 ms), e é
+// o mesmo dado que o tique lê a cada dois segundos.
+func (m *Model) refreshGit() {
+	workspace := m.application.Workspace
+	if workspace == "" {
+		return
+	}
+	message := m.readGitState(workspace)
+	m.application.GitBranch = message.branch
+	m.application.GitAhead = message.ahead
+	m.application.GitBehind = message.behind
+	m.application.HasUpstream = message.tracked
+	m.gitBadges = message.badges
+	m.application.SCMEntries = m.readScmEntries()
+}
+
+// readScmEntries returns the changed paths for the panel and the dump, com a
+// porta do caso: fora de um repositório ou com o git desligado, a resposta é
+// vazia e não um erro.
+func (m *Model) readScmEntries() []app.SCMDump {
+	if m.application.Workspace == "" {
+		return []app.SCMDump{}
+	}
+	entries := git.EntriesRelative(m.application.Workspace, m.application.Workspace)
+	out := make([]app.SCMDump, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, app.SCMDump{
+			Badge:  string(entry.Status.Badge()),
+			Status: string(entry.Status),
+			Path:   entry.Path,
+		})
+	}
+	return out
+}
+
 // moveFocus walks the graph and records the result in the model.
 func (m *Model) moveFocus(backwards bool) {
 	next := m.graph.Next(m.surface, m.surfaceVisible, backwards)
@@ -1247,6 +1390,21 @@ func (m Model) bodyRows(regions layout.Regions) []string {
 		}
 	}
 
+	// O painel SCM fica à **direita**, compondo cada linha do corpo: a esquerda é
+	// a árvore com o editor, a direita é a lista de mudanças. E ele conta do
+	// **fundo** do editor para cima — a mesma regra da árvore, para que as duas
+	// concordem sobre onde uma linha da tela começa.
+	if !regions.SCM.Empty() {
+		scmRows := scm.Render(regions.SCM.Width, regions.SCM.Height, m.scmView())
+		for index := range editorRows {
+			right := ""
+			if index < len(scmRows) {
+				right = scmRows[index]
+			}
+			editorRows[index] = editorRows[index] + layout.Pad(right, regions.SCM.Width)
+		}
+	}
+
 	// O painel inferior entra por último e em **largura cheia**: ele fica abaixo da
 	// árvore, não ao lado, e por isso não leva o prefixo dela — que é exatamente
 	// o defeito que apareceu quando o terminal entrou antes da composição.
@@ -1256,6 +1414,32 @@ func (m Model) bodyRows(regions layout.Regions) []string {
 		}
 	}
 	return editorRows
+}
+
+// scmView builds the panel's view from the model's entries.
+//
+// As entradas vêm do `App` e não do disco: o disco é lido num `Cmd` a cada dois
+// segundos, e a raiz pede o quê, não lê — a mesma shape de cada superfície aqui.
+func (m Model) scmView() scm.View {
+	entries := m.application.SCMEntries
+	rows := make([]scm.Row, 0, len(entries))
+	for _, entry := range entries {
+		rows = append(rows, scm.Row{Path: entry.Path, Status: entry.Badge})
+	}
+
+	selected := m.application.SCMSelected
+	if len(rows) == 0 {
+		selected = 0
+	}
+	if selected >= len(rows) {
+		selected = max(len(rows)-1, 0)
+	}
+	return scm.View{
+		Rows:     rows,
+		Selected: selected,
+		Focused:  m.surface == focus.SCM,
+		Theme:    m.theme,
+	}
 }
 
 // menuView builds the menu bar's view from the locale catalog.
@@ -1555,6 +1739,9 @@ func (m Model) capturesInput() bool {
 // local keyboard, and the shape is the one the focus graph documents: local keys
 // resolve before the global keymap, and an unconsumed key falls through to it.
 func (m *Model) handleFocusedSurfaceKey(chord string) bool {
+	if m.application.Focus == app.FocusSCM && m.application.SCM {
+		return m.handleScmKey(chord)
+	}
 	if m.application.Focus != app.FocusTree || !m.application.ShowTree {
 		return false
 	}
@@ -1704,9 +1891,14 @@ const (
 
 // wants is what the model asks the layout to show.
 func (m Model) wants() layout.Wants {
+	// A largura que o SCM **pede** é fixa, e o layout que decide: até um terço
+	// da tela e nunca menos que 16. É a mesma razão de `treeWidth` ser o pedido e
+	// `splitBody` a decisão.
 	return layout.Wants{
 		ShowTree:     m.application.ShowTree,
 		TreeWidth:    treeWidth,
+		ShowSCM:      m.application.SCM,
+		SCMWidth:     scmPanelWidth,
 		ShowBottom:   m.application.ShowBottom,
 		BottomHeight: m.bottomHeight(),
 	}
@@ -1748,6 +1940,11 @@ func (m Model) bottomHeight() int {
 	}
 	return content + panel.TabStripHeight
 }
+
+// scmPanelWidth é a largura pedida do painel, e o layout que decide o resto: até
+// um terço da tela e nunca menos que 16, porque uma coluna mais estreita não
+// mostra o caminho.
+const scmPanelWidth = 30
 
 // minPanelHeight is the floor for the terminal's content: um painel de duas
 // linhas não é um terminal, é um erro de layout.
@@ -2047,6 +2244,8 @@ func (m Model) kindFor(name string) overlay.Kind {
 		return overlay.OpenFile
 	case app.OverlayCommandPalette, app.OverlayHelp:
 		return overlay.Palette
+	case app.OverlayDiff:
+		return overlay.Diff
 	}
 	// A barra de busca não é uma lista, e nenhuma outra sobreposição é nomeada pelo
 	// modelo: as demais nascem de uma ação, e é `openOverlayFor` que as abre.
@@ -2059,6 +2258,8 @@ func (m Model) titleFor(name string) string {
 		return "Temas"
 	case overlayLocalePicker:
 		return "Idioma"
+	case app.OverlayDiff:
+		return "Diff " + m.diffPath
 	case appOverlayOpenFile:
 		return "Abrir arquivo"
 	case appOverlayOpenFolder:

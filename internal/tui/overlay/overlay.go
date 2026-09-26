@@ -26,6 +26,10 @@ const (
 	// two is only what gets done with the chosen name.
 	Theme
 	Locale
+	// Diff é a leitura de um `git diff`: as linhas como itens, sem filtro e sem
+	// aplicar. É uma pergunta transitória, não mobília — e por isso abre numa
+	// sobreposição que fecha com `Esc`, e não num painel.
+	Diff
 	// OpenFile is the file picker: `Ctrl+P`, the fastest way to open a file, which
 	// was advertised in the generated keymap and did nothing.
 	OpenFile

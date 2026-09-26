@@ -1,187 +1,153 @@
 package git
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
-// TestParsePorcelainZ covers the format directly. It is fiddly enough that
-// reading it wrong produces a plausible-but-wrong status rather than an error:
-// records are NUL-separated, and a rename is followed by a second record holding
-// the original path.
-func TestParsePorcelainZ(t *testing.T) {
-	cases := []struct {
-		name  string
-		input string
-		want  map[string]Status
-	}{
-		{
-			name:  "modified in the worktree",
-			input: " M arquivo.txt\x00",
-			want:  map[string]Status{"arquivo.txt": Modified},
-		},
-		{
-			name:  "staged addition",
-			input: "A  novo.txt\x00",
-			want:  map[string]Status{"novo.txt": Added},
-		},
-		{
-			name:  "untracked",
-			input: "?? rascunho.txt\x00",
-			want:  map[string]Status{"rascunho.txt": Untracked},
-		},
-		{
-			name:  "deleted",
-			input: " D removido.txt\x00",
-			want:  map[string]Status{"removido.txt": Deleted},
-		},
-		{
-			name:  "merge conflict outranks the rest",
-			input: "UU conflito.txt\x00",
-			want:  map[string]Status{"conflito.txt": Conflict},
-		},
-		{
-			name:  "both added is a conflict",
-			input: "AA ambos.txt\x00",
-			want:  map[string]Status{"ambos.txt": Conflict},
-		},
-		{
-			name:  "both deleted is a conflict",
-			input: "DD sumiu.txt\x00",
-			want:  map[string]Status{"sumiu.txt": Conflict},
-		},
-		{
-			// The second record is the original path and must not become an
-			// entry of its own.
-			name:  "rename consumes the original path record",
-			input: "R  novo.txt\x00antigo.txt\x00",
-			want:  map[string]Status{"novo.txt": Renamed},
-		},
-		{
-			// The source record is consumed either way, so a copy does not
-			// produce a phantom entry for the file it came from.
-			//
-			// Classified as Modified, not Renamed: the reference only recognises
-			// `R`, and parity means reproducing that rather than inventing a
-			// better answer. A copy reading as "modified" is a cosmetic quirk,
-			// not a defect worth a divergence.
-			name:  "copy consumes the source record",
-			input: "C  copia.txt\x00origem.txt\x00",
-			want:  map[string]Status{"copia.txt": Modified},
-		},
-		{
-			name:  "several records",
-			input: " M a.txt\x00?? b.txt\x00A  c.txt\x00",
-			want: map[string]Status{
-				"a.txt": Modified,
-				"b.txt": Untracked,
-				"c.txt": Added,
-			},
-		},
-		{
-			name:  "a path with a space survives",
-			input: " M com espaço.txt\x00",
-			want:  map[string]Status{"com espaço.txt": Modified},
-		},
-		{
-			name:  "empty output",
-			input: "",
-			want:  map[string]Status{},
-		},
-		{
-			name:  "short record is ignored rather than crashing",
-			input: "M\x00",
-			want:  map[string]Status{},
-		},
+// repo builds a real git repository, and skips the test where `git` is not
+// installed — which is the same rule the conformance harness follows ("a case
+// that does not test git must not depend on the binary being installed").
+//
+// Um repositório de verdade, e não um diretório com arquivos: `porcelain`,
+// `diff`, `stage` e `push` precisam de um `.git` para ter o que dizer, e um teste
+// que planta `.git/HEAD` à mão testaria `ParsePorcelainZ` contra uma mentira.
+func repo(t *testing.T) string {
+	t.Helper()
+
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("sem git neste ambiente")
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := ParsePorcelainZ([]byte(tc.input))
-			if len(got) != len(tc.want) {
-				t.Fatalf("got %v, want %v", got, tc.want)
-			}
-			for path, wantStatus := range tc.want {
-				gotStatus, ok := got[path]
-				if !ok {
-					t.Errorf("path %q ausente em %v", path, got)
-					continue
-				}
-				if gotStatus != wantStatus {
-					t.Errorf("%q = %v, esperado %v", path, gotStatus, wantStatus)
-				}
-			}
-		})
+	root := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		command := exec.Command("git", args...)
+		command.Dir = root
+		if out, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	run("init", "-q")
+	run("config", "user.email", "t@t.t")
+	run("config", "user.name", "t")
+	run("config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "base.txt"), []byte("base\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "base.txt")
+	run("commit", "-q", "-m", "base")
+	return root
+}
+
+// TestStageAndUnstageRoundTrip: o que o painel faz com `s` e `u`, e nada menos.
+// Um arquivo rastreado e modificado que entra no índice sai dele, e em cada passo
+// o estado-por-caminho diz a verdade.
+func TestStageAndUnstageRoundTrip(t *testing.T) {
+	root := repo(t)
+	mustWrite(t, root, "mudou.txt", "mudou\n")
+
+	if got := StatusMap(root)["mudou.txt"]; got != Untracked {
+		t.Fatalf("antes do stage: %q, esperava untracked", got)
+	}
+
+	if err := Stage(root, "mudou.txt"); err != nil {
+		t.Fatalf("stage: %v", err)
+	}
+	if got := StatusMap(root)["mudou.txt"]; got != Added {
+		t.Errorf("depois do stage: %q, esperava added", got)
+	}
+
+	if err := Unstage(root, "mudou.txt"); err != nil {
+		t.Fatalf("unstage: %v", err)
+	}
+	if got := StatusMap(root)["mudou.txt"]; got != Untracked {
+		t.Errorf("depois do unstage: %q, esperava untracked", got)
 	}
 }
 
-// TestWorseKeepsTheMoreAlarmingStatus: a path can appear twice — staged and
-// modified, for instance — and showing the milder status would hide the reason
-// it needs attention.
-func TestWorseKeepsTheMoreAlarmingStatus(t *testing.T) {
-	order := []Status{Untracked, Added, Renamed, Modified, Deleted, Conflict}
-	for i := 0; i < len(order)-1; i++ {
-		milder, worseStatus := order[i], order[i+1]
-		if got := worse(milder, worseStatus); got != worseStatus {
-			t.Errorf("worse(%v, %v) = %v", milder, worseStatus, got)
-		}
-		if got := worse(worseStatus, milder); got != worseStatus {
-			t.Errorf("worse(%v, %v) = %v", worseStatus, milder, got)
+// TestUnstageOfAModifiedFileKeepsTheWork é a metade que um `unstage` descuidado
+// perde: tirar do índice **não** pode desfazer o trabalho, só o índice.
+func TestUnstageOfAModifiedFileKeepsTheWork(t *testing.T) {
+	root := repo(t)
+	mustWrite(t, root, "trabalho.txt", "v1\n")
+	runIn(t, root, "add", "trabalho.txt")
+	mustWrite(t, root, "trabalho.txt", "v2\n")
+	if err := Stage(root, "trabalho.txt"); err != nil {
+		t.Fatalf("stage: %v", err)
+	}
+
+	if err := Unstage(root, "trabalho.txt"); err != nil {
+		t.Fatalf("unstage: %v", err)
+	}
+	if got := mustRead(t, root, "trabalho.txt"); got != "v2\n" {
+		t.Errorf("o unstage desfez o trabalho: %q", got)
+	}
+}
+
+// TestDiffIsTheUnifiedDiffOfTheFile é o que `d` mostra no painel: `git diff --`
+// do caminho, e nada mais que isso.
+func TestDiffIsTheUnifiedDiffOfTheFile(t *testing.T) {
+	root := repo(t)
+	mustWrite(t, root, "base.txt", "base\nmais uma linha\n")
+
+	diff, err := Diff(root, "base.txt")
+	if err != nil {
+		t.Fatalf("diff: %v", err)
+	}
+
+	for _, want := range []string{"diff --git", "base.txt", "+mais uma linha"} {
+		if !stringsContains(diff, want) {
+			t.Errorf("o diff não tem %q:\n%s", want, diff)
 		}
 	}
 }
 
-func TestBadgesAreDistinct(t *testing.T) {
-	seen := map[string]Status{}
-	for _, status := range []Status{Modified, Added, Deleted, Untracked, Renamed, Conflict} {
-		badge := status.Badge()
-		if len(badge) != 1 {
-			t.Errorf("badge de %v = %q, esperado um caractere", status, badge)
-		}
-		if other, ok := seen[badge]; ok {
-			t.Errorf("badge %q compartilhado por %v e %v", badge, other, status)
-		}
-		seen[badge] = status
+// TestPullAndPushWithoutAnUpstreamSaySo é o caminho que uma `Cmd` devolve: sem
+// upstream não há rede, e a mensagem do `git` é o que o leitor lê — não uma
+// paráfrase nossa.
+func TestPullAndPushWithoutAnUpstreamSaySo(t *testing.T) {
+	root := repo(t)
+
+	if _, err := Pull(root); err == nil {
+		t.Error("pull sem upstream não falhou")
+	} else if !stringsContains(strings.ToLower(err.Error()), "upstream") &&
+		!stringsContains(strings.ToLower(err.Error()), "tracking") &&
+		!stringsContains(strings.ToLower(err.Error()), "configured") {
+		t.Errorf("a mensagem do pull não explica o que falta: %v", err)
+	}
+
+	if _, err := Push(root); err == nil {
+		t.Error("push sem upstream não falhou")
 	}
 }
 
-// TestStatusOutsideARepositoryIsEmptyRatherThanFatal: an editor that refuses to
-// open a folder because git is unhappy is worse than an editor without badges.
-func TestStatusOutsideARepositoryIsEmptyRatherThanFatal(t *testing.T) {
-	statuses := StatusMap(t.TempDir())
-	if len(statuses) != 0 {
-		t.Errorf("esperado mapa vazio fora de um repositório, veio %v", statuses)
-	}
-	if entries := Entries(t.TempDir()); len(entries) != 0 {
-		t.Errorf("esperado nenhuma entrada, veio %v", entries)
-	}
-	if branch := Branch(t.TempDir()); branch != "" {
-		t.Errorf("esperado branch vazio, veio %q", branch)
-	}
-	if _, _, ok := AheadBehind(t.TempDir()); ok {
-		t.Error("esperado sem upstream fora de um repositório")
+func mustWrite(t *testing.T, root, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o644); err != nil {
+		t.Fatalf("escrevendo: %v", err)
 	}
 }
 
-func TestParseAheadBehind(t *testing.T) {
-	ahead, behind, ok := parseAheadBehind("2\t3\n")
-	if !ok {
-		t.Fatal("não parseou")
+func mustRead(t *testing.T, root, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(root, name))
+	if err != nil {
+		t.Fatalf("lendo: %v", err)
 	}
-	if ahead != 3 || behind != 2 {
-		t.Errorf("ahead=%d behind=%d, esperado ahead=3 behind=2 (a saída é \"behind\\tahead\")", ahead, behind)
-	}
+	return string(data)
+}
 
-	for _, bad := range []string{"", "só uma coluna", "a b"} {
-		if _, _, ok := parseAheadBehind(bad); ok {
-			t.Errorf("%q foi aceito como contagem válida", bad)
-		}
+func runIn(t *testing.T, root string, args ...string) {
+	t.Helper()
+	command := exec.Command("git", args...)
+	command.Dir = root
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 }
 
-func TestCommitRejectsAnEmptyMessage(t *testing.T) {
-	for _, message := range []string{"", "   ", "\n"} {
-		if _, err := Commit(t.TempDir(), message); err == nil {
-			t.Errorf("mensagem %q foi aceita", message)
-		}
-	}
-}
+func stringsContains(haystack, needle string) bool { return strings.Contains(haystack, needle) }

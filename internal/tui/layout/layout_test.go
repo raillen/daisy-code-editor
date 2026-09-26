@@ -148,7 +148,7 @@ func TestComputeHandlesAnUnmeasuredTerminal(t *testing.T) {
 
 		for name, region := range map[string]Region{
 			"editor": regions.Editor, "tree": regions.Tree,
-			"bottom": regions.Bottom, "statusbar": regions.StatusBar,
+			"bottom": regions.Bottom, "scm": regions.SCM, "statusbar": regions.StatusBar,
 		} {
 			if region.Width < 0 || region.Height < 0 {
 				t.Errorf("%v: %s com dimensão negativa: %+v", size, name, region)
@@ -287,7 +287,7 @@ func TestNoSurfaceIsEverNegative(t *testing.T) {
 				Wants{ShowTree: true, TreeWidth: 30, ShowBottom: true, BottomHeight: 12})
 
 			all := []Region{regions.MenuBar, regions.Tabs, regions.Tree,
-				regions.Editor, regions.Bottom, regions.StatusBar}
+				regions.Editor, regions.Bottom, regions.SCM, regions.StatusBar}
 			for index, region := range all {
 				if region.Width < 0 || region.Height < 0 || region.X < 0 || region.Y < 0 {
 					t.Fatalf("%dx%d: região %d negativa: %+v", width, height, index, region)
@@ -483,5 +483,55 @@ func TestPadAndSliceAgree(t *testing.T) {
 				t.Errorf("Pad(%q, %d) mediu %d", text, width, got)
 			}
 		}
+	}
+}
+
+// TestSCMTakesFromTheRight is a regra de tamanho da referência: até um terço da
+// largura e nunca menos que 16, porque uma coluna mais estreita não mostra o
+// caminho — e a razão de ser direita e não esquerda é que a esquerda já tem dono.
+func TestSCMTakesFromTheRight(t *testing.T) {
+	regions := Compute(Size{Width: 120, Height: 30}, Wants{ShowSCM: true, SCMWidth: 30})
+
+	if regions.SCM.Empty() {
+		t.Fatal("o painel não apareceu numa tela de 120")
+	}
+	if regions.SCM.Width > 40 {
+		t.Errorf("o painel tem %d colunas, e o teto é um terço de 120", regions.SCM.Width)
+	}
+	if regions.SCM.X+regions.SCM.Width != 120 {
+		t.Errorf("o painel termina em %d, e a tela tem 120", regions.SCM.X+regions.SCM.Width)
+	}
+
+	// O editor perde o que o painel ganhou: a soma dos três é a largura do corpo.
+	if regions.Tree.Width+regions.Editor.Width+regions.SCM.Width != 120 && !regions.Tree.Empty() {
+		t.Errorf("árvore %d + editor %d + scm %d != 120",
+			regions.Tree.Width, regions.Editor.Width, regions.SCM.Width)
+	}
+}
+
+// TestSCMISDroppedRatherThanBreakingTheEditor é o caso que o layout cuida: numa
+// tela estreita, o painel some em vez de espremer o editor até ele parar de ser
+// útil. A regra é o piso de 16 do painel **mais** o piso de 40 do editor, com
+// quatro colunas de folga: pedir menos que isso é pedir um sumário à direita que
+// ninguém lê, de um editor que ninguém edita.
+func TestSCMISDroppedRatherThanBreakingTheEditor(t *testing.T) {
+	// Em 60 o painel aparece, sem comer o editor: 20 de painel e 40 de editor,
+	// que são exatamente o piso de cada um.
+	shown := Compute(Size{Width: 60, Height: 24}, Wants{ShowSCM: true, SCMWidth: 30})
+	if shown.SCM.Width != 20 {
+		t.Errorf("em 60, o painel tem %d colunas, e o piso da referência é 20", shown.SCM.Width)
+	}
+	if shown.Editor.Width != 40 {
+		t.Errorf("em 60, o editor ficou com %d, e o piso é 40", shown.Editor.Width)
+	}
+
+	// Em 50 some: o painel ficaria com 16 sem deixar 40 para o editor — um sumário
+	// que ninguém lê, de um editor que ninguém edita.
+	dropped := Compute(Size{Width: 50, Height: 24}, Wants{ShowSCM: true, SCMWidth: 30})
+	if !dropped.SCM.Empty() {
+		t.Errorf("o painel tomou %d colunas de uma tela de 50", dropped.SCM.Width)
+	}
+	if dropped.Editor.Empty() {
+		t.Error("o editor ficou sem área")
 	}
 }

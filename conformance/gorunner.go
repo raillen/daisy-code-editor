@@ -25,7 +25,12 @@ import (
 // a reason is how a parity suite starts lying: the number keeps climbing while
 // the coverage quietly shrinks.
 var NotYetImplemented = map[string]string{
-	"scm":          "M2 — nenhum caso estabelece um repositório git ainda",
+	"scm": "M2 — o caso com git ainda não estabelece um repositório com histórico: " +
+		"os dois lados concordam num workspace sem `.git` (scm vazio), mas nenhum " +
+		"dos lados faz `git init` no harness, e sem repositório o caso não prova " +
+		"entradas. A leitura do Go é real — e provada contra um repositório de " +
+		"verdade nos seus próprios testes —, mas a paridade de entradas continua " +
+		"descoberta.",
 	"split":        "M3 — painéis",
 	"vim":          "M3 — motor modal",
 	"diagnostics":  "M2 — diagnósticos LSP",
@@ -206,6 +211,7 @@ func buildApp(c *Case, workspace string) (*app.App, error) {
 		}
 	}
 	application.SCM = c.Config.ShowScm != nil && *c.Config.ShowScm
+	application.GitEnabled = c.Git
 	if c.Config.ShowTree != nil {
 		application.ShowTree = *c.Config.ShowTree
 	}

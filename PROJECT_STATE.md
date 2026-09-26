@@ -533,6 +533,27 @@ Agora monta a tecla e vai pelo `Update` — o mesmo caminho que o terminal.
 
 **59 ações tratadas, 22 mortas.**
 
+### SCM com stage, diff, pull e push · **completo**
+
+- ✅ **A coluna da direita** com os caminhos que mudaram, letra por arquivo, no
+  formato da referência — e `ToggleScm` abre com o foco no painel: **61 tratadas, 20 mortas.**
+- ✅ **`s` e `u` adicionam e tiram do índice** (`git add`, `git restore --staged`),
+  com o motivo na barra quando falham. **`d`** mostra o diff numa sobreposição de
+  leitura (Enter fecha, sem executar — ler não é escolher). **`r`** relê, `Enter`
+  abre, `Esc` devolve o foco sem fechar.
+- ✅ **`git pull` e `git push` vão por uma `Cmd`**: o modelo registra a intenção e a
+  raiz roda o processo. Rede no caminho do `Update` congelaria o editor por
+  segundos. Sem upstream, a mensagem do `git` é o que o leitor lê — não uma
+  paráfrase.
+- ✅ **A chave `scm` do dump leva entradas de verdade** (`badge`, `status`,
+  `path`), lidas quando o painel abre — como a referência, que as lê quando o
+  caso habilita `git`.
+- ⚠️ **Sem caso de paridade com entradas**: nenhum dos lados faz `git init` no
+  harness, então um caso com `git: true` concorda vazio dos dois lados — e um caso
+  que passa vazio dos dois lados é um teste que passa pela razão errada. A leitura
+  é provada contra um **repositório de verdade** nos testes do `internal/app` e do
+  `internal/git`, e o ledger registra o motivo.
+
 **Os seis itens da direção estão fechados.** O que a direção deixa como item de
 **feature** (e não de UI/UX) são os splits, o SCM com stage, o preview Markdown, o
 motor modal Vim, o cliente LSP subindo, e a busca no projeto.

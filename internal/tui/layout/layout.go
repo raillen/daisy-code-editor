@@ -76,6 +76,11 @@ func (r Region) Contains(x, y int) bool {
 type Wants struct {
 	ShowTree  bool
 	TreeWidth int
+	// ShowSCM asks for the source-control panel on the body's **right** side, que é
+	// onde a referência o põe — e onde um painel que ocupa a esquerda empurraria a
+	// árvore, que já tem o seu lugar.
+	ShowSCM  bool
+	SCMWidth int
 	// ShowBottom asks for the bottom panel — Terminal, Problemas e Busca em um
 	// lugar, que é o modelo do Lapce e do Zed.
 	//
@@ -95,6 +100,8 @@ type Regions struct {
 	Tabs    Region
 	Tree    Region
 	Editor  Region
+	// SCM is the source-control panel, on the body's right side.
+	SCM Region
 	// Bottom is the tabbed panel: Terminal │ Problemas │ Busca.
 	Bottom    Region
 	StatusBar Region
@@ -146,9 +153,30 @@ func Compute(size Size, wants Wants) Regions {
 		body.Height -= wants.BottomHeight
 	}
 
+	// O painel SCM fica à **direita** do corpo e espreme o editor por esse lado: é
+	// o que a referência faz, com a mesma regra de tamanho — até um terço da largura
+	// e nunca menos que 16 colunas, porque uma coluna mais estreita não mostra o
+	// caminho.
+	if wants.ShowSCM && wants.SCMWidth > 0 && body.Width >= minSCMWidth+minEditorWidth+4 {
+		width := min(wants.SCMWidth, body.Width/3)
+		if width >= minSCMWidth && body.Width-width >= minEditorWidth {
+			regions.SCM = Region{
+				X:      body.X + body.Width - width,
+				Y:      body.Y,
+				Width:  width,
+				Height: body.Height,
+			}
+			body.Width -= width
+		}
+	}
+
 	regions.Tree, regions.Editor, regions.TreeOverlaid = splitBody(body, wants)
 	return regions
 }
+
+// minSCMWidth is the narrowest the source-control panel may be: narrower and it
+// stops showing paths.
+const minSCMWidth = 16
 
 // row reserves one line at the given offset, clamped to the terminal.
 func row(y, width, height int) (Region, int) {

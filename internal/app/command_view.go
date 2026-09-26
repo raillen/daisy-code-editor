@@ -52,4 +52,7 @@ const (
 	OverlayFind         = "find"
 	OverlayThemePicker  = "ThemePicker"
 	OverlayLocalePicker = "LocalePicker"
+	// O diff é uma pergunta transitória ("o que mudou aqui?"), e não mobília:
+	// por isso é sobreposição, e não painel.
+	OverlayDiff = "Diff"
 )
