@@ -38,6 +38,10 @@ const (
 	// OpenFile is the file picker: `Ctrl+P`, the fastest way to open a file, which
 	// was advertised in the generated keymap and did nothing.
 	OpenFile
+	// BufferPicker is the open-tabs picker: `Ctrl+Shift+O`, the answer to "which
+	// tab was that?". Same shape as the other pickers — a list, a filter, an
+	// Enter — and what Enter means belongs to the model, like everywhere else.
+	BufferPicker
 	QuitConfirm
 	CloseConfirm
 )

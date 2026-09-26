@@ -2391,6 +2391,9 @@ func (m *Model) applyOverlaySelection() {
 	case kind == overlay.OpenFile:
 		m.openPath(selected.Value)
 		return
+	case kind == overlay.BufferPicker:
+		m.activateBuffer(selected.Value)
+		return
 	}
 
 	parsed, err := action.Parse(selected.Value)
@@ -2457,6 +2460,8 @@ func (m Model) kindFor(name string) overlay.Kind {
 		return overlay.Diff
 	case app.OverlayProjectFind:
 		return overlay.ProjectFind
+	case app.OverlayBufferPicker:
+		return overlay.BufferPicker
 	}
 	// A barra de busca não é uma lista, e nenhuma outra sobreposição é nomeada pelo
 	// modelo: as demais nascem de uma ação, e é `openOverlayFor` que as abre.
@@ -2479,6 +2484,8 @@ func (m Model) titleFor(name string) string {
 		return "Comandos"
 	case app.OverlayHelp:
 		return "Atalhos"
+	case app.OverlayBufferPicker:
+		return "Buffers"
 	}
 	return ""
 }
@@ -2514,6 +2521,8 @@ func (m Model) itemsFor(name string) []overlay.Item {
 		return bindingItems(m.keys)
 	case app.OverlayProjectFind:
 		return m.projectItems()
+	case app.OverlayBufferPicker:
+		return m.bufferItems()
 	}
 	return nil
 }
@@ -2578,6 +2587,57 @@ func (m *Model) openPath(path string) {
 	}
 	m.surface = focus.Editor
 	m.application.Focus = app.FocusEditor
+}
+
+// bufferItems is the buffer picker's rows: the open tabs, in tab order, with
+// the dirty one marked.
+//
+// A marca é **texto** (`●`), como no oráculo — e pela mesma regra de sempre:
+// nenhum estado só por cor. O caminho é relativo ao workspace, porque é o que
+// o leitor reconhece; fora dele, o absoluto. O id do documento viaja no
+// `Value`, porque é o que o `Enter` precisa para ativar.
+func (m Model) bufferItems() []overlay.Item {
+	summaries := m.application.Store.TabSummaries()
+	items := make([]overlay.Item, 0, len(summaries))
+	for _, summary := range summaries {
+		label := summary.Title
+		if summary.Path != "" {
+			if relative, err := filepath.Rel(m.application.Workspace, summary.Path); err == nil {
+				label = relative
+			} else {
+				label = summary.Path
+			}
+		}
+		marker := "  "
+		if summary.Dirty {
+			marker = "● "
+		}
+		items = append(items, overlay.Item{
+			Label: marker + label,
+			Value: strconv.FormatUint(uint64(summary.ID), 10),
+		})
+	}
+	if len(items) == 0 {
+		items = append(items, overlay.Item{Label: "(sem buffers)"})
+	}
+	return items
+}
+
+// activateBuffer switches to the tab the picker row names, and the focus goes
+// with it — like openPath, choosing without moving the keyboard is asking and
+// staying. An id the store does not know is a bug in whoever built the list,
+// and the reader reads the reason instead of silence.
+func (m *Model) activateBuffer(value string) {
+	raw, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		m.application.Status = "buffer desconhecido: " + value
+		return
+	}
+	if err := m.application.ActivateBuffer(editor.ID(raw)); err != nil {
+		m.application.Status = "buffer: " + err.Error()
+		return
+	}
+	m.surface = focus.Editor
 }
 
 // applyTheme adopts a theme and rebuilds the styles.

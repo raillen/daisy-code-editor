@@ -42,7 +42,6 @@ var withoutHandler = map[action.Action]string{
 	"split_vertical":      "M4 — splits",
 	"split_horizontal":    "M4 — idem",
 	"close_pane":          "M4 — idem",
-	"buffer_picker":       "M4 — abas",
 	"multi_picker":        "M4 — multi-cursor",
 	"jump_back":           "M4 — jump list",
 	"jump_forward":        "M4 — idem",

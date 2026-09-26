@@ -558,6 +558,12 @@ Agora monta a tecla e vai pelo `Update` — o mesmo caminho que o terminal.
 
 - ✅ **`project_find` e `project_replace`**, as duas teclas mortas que eram a via de
   abrir qualquer coisa. **62 tratadas, 19 mortas.**
+- ✅ **`buffer_picker` (`Ctrl+Shift+O`)**: as abas abertas, com a suja marcada em
+  texto (`●`), filtradas ao digitar pelo caminho genérico dos seletores — sem
+  captura própria, porque a lista não muda enquanto o seletor está aberto. `Enter`
+  ativa e devolve o teclado ao editor; `Esc` cancela sem trocar. Ativar **não**
+  registra jump: a jump list é dívida nomeada, e registrar sem lista seria
+  escrever num lugar que não existe. **63 tratadas, 18 mortas.**
 - ✅ **Três campos, como no oráculo**: consulta, substituir e glob — com `Tab`
   alternando os visíveis (o primeiro revela, os seguintes andam), e `Alt+G`,
   `Alt+C`, `Alt+R` ligando cada opção sem digitar. Os campos são `textinput`, como

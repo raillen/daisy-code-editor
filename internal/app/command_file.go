@@ -12,6 +12,9 @@ const (
 	OverlayHelp           = "Help"
 	OverlayOpenFile       = "OpenFile"
 	OverlayOpenFolder     = "OpenFolder"
+	// O seletor de buffers lista as abas abertas, e não o disco: é a mesma forma
+	// dos outros seletores, e o oráculo o chama de `BufferPicker`.
+	OverlayBufferPicker = "BufferPicker"
 )
 
 // fileCommands are the actions about the session and the documents in it.
@@ -72,6 +75,16 @@ func fileCommands() map[action.Action]Handler {
 			return nil
 		}),
 
+		// O seletor de buffers é a resposta para "qual era aquela aba?": as abas
+		// abertas, com a suja marcada, filtradas ao digitar. A lista é do disco
+		// do `Ctrl+P`; esta é da sessão. O filtro mora no componente da TUI,
+		// como no `OpenFile` — o modelo só diz que o seletor está aberto.
+		action.BufferPicker: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Overlay = OverlayBufferPicker
+			a.Status = "buffers: digite para filtrar · Enter ativa · Esc cancela"
+			return nil
+		}),
+
 		action.NextTab: modelHandler(func(a *App, _ *editor.Document) error { return a.cycleTab(1) }),
 		action.PrevTab: modelHandler(func(a *App, _ *editor.Document) error { return a.cycleTab(-1) }),
 
@@ -102,6 +115,24 @@ func fileCommands() map[action.Action]Handler {
 			return nil
 		}),
 	}
+}
+
+// ActivateBuffer switches to the tab with the given id and brings the keyboard
+// back to the editor: quem escolheu uma aba quer digitar nela, e o foco que
+// fica no seletor é a mesma classe de foco em superfície invisível que o painel
+// já corrigiu uma vez.
+//
+// O que o oráculo faz a mais — `record_jump`, o documento focado do split, o
+// scroll zerado — não existe aqui: a jump list e os splits são dívida nomeada
+// (M4), e ativar sem registrar é o correto enquanto não há lista para registrar.
+// Quando elas nascerem, este é o lugar que as chama.
+func (a *App) ActivateBuffer(id editor.ID) error {
+	if err := a.Store.SetActive(id); err != nil {
+		return err
+	}
+	a.Focus = FocusEditor
+	a.Overlay = OverlayNone
+	return nil
 }
 
 // cycleTab moves the active tab, wrapping around.

@@ -37,6 +37,8 @@
   verdade, que é mais cobertura real de paridade.
 
 ### Added
+- **Seletor de buffers (`Ctrl+Shift+O`):** as abas abertas com a suja marcada,
+  filtro ao digitar, `Enter` ativa e volta ao editor, `Esc` cancela.
 - **Busca e substituição no projeto inteiro:** `Ctrl+Shift+F` abre com três
   campos (consulta, substituir, glob) e resultados ao vivo; `Enter` abre o arquivo
   na linha, e com o foco no substituir (ou `Alt`/`Ctrl`) substitui em todos os
