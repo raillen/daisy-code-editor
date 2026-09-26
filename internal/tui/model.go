@@ -12,6 +12,7 @@
 package tui
 
 import (
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -571,6 +572,21 @@ func (m Model) handleClick(message tea.MouseClickMsg) Model {
 	regions := m.regions()
 
 	switch {
+	case regions.MenuBar.Contains(message.X, message.Y):
+		if index := menubar.TitleAt(regions.MenuBar.Width, m.menuView(), message.X); index >= 0 {
+			m.application.MenuOpen = &[2]int{index, 0}
+			return m
+		}
+		if m.application.MenuOpen != nil {
+			m.application.MenuOpen = nil
+			return m
+		}
+		return m
+
+	case m.menuOpenOnCell(message.X, message.Y):
+		m.runMenuRow(message.Y)
+		return m
+
 	case regions.Tree.Contains(message.X, message.Y):
 		row := message.Y - regions.Tree.Y
 		index := m.application.Tree.IndexAtRow(row)
@@ -635,6 +651,46 @@ func (m *Model) scrollBy(lines int) {
 			return
 		}
 	}
+}
+
+// menuOpenOnCell reports whether a click cell falls on the open dropdown.
+func (m Model) menuOpenOnCell(x, y int) bool {
+	drop, ok := m.menuDrop()
+	if !ok {
+		return false
+	}
+	return y >= drop.Y && y < drop.Y+len(drop.Items) && x >= drop.X && x < drop.X+drop.Width
+}
+
+// runMenuRow runs the dropdown item under a click, pelo mesmo caminho do `Enter`:
+//
+// a linha é a que o clique acertou, e o que ela executa é o que `runMenuItem` já
+// sabe fazer. Um clique que não encontra a linha é um clique na borda do
+// dropdown, e é ignorado em vez de fechar tudo: fechar numa borda é punir o
+// leitor pelo dedo.
+func (m *Model) runMenuRow(y int) {
+	drop, ok := m.menuDrop()
+	if !ok {
+		return
+	}
+	index := y - drop.Y
+	if index < 0 || index >= len(drop.Items) {
+		return
+	}
+	m.runMenuIndex(drop.Items, index)
+}
+
+// runMenuIndex closes the menu and runs one entry of the open column.
+func (m *Model) runMenuIndex(entries []app.MenuItem, index int) {
+	m.application.MenuOpen = nil
+	if index < 0 || index >= len(entries) {
+		return
+	}
+	if err := m.application.Apply(entries[index].Action); err != nil {
+		m.application.Status = entries[index].Label + ": " + menuError(err)
+		return
+	}
+	m.refreshAfterCommand(entries[index].Action)
 }
 
 // activateTreeRow abre o arquivo da linha selecionada, que é o que o `Enter` da
@@ -738,6 +794,16 @@ func (m *Model) handleKey(key tea.KeyPressMsg) {
 		}
 	}
 
+	// Um menu aberto captura **tudo**, e a regra é a mesma da primeira da
+	// sobreposição: Alt abre, as setas andam, Enter executa, Esc fecha. Sem essa
+	// ordem, digitar com um menu aberto editava o documento por trás dele — que é
+	// o defeito que o `capturesInput` existe para impedir.
+	if m.application.MenuOpen != nil {
+		if m.handleMenuKey(key, chord) {
+			return
+		}
+	}
+
 	// The focused surface gets the key first. Before this, the arrows moved the
 	// document caret whatever the focus was, and the tree could be looked at but
 	// not walked.
@@ -752,6 +818,18 @@ func (m *Model) handleKey(key tea.KeyPressMsg) {
 	case "shift+tab":
 		m.moveFocus(true)
 		return
+	}
+
+	// Alt+letra abre a coluna que tem a tecla, e é antes do keymap: o acordo é o
+	// do oráculo, e a razão é que o menu precisa abrir a **qualquer** momento, não
+	// só quando o acorde não resolve outra coisa.
+	if opens, hot := menuHotkey(chord); opens {
+		for index, column := range app.Menus(m.catalog) {
+			if column.Hotkey == hot {
+				m.application.MenuOpen = &[2]int{index, 0}
+				return
+			}
+		}
 	}
 
 	if chord != "" {
@@ -837,6 +915,103 @@ var shellSequences = map[string]string{
 	"pgdown":   "\x1b[6~",
 	"pageup":   "\x1b[5~",
 	"pagedown": "\x1b[6~",
+}
+
+// handleMenuKey routes one keystroke with a menu open.
+func (m *Model) handleMenuKey(key tea.KeyPressMsg, chord string) bool {
+	menus := app.Menus(m.catalog)
+	column, item := m.application.MenuOpen[0], m.application.MenuOpen[1]
+
+	switch chord {
+	case "escape", "esc":
+		m.application.MenuOpen = nil
+		return true
+	case "enter":
+		m.runMenuItem(menus, column, item)
+		return true
+	case "left":
+		m.application.MenuOpen = &[2]int{(column + len(menus) - 1) % len(menus), 0}
+		return true
+	case "right":
+		m.application.MenuOpen = &[2]int{(column + 1) % len(menus), 0}
+		return true
+	case "up":
+		count := len(menus[column].Items)
+		m.application.MenuOpen = &[2]int{column, (item + count - 1) % count}
+		return true
+	case "down":
+		count := len(menus[column].Items)
+		m.application.MenuOpen = &[2]int{column, (item + 1) % count}
+		return true
+	case "tab", "shift+tab":
+		m.application.MenuOpen = nil
+		return false
+	}
+
+	// Uma letra pula para o primeiro item que começa por ela, como na referência:
+	// o leitor que sabe o que quer não precisa andar a coluna inteira.
+	if text := key.Text; len([]rune(text)) == 1 {
+		lower := strings.ToLower(text)
+		for index, mi := range menus[column].Items {
+			if strings.HasPrefix(strings.ToLower(mi.Label), lower) {
+				m.application.MenuOpen = &[2]int{column, index}
+				return true
+			}
+		}
+	}
+
+	// Alt+letra troca de coluna.
+	if opens, hot := menuHotkey(chord); opens {
+		for index, columnMenu := range menus {
+			if columnMenu.Hotkey == hot {
+				m.application.MenuOpen = &[2]int{index, 0}
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// runMenuItem closes the menu and runs the chosen entry of the open column.
+func (m *Model) runMenuItem(menus []app.MenuColumn, column, item int) {
+	if column < 0 || column >= len(menus) {
+		m.application.MenuOpen = nil
+		return
+	}
+	m.runMenuIndex(menus[column].Items, item)
+}
+
+// menuError is the status line for a command that did nothing.
+func menuError(err error) string {
+	if errors.Is(err, app.ErrNotImplemented) {
+		return "ainda não implementado"
+	}
+	return err.Error()
+}
+
+// menuHotkey parses an Alt+letter chord into the hotkey the menus know.
+func menuHotkey(chord string) (bool, rune) {
+	rest, found := strings.CutPrefix(chord, "alt+")
+	if !found {
+		return false, 0
+	}
+	runes := []rune(rest)
+	if len(runes) != 1 {
+		return false, 0
+	}
+	return true, runes[0]
+}
+
+// refreshAfterCommand re-reads what a command may have changed, pelo mesmo caminho
+// de `syncOverlay` e `syncSurface`: uma ação muda o modelo, e a apresentação
+// projeta depois de todo despacho.
+func (m *Model) refreshAfterCommand(bound action.Action) {
+	if bound == action.SelectTheme {
+		m.theme = theme.New(m.palette().UI, m.palette().Syntax, m.theme.Profile())
+	}
+	if bound == action.SelectLocale {
+		m.catalog = i18n.LoadRegistry(m.application.Workspace).Get(i18n.ParseID(m.application.Config.Locale))
+	}
 }
 
 // moveFocus walks the graph and records the result in the model.
@@ -953,6 +1128,7 @@ func (m Model) Frame() string {
 
 	rows := make([]string, 0, m.size.Height)
 	rows = append(rows, menubar.Render(m.size.Width, m.menuView()))
+	rows = m.paintMenuDropdown(rows)
 	rows = append(rows, tabs.Render(m.size.Width, m.tabsView()))
 	rows = append(rows, m.bodyRows(regions)...)
 	rows = append(rows, statusbar.Render(m.size.Width, m.statusView()))
@@ -968,6 +1144,82 @@ func (m Model) Frame() string {
 		rows = m.paintOverlay(rows, regions)
 	}
 	return strings.Join(rows, "\n")
+}
+
+// paintMenuDropdown draws the open menu column over the frame, e é nela que o
+// leitor escolhe.
+//
+// A geometria vem da **barra**, e não de uma conta de canto: `menubar.OpenX` diz
+// onde o rótulo aberto começa; o dropdown cai logo abaixo, à esquerda dessa
+// posição. E a linha do item tem a largura da coluna mais larga — nunca a largura
+// da tela, porque um dropdown de 100 colunas por uma coluna de 12 é uma caixa
+// vazia.
+// menuDrop is what the open column draws: where it is, how wide, and whose
+// rows. One geometry, and é ela que o clique usa para saber o que acertou.
+//
+// Uma geometria para pintar e outra para clicar é uma divergência esperando o
+// dia: a primeira linha do dropdown está ao mesmo y nas duas, e o teste que
+// confere isso é o do clique.
+type menuDrop struct {
+	X     int
+	Y     int
+	Width int
+	Items []app.MenuItem
+}
+
+func (m Model) menuDrop() (menuDrop, bool) {
+	if m.application.MenuOpen == nil {
+		return menuDrop{}, false
+	}
+	menus := app.Menus(m.catalog)
+	column := m.application.MenuOpen[0]
+	if column < 0 || column >= len(menus) {
+		return menuDrop{}, false
+	}
+
+	items := menus[column].Items
+	if len(items) == 0 {
+		return menuDrop{}, false
+	}
+
+	// A coluna mede o que diz: o maior rótulo mais o maior atalho, em células, e
+	// não em runes — que é a forma torta de medir a mesma largura que a tela vê.
+	width := 2
+	for _, item := range items {
+		width = max(width, layout.Width(item.Label)+1+layout.Width(item.Shortcut))
+	}
+	return menuDrop{
+		X:     menubar.OpenX(m.size.Width, m.menuView()),
+		Y:     1,
+		Width: width,
+		Items: items,
+	}, true
+}
+
+func (m Model) paintMenuDropdown(rows []string) []string {
+	drop, ok := m.menuDrop()
+	if !ok {
+		return rows
+	}
+	_, selected := m.application.MenuOpen[0], m.application.MenuOpen[1]
+
+	for index, item := range drop.Items {
+		if drop.Y+index >= len(rows) {
+			break
+		}
+		label := layout.Pad(item.Label, drop.Width-layout.Width(item.Shortcut)-1) + " " + item.Shortcut
+		line := layout.Pad(label, drop.Width)
+		if index == selected {
+			// O item escolhido é marcado **em texto** (`»`) e com a cor do foco:
+			// a regra do projeto é que nenhum estado vive só na cor, e "qual item
+			// vai executar" é exatamente o estado que não pode depender dela.
+			line = "»" + line[1:]
+			rows[drop.Y+index] = overlayCells(rows[drop.Y+index], m.theme.Focus().Render(line), drop.X)
+			continue
+		}
+		rows[drop.Y+index] = overlayCells(rows[drop.Y+index], m.theme.Status().Render(line), drop.X)
+	}
+	return rows
 }
 
 // bodyRows composes the tree and the editor, side by side or overlaid.
@@ -1008,12 +1260,16 @@ func (m Model) bodyRows(regions layout.Regions) []string {
 
 // menuView builds the menu bar's view from the locale catalog.
 func (m Model) menuView() menubar.View {
+	open := -1
+	if m.application.MenuOpen != nil {
+		open = m.application.MenuOpen[0]
+	}
 	return menubar.View{
 		Labels: menubar.LabelsFor(
 			m.catalog.Menu.File, m.catalog.Menu.Edit, m.catalog.Menu.View,
 			m.catalog.Menu.Go, m.catalog.Menu.Git, m.catalog.Menu.Help,
 		),
-		Open: -1,
+		Open: open,
 	}
 }
 

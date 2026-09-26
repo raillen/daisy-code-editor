@@ -43,6 +43,47 @@ func Render(width int, view View) string {
 	return layout.Pad(bar, width)
 }
 
+// OpenX is the cell column where the open label starts, e é o que diz onde o
+// dropdown cai.
+//
+// A posição é **a mesma** que `Render` usa para desenhar o rótulo, porque as duas
+// derivam dos mesmos rótulos: uma conta o x e a outra conta a linha, e uma
+// segunda geometria seria um segundo lugar para discordar.
+func OpenX(width int, view View) int {
+	if view.Open < 0 {
+		return 0
+	}
+
+	x := 1
+	for index, label := range view.Labels {
+		if index == view.Open {
+			break
+		}
+		x += layout.Width(label) + 2
+	}
+	return min(x, width)
+}
+
+// TitleAt is which label a click column lands on, or -1.
+//
+// A **mesma** geometria de `Render` e de `OpenX`: um x que a barra desenha o
+// rótulo é um x que abre a coluna, e uma segunda geometria para o clique seria
+// um segundo lugar para discordar.
+func TitleAt(width int, view View, x int) int {
+	if x < 1 {
+		return -1
+	}
+	column := 1
+	for index, label := range view.Labels {
+		span := layout.Width(label)
+		if x >= column && x < column+span {
+			return index
+		}
+		column += span + 2
+	}
+	return -1
+}
+
 // LabelsFor returns the menu labels for a locale catalog, in bar order.
 //
 // The order lives here rather than in the catalog: a translation supplies the

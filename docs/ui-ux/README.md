@@ -11,6 +11,7 @@ id real, um `:help` que não existia.
 | Documento | Descreve | Verificado por |
 |---|---|---|
 | `direction.md` | **a ambição da interface** e o que recusamos copiar | nada — é intenção, e por isso não é contrato |
+| `menubar.md` | a barra de menus: abrir, andar, executar | `Test*Menu*` em `internal/tui` |
 | `keymap.md` | a tabela canônica de teclas | `TestDocumentedKeymapMatchesTheBindings` |
 | `focus-graph.md` | o grafo de foco e a captura por sobreposição | teste de foco (M3.2) |
 | `states.md` | o vocabulário de estados observáveis | `TestStateVocabularyMatchesTheDump` (M3.2) |

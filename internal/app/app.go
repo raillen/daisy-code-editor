@@ -107,6 +107,14 @@ type App struct {
 	// diagnósticos só aparece quando há cliente.
 	LSPAttached bool
 
+	// MenuOpen is which menu column and which item are open, or nil.
+	//
+	// Model state, e não apresentação: uma linha da tabela de menus que o modelo
+	// não sabe é uma linha que o leitor escolhe e nada acontece. O oráculo também
+	// guarda (`menu_open: Option<(usize, usize)>` em crates/oride-app/src/app/state.rs),
+	// e embora o dump não o emita, o estado dirige a captura da tecla.
+	MenuOpen *[2]int
+
 	// EditorHeight is how many rows the editor viewport had at the last frame.
 	//
 	// Injetado, nunca lido do terminal: a paginação anda N linhas, e N é o número
