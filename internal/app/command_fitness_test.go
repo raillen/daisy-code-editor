@@ -29,8 +29,6 @@ func boundActions(t *testing.T) map[action.Action]bool {
 }
 
 var withoutHandler = map[action.Action]string{
-	"tree_new_file":       "M4 — criação de arquivo",
-	"tree_new_dir":        "M4 — idem",
 	"toggle_comment":      "M4 — comentário de linha",
 	"toggle_md_preview":   "M4 — preview Markdown",
 	"lsp_complete":        "M4 — cliente LSP sobe no M4",

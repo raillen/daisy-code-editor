@@ -42,6 +42,11 @@ const (
 	// tab was that?". Same shape as the other pickers — a list, a filter, an
 	// Enter — and what Enter means belongs to the model, like everywhere else.
 	BufferPicker
+	// Prompt is the tree's create prompt: a name being typed, not a list being
+	// filtered. It still opens in the overlay because it captures every
+	// keystroke — and a prompt that lets a letter through to the buffer behind
+	// it is a prompt that writes files with wrong names.
+	Prompt
 	QuitConfirm
 	CloseConfirm
 )

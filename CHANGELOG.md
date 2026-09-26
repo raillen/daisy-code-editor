@@ -37,6 +37,8 @@
   verdade, que é mais cobertura real de paridade.
 
 ### Added
+- **Criação na árvore:** prompt pede o nome, cria sob a seleção, e abre o arquivo
+  no editor (pasta ganha status). `Enter` no vazio explica em vez de criar.
 - **`Alt+Z` alterna o soft wrap**, com o estado na barra nas palavras do oráculo.
 - **Seletor de buffers (`Ctrl+Shift+O`):** as abas abertas com a suja marcada,
   filtro ao digitar, `Enter` ativa e volta ao editor, `Esc` cancela.

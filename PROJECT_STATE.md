@@ -568,6 +568,12 @@ Agora monta a tecla e vai pelo `Update` — o mesmo caminho que o terminal.
   nas palavras do oráculo ("soft wrap: on/off"). A pintura lê o valor a cada
   frame, então alternar é só virar — sem mudança de pintura. **64 tratadas, 17
   mortas.**
+- ✅ **`tree_new_file` / `tree_new_dir`**: o prompt de criação na árvore — mostra a
+  árvore, foca nela, pede o nome numa linha que acompanha a digitação (a busca
+  ensinou que editar às cegas não serve), e `Enter` cria sob a seleção, reabre a
+  cadeia de pais, seleciona o criado, e abre o arquivo no editor. Pasta ganha
+  status ("pasta criada"); arquivo aberto é a resposta. `Enter` no vazio fecha e
+  diz "criar: invalid name". **66 tratadas, 15 mortas.**
 - ✅ **Três campos, como no oráculo**: consulta, substituir e glob — com `Tab`
   alternando os visíveis (o primeiro revela, os seguintes andam), e `Alt+G`,
   `Alt+C`, `Alt+R` ligando cada opção sem digitar. Os campos são `textinput`, como

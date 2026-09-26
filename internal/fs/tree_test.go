@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -307,5 +308,92 @@ func TestRootIsCanonical(t *testing.T) {
 	}
 	if got := tree.RootName(); got != filepath.Base(root) {
 		t.Errorf("RootName = %q, esperado %q", got, filepath.Base(root))
+	}
+}
+
+// TestCreateUnderSelectionMakesAFileAndSelectsIt é o caminho inteiro: criar sob
+// a raiz, ver no disco, e ver a seleção em cima do que foi criado — porque
+// criar e não mostrar é criar em silêncio.
+func TestCreateUnderSelectionMakesAFileAndSelectsIt(t *testing.T) {
+	root := makeTree(t, []string{"existe.txt"})
+	tree, err := Open(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	target, err := tree.CreateUnderSelection(CreateFile, "novo.txt")
+	if err != nil {
+		t.Fatalf("criando: %v", err)
+	}
+	if _, err := os.Stat(target); err != nil {
+		t.Errorf("o arquivo não está no disco: %v", err)
+	}
+	row, ok := tree.SelectedRow()
+	if !ok || row.Path != target {
+		t.Errorf("a seleção não foi para o criado: %+v", row)
+	}
+}
+
+// TestCreateUnderAFileUsesItsDirectory é a regra do oráculo: com um arquivo
+// selecionado, o pai é o diretório dele — e não o arquivo, que não cabe nada
+// dentro.
+func TestCreateUnderAFileUsesItsDirectory(t *testing.T) {
+	root := makeTree(t, []string{"dir/alfa.txt"})
+	tree, err := Open(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Seleciona o arquivo: raiz(0), dir(1), alfa(2).
+	tree.SetSelected(2)
+
+	target, err := tree.CreateUnderSelection(CreateFile, "beta.txt")
+	if err != nil {
+		t.Fatalf("criando: %v", err)
+	}
+	if want := filepath.Join(root, "dir", "beta.txt"); target != want {
+		t.Errorf("criou %q, e o irmão do selecionado era %q", target, want)
+	}
+	// O pai estava fechado e o criado está selecionado: a cadeia reabriu.
+	row, ok := tree.SelectedRow()
+	if !ok || row.Path != target {
+		t.Errorf("o criado não está visível e selecionado: %+v", row)
+	}
+}
+
+// TestCreateDirectorySaysFolder é o outro tipo: pasta criada, selecionada, e
+// vazia.
+func TestCreateDirectorySaysFolder(t *testing.T) {
+	root := makeTree(t, []string{"existe.txt"})
+	tree, err := Open(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	target, err := tree.CreateUnderSelection(CreateDirectory, "nova")
+	if err != nil {
+		t.Fatalf("criando: %v", err)
+	}
+	info, err := os.Stat(target)
+	if err != nil || !info.IsDir() {
+		t.Errorf("a pasta não está no disco: %v", err)
+	}
+}
+
+// TestCreateRejectsBadNames é a validação do oráculo, traduzida: vazio, ponto,
+// ponto-ponto, qualquer barra — e o que já existe.
+func TestCreateRejectsBadNames(t *testing.T) {
+	root := makeTree(t, []string{"existe.txt"})
+	tree, err := Open(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, name := range []string{"", "  ", ".", "..", "a/b", `a\b`} {
+		if _, err := tree.CreateUnderSelection(CreateFile, name); !errors.Is(err, ErrInvalidName) {
+			t.Errorf("nome %q: erro = %v, esperava nome inválido", name, err)
+		}
+	}
+	if _, err := tree.CreateUnderSelection(CreateFile, "existe.txt"); !errors.Is(err, ErrAlreadyExists) {
+		t.Errorf("existente: erro = %v, esperava já-existe", err)
 	}
 }

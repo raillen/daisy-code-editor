@@ -169,6 +169,12 @@ type App struct {
 	// porque um dia um caso de paridade vai exercê-lo.
 	ProjectFind ProjectFindState
 
+	// Prompt is the tree's create prompt: what to make and the name so far.
+	//
+	// Model state, pelo mesmo motivo da busca: o oráculo dumpha `kind` e
+	// `buffer`, então o prompt aberto é comportamento observável.
+	Prompt PromptState
+
 	// Overlay names what floats above the surfaces, in the oracle's vocabulary.
 	//
 	// It is model state, not presentation: the Rust dumps it, so which overlay is

@@ -56,6 +56,7 @@ func buildCommands() map[action.Action]Handler {
 		{"visão", viewCommands()},
 		{"busca", searchCommands()},
 		{"busca no projeto", projectFindCommands()},
+		{"prompt de criação", promptCommands()},
 		{"área de transferência", clipboardCommands()},
 		{"painéis e foco", panelCommands()},
 	} {

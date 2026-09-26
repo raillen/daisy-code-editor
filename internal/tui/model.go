@@ -1201,6 +1201,57 @@ func (m *Model) syncProjectOverlay() {
 	m.overlay.SetSelected(selected)
 }
 
+// handlePromptKey routes one keystroke inside the tree's create prompt.
+//
+// O nome é editado no fim (anexar/apagar), como no oráculo — sem cursor para
+// guardar e sem cursor para pintar. O `Enter` cria e fecha, com erro ou sem: um
+// prompt que fica aberto depois de criar mente sobre o que já aconteceu.
+func (m *Model) handlePromptKey(key tea.KeyPressMsg, chord string) {
+	switch chord {
+	case "escape", "esc", "ctrl+c":
+		m.application.Overlay = app.OverlayNone
+		return
+	case "enter":
+		m.application.SubmitPrompt()
+		return
+	case "backspace":
+		m.application.PromptBackspace()
+		return
+	}
+	if isTypable(chord) && key.Text != "" {
+		m.application.PromptAppend(key.Text)
+	}
+}
+
+// promptItems is the prompt's single row: the name so far.
+//
+// Uma linha, e não um campo de texto: a edição é só no fim, então não há nada
+// que um `textinput` faria aqui além de piscar — e um cursor que pisca num
+// golden é um golden que depende do relógio. O que o leitor precisa ver é o
+// que digitou, e isso a linha mostra.
+func (m Model) promptItems() []overlay.Item {
+	buffer := m.application.Prompt.Buffer
+	if buffer == "" {
+		label := "(digite o nome do arquivo…)"
+		if m.application.Prompt.Kind == app.PromptNewDir {
+			label = "(digite o nome da pasta…)"
+		}
+		return []overlay.Item{{Label: label}}
+	}
+	return []overlay.Item{{Label: buffer, Value: buffer}}
+}
+
+// syncPromptOverlay puts the name being typed on the screen, rebuilt per
+// keystroke like the project search: a lista de uma linha que não acompanha a
+// digitação é a mesma edição às cegas que a busca tinha antes do prompt.
+func (m *Model) syncPromptOverlay() {
+	if m.application.Overlay != app.OverlayPrompt {
+		return
+	}
+	width, height := m.overlaySize()
+	m.overlay.Open(overlay.Prompt, m.titleFor(app.OverlayPrompt), m.promptItems(), width, height)
+}
+
 // chordModifiers reports whether a chord carries Alt (or Ctrl), que é o que o
 // `Enter` com modificador precisa para decidir entre abrir e substituir.
 func chordModifiers(chord string) (bool, bool) {
@@ -2326,6 +2377,16 @@ func (m *Model) handleOverlayKey(key tea.KeyPressMsg) {
 		return
 	}
 
+	// O prompt de criação tem a sua captura, como a busca: o nome é digitado à
+	// parte, e a linha que o mostra é lida do modelo a cada tecla. Cair no
+	// caminho genérico faria o `Enter` fechar sem criar — uma tecla que promete
+	// "Enter cria" e só fecha.
+	if m.application.Overlay == app.OverlayPrompt {
+		m.handlePromptKey(key, key.Keystroke())
+		m.syncPromptOverlay()
+		return
+	}
+
 	// Esc fecha a sobreposição, com filtro digitado ou não.
 	//
 	// A convenção do componente é outra — primeiro o filtro, depois a
@@ -2462,6 +2523,8 @@ func (m Model) kindFor(name string) overlay.Kind {
 		return overlay.ProjectFind
 	case app.OverlayBufferPicker:
 		return overlay.BufferPicker
+	case app.OverlayPrompt:
+		return overlay.Prompt
 	}
 	// A barra de busca não é uma lista, e nenhuma outra sobreposição é nomeada pelo
 	// modelo: as demais nascem de uma ação, e é `openOverlayFor` que as abre.
@@ -2486,6 +2549,11 @@ func (m Model) titleFor(name string) string {
 		return "Atalhos"
 	case app.OverlayBufferPicker:
 		return "Buffers"
+	case app.OverlayPrompt:
+		if m.application.Prompt.Kind == app.PromptNewDir {
+			return "Nova pasta"
+		}
+		return "Novo arquivo"
 	}
 	return ""
 }
@@ -2523,6 +2591,8 @@ func (m Model) itemsFor(name string) []overlay.Item {
 		return m.projectItems()
 	case app.OverlayBufferPicker:
 		return m.bufferItems()
+	case app.OverlayPrompt:
+		return m.promptItems()
 	}
 	return nil
 }

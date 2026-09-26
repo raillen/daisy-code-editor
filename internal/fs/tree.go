@@ -382,3 +382,79 @@ func findNodeAt(nodes []*node, depth int, remaining *int) (Row, bool) {
 	}
 	return Row{}, false
 }
+
+// CreateKind is what CreateUnderSelection makes: a file or a directory.
+type CreateKind int
+
+const (
+	// CreateFile makes an empty file and the tree selects it for opening.
+	CreateFile CreateKind = iota
+	// CreateDirectory makes a directory and the tree selects it.
+	CreateDirectory
+)
+
+// CreateUnderSelection creates a file or directory named name under the
+// selected directory — or under the selected file's directory, or the root
+// when the selection points nowhere. It mirrors the oracle's
+// create_under_selection: validate the name, write, re-open the parent chain,
+// refresh, and select what was made.
+//
+// O nome não aceita caminho (`/` e `\` são recusados nos dois sistemas, como no
+// oráculo): criar `a/b` de uma vez seria um segundo comportamento escondido no
+// primeiro, e o leitor que quer aninhar cria o diretório antes.
+func (t *Tree) CreateUnderSelection(kind CreateKind, name string) (string, error) {
+	clean := strings.TrimSpace(name)
+	if clean == "" || clean == "." || clean == ".." || strings.ContainsAny(clean, `/\`) {
+		return "", ErrInvalidName
+	}
+
+	parent := t.root
+	if row, ok := t.SelectedRow(); ok {
+		parent = row.Path
+		if !row.IsDir {
+			parent = filepath.Dir(row.Path)
+		}
+	}
+
+	target := filepath.Join(parent, clean)
+	if _, err := os.Stat(target); err == nil {
+		return "", ErrAlreadyExists
+	}
+	if kind == CreateDirectory {
+		if err := os.MkdirAll(target, 0o755); err != nil {
+			return "", err
+		}
+	} else {
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(target, nil, 0o644); err != nil {
+			return "", err
+		}
+	}
+
+	if err := t.Refresh(); err != nil {
+		return "", err
+	}
+	// O `Refresh` reconstrói os nós, e a expansão que o leitor tinha vai com
+	// eles: reabrir a cadeia da raiz até o pai, ou o que foi criado está no
+	// disco e em nenhum lugar da tela.
+	if parent != t.root {
+		if relative, err := filepath.Rel(t.root, parent); err == nil {
+			chain := t.root
+			for _, part := range strings.Split(relative, string(filepath.Separator)) {
+				chain = filepath.Join(chain, part)
+				// Best effort: o arquivo já foi criado; se a expansão falhar, a
+				// seleção abaixo só não o encontra, e o `tree_refresh` mostra.
+				_ = t.setExpanded(chain, true)
+			}
+		}
+	}
+	for index, row := range t.FlatRows() {
+		if row.Path == target {
+			t.SetSelected(index)
+			break
+		}
+	}
+	return target, nil
+}
