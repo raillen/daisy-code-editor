@@ -241,3 +241,67 @@ func TestReloadOfADocumentWithNoPathIsRefused(t *testing.T) {
 		t.Errorf("status = %q", a.Status)
 	}
 }
+
+// TestThePanelTabIsReachableByKeyboard é a correção de uma omissão minha: as três
+// abas existiam, e **não havia tecla para trocar entre elas**. Um painel cujas abas
+// não são alcançáveis é a mesma classe de UI que não funciona que o resto deste
+// trabalho pegou — a tecla que o leitor vê e a tecla que ele tem não batem.
+func TestThePanelTabIsReachableByKeyboard(t *testing.T) {
+	a := buildWired(t, "x")
+	keys, err := keymap.FromBindings(config.Default().Keys)
+	if err != nil {
+		t.Fatalf("keymap: %v", err)
+	}
+
+	// O oráculo publica `focus_next_pane` em `ctrl+alt+left` e `ctrl+alt+right`.
+	// Uma tabela nova seria divergência de paridade, então a tecla é a que existe.
+	for _, chord := range []string{"ctrl+alt+right", "ctrl+alt+left"} {
+		parsed, parseErr := keymap.Parse(chord)
+		if parseErr != nil {
+			t.Fatalf("Parse(%q): %v", chord, parseErr)
+		}
+		if bound, found := keys.Resolve(parsed); !found || bound != action.FocusNextPane {
+			t.Fatalf("%q aponta para %q, esperava focus_next_pane", chord, bound)
+		}
+	}
+
+	// Fechado: o comando abre o painel na primeira aba.
+	if err := a.ApplyKey("ctrl+alt+right"); err != nil {
+		t.Fatalf("abrindo o painel: %v", err)
+	}
+	if !a.ShowBottom || a.BottomTab != BottomTabTerminal {
+		t.Fatalf("o painel não abriu: %v / %q", a.ShowBottom, a.BottomTab)
+	}
+
+	// Aberto: o comando avança, e o ciclo fecha.
+	for _, want := range []string{BottomTabProblems, BottomTabSearch, BottomTabTerminal} {
+		if err := a.ApplyKey("ctrl+alt+right"); err != nil {
+			t.Fatalf("trocando de aba: %v", err)
+		}
+		if a.BottomTab != want {
+			t.Fatalf("aba = %q, esperava %q", a.BottomTab, want)
+		}
+	}
+}
+
+// TestEveryTabOfThePanelHasAWayToReachIt é a forma mais honesta de dizer "a aba
+// existe" — cada uma tem que aparecer na sequência de comando.
+func TestEveryTabOfThePanelHasAWayToReachIt(t *testing.T) {
+	a := buildWired(t, "x")
+	if err := a.ApplyKey("ctrl+alt+right"); err != nil {
+		t.Fatalf("abrindo: %v", err)
+	}
+
+	seen := map[string]bool{a.BottomTab: true}
+	for range 3 {
+		if err := a.ApplyKey("ctrl+alt+right"); err != nil {
+			t.Fatalf("trocando: %v", err)
+		}
+		seen[a.BottomTab] = true
+	}
+	for _, tab := range []string{BottomTabTerminal, BottomTabProblems, BottomTabSearch} {
+		if !seen[tab] {
+			t.Errorf("a aba %q não é alcançável pelo teclado", tab)
+		}
+	}
+}

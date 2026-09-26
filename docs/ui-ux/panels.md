@@ -40,6 +40,19 @@ desligado é uma saúde que ninguém mediu. Por isso a aba de problemas **diz**:
 A lacuna do meio é uma **dívida de produto** (o cliente existe em `internal/lsp` e
 a aplicação nunca o sobe) e ela é do `PROJECT_STATE` e do ledger.
 
+## Trocar de aba
+
+`Ctrl+Alt+→` (e `Ctrl+Alt+←`, o mesmo comando) avança a aba, em ciclo. Fechado, o
+comando abre o painel na aba do Terminal.
+
+Só **para a frente**, e a razão está no keymap: o oráculo publica
+`focus_next_pane` — e não um `focus_prev_pane` —, e as tabelas de ação e de
+bindings são **geradas** a partir dele (`scripts/gen-tables.py --check` compara com
+o Rust). Um id ou um binding novo seria uma divergência de paridade, a mesma
+razão que fez o wrap virar **B19**. Três abas com um ciclo à frente é o que o
+produto oferece sem mentir sobre a referência
+(`TestThePanelTabIsReachableByKeyboard`, `TestEveryTabOfThePanelHasAWayToReachIt`).
+
 ## Fechar
 
 `Esc` na busca **recolhe o painel** quando a busca era a aba da frente: um painel

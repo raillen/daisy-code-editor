@@ -105,6 +105,21 @@ func panelCommands() map[action.Action]Handler {
 			return nil
 		}),
 
+		// Trocar de aba é "focar o próximo painel", que é o nome que a ação tem no
+		// oráculo e que o keymap já publica em `ctrl+alt+left` e `ctrl+alt+right`.
+		// Nenhuma tabela nova: `internal/action` e `internal/config/keybindings.go`
+		// são **gerados** do Rust, e um id ou um binding inventados seriam uma
+		// divergência de paridade — a mesma razão que fez o wrap virar B19.
+		action.FocusNextPane: modelHandler(func(a *App, _ *editor.Document) error {
+			if !a.ShowBottom {
+				a.ShowBottom = true
+				a.BottomTab = BottomTabTerminal
+				return nil
+			}
+			a.BottomTab = nextBottomTab(a.BottomTab)
+			return nil
+		}),
+
 		action.ReloadFile: documentHandler(func(a *App, document *editor.Document) error {
 			if err := document.ReloadFromDisk(); err != nil {
 				// A falha **não** é erro do programa: recarregar um arquivo que
@@ -117,6 +132,23 @@ func panelCommands() map[action.Action]Handler {
 			return nil
 		}),
 	}
+}
+
+// nextBottomTab é a próxima aba do painel, em ciclo.
+//
+// Só para a frente, e a razão está no keymap: o oráculo publica
+// `focus_next_pane` — e não um `focus_prev_pane` —, e as tabelas de ação e de
+// bindings são **geradas** dele. Um "aba anterior" seria um id novo, e um id novo
+// é divergência de paridade: a mesma razão que fez o wrap virar B19. Três abas
+// com um ciclo à frente é o que o produto oferece sem mentir sobre a referência.
+func nextBottomTab(current string) string {
+	order := []string{BottomTabTerminal, BottomTabProblems, BottomTabSearch}
+	for index, tab := range order {
+		if tab == current {
+			return order[(index+1)%len(order)]
+		}
+	}
+	return order[0]
 }
 
 // The bottom panel's tabs, and a default that nenhum caminho pode deixar vazio.

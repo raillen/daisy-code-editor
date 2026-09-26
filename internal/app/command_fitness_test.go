@@ -44,7 +44,6 @@ var withoutHandler = map[action.Action]string{
 	"toggle_diagnostics":  "M4 — idem",
 	"split_vertical":      "M4 — splits",
 	"split_horizontal":    "M4 — idem",
-	"focus_next_pane":     "M4 — idem",
 	"close_pane":          "M4 — idem",
 	"toggle_scm":          "M4 — painel SCM",
 	"show_diff":           "M4 — diff",

@@ -10,6 +10,10 @@
   o cursor do componente pisca, e um golden não pode depender do relógio.
 
 ### Added
+- **As abas do painel inferior são alcançáveis pelo teclado** (`Ctrl+Alt+→`, em
+  ciclo). Elas já existiam, e havia um menu que o teclado não alcançava.
+
+### Added
 - **A árvore mostra o estado do git de cada arquivo**, na coluna da direita: `M`
   modificado, `A` novo, `D` apagado, `?` não rastreado. A letra é a pista principal
   e a cor a segunda, para que um terminal sem cor continue mostrando o estado. O

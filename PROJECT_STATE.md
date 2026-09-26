@@ -481,6 +481,19 @@ eu procurava já tinha mudado), e só o teste novo do painel revelou.
   visto pela tela. Escrever no `app` faria a paridade acusar uma diferença que
   não é de comportamento.
 
+### Trocar de aba do painel · **completo, e era uma omissão**
+
+- ⚠️ **As três abas existiam e não havia tecla para trocar entre elas** — o painel
+  tinha um menu que o teclado não alcançava, que é a mesma classe de UI que não
+  funciona que este trabalho passou o tempo caçando. Omiti a tecla ao desenhar as
+  abas, e a omissão só apareceu quando eu pensei em como o usuário as usaria.
+- ✅ **`focus_next_pane` (que o oráculo publica em `ctrl+alt+left` e
+  `ctrl+alt+right`) liga a troca de abas.** Nenhuma tabela nova: `internal/action` e
+  `internal/config/keybindings.go` são **gerados** do Rust, e um id ou um binding
+  inventado seria divergência de paridade — a mesma razão que fez o wrap virar B19.
+  Só para a frente, e a razão também está no keymap: não existe `focus_prev_pane`.
+- **53 tratadas, 24 mortas.**
+
 **Os seis itens da direção estão fechados.** O que a direção deixa como item de
 **feature** (e não de UI/UX) são os splits, o SCM com stage, o preview Markdown, o
 motor modal Vim, o cliente LSP subindo, e a busca no projeto.
