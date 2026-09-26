@@ -37,6 +37,19 @@ func viewCommands() map[action.Action]Handler {
 			a.Status = "seletor de idioma: ↑↓ seleciona · Enter aplica · Esc cancela"
 			return nil
 		}),
+
+		// O wrap é lido do `Config` a cada frame, então alternar é só virar o
+		// valor: a próxima pintura já quebra (ou trunca) diferente. As frases
+		// são as do oráculo, porque a barra de status é lida, não decorada.
+		action.ToggleSoftWrap: modelHandler(func(a *App, _ *editor.Document) error {
+			a.Config.SoftWrap = !a.Config.SoftWrap
+			if a.Config.SoftWrap {
+				a.Status = "soft wrap: on"
+			} else {
+				a.Status = "soft wrap: off"
+			}
+			return nil
+		}),
 	}
 }
 

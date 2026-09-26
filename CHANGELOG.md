@@ -37,6 +37,7 @@
   verdade, que é mais cobertura real de paridade.
 
 ### Added
+- **`Alt+Z` alterna o soft wrap**, com o estado na barra nas palavras do oráculo.
 - **Seletor de buffers (`Ctrl+Shift+O`):** as abas abertas com a suja marcada,
   filtro ao digitar, `Enter` ativa e volta ao editor, `Esc` cancela.
 - **Busca e substituição no projeto inteiro:** `Ctrl+Shift+F` abre com três

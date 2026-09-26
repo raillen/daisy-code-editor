@@ -564,6 +564,10 @@ Agora monta a tecla e vai pelo `Update` — o mesmo caminho que o terminal.
   ativa e devolve o teclado ao editor; `Esc` cancela sem trocar. Ativar **não**
   registra jump: a jump list é dívida nomeada, e registrar sem lista seria
   escrever num lugar que não existe. **63 tratadas, 18 mortas.**
+- ✅ **`toggle_soft_wrap` (`Alt+Z`)**: vira o `Config.SoftWrap` e diz em qual está,
+  nas palavras do oráculo ("soft wrap: on/off"). A pintura lê o valor a cada
+  frame, então alternar é só virar — sem mudança de pintura. **64 tratadas, 17
+  mortas.**
 - ✅ **Três campos, como no oráculo**: consulta, substituir e glob — com `Tab`
   alternando os visíveis (o primeiro revela, os seguintes andam), e `Alt+G`,
   `Alt+C`, `Alt+R` ligando cada opção sem digitar. Os campos são `textinput`, como
