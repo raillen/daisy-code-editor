@@ -554,6 +554,25 @@ Agora monta a tecla e vai pelo `Update` — o mesmo caminho que o terminal.
   é provada contra um **repositório de verdade** nos testes do `internal/app` e do
   `internal/git`, e o ledger registra o motivo.
 
+### Busca no projeto · **completo**
+
+- ✅ **`project_find` e `project_replace`**, as duas teclas mortas que eram a via de
+  abrir qualquer coisa. **62 tratadas, 19 mortas.**
+- ✅ **Três campos, como no oráculo**: consulta, substituir e glob — com `Tab`
+  alternando os visíveis (o primeiro revela, os seguintes andam), e `Alt+G`,
+  `Alt+C`, `Alt+R` ligando cada opção sem digitar. Os campos são `textinput`, como
+  na barra de busca, e a recomputação é a cada tecla.
+- ✅ **A substituição escreve e recarrega**: `internal/search.ReplaceInProject` tem
+  a mesma semântica do oráculo — literal por padrão (`$100` fica texto), expansão
+  de grupo com regex, a mesma caminhada da busca, e os dois números no status
+  ("Substituídas N ocorrências em M arquivos"). O que está aberto é recarregado
+  do disco, para o documento não divergir do arquivo que ele escreveu.
+- ✅ **`jump` abre e leva o caret à linha**, e a sobreposição fecha: abrir e ficar
+  é o pior resultado para quem perguntou "abrir".
+- ⚠️ **O dump não mudou**: a forma do overlay do oráculo é um union rico e o Go
+  emite `"ProjectFind"`. A dívida da forma, que já existia para os seletores,
+  continua nomeada — e nenhum caso a exercita.
+
 **Os seis itens da direção estão fechados.** O que a direção deixa como item de
 **feature** (e não de UI/UX) são os splits, o SCM com stage, o preview Markdown, o
 motor modal Vim, o cliente LSP subindo, e a busca no projeto.

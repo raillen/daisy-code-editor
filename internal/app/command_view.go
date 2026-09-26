@@ -52,6 +52,11 @@ const (
 	OverlayFind         = "find"
 	OverlayThemePicker  = "ThemePicker"
 	OverlayLocalePicker = "LocalePicker"
+	// A busca no projeto é uma sobreposição com nome próprio, porque o dump a
+	// compara: "ProjectFind" é o que o oráculo escreve, e é o que o caso um dia
+	// vai pedir.
+	OverlayProjectFind = "ProjectFind"
+
 	// O diff é uma pergunta transitória ("o que mudou aqui?"), e não mobília:
 	// por isso é sobreposição, e não painel.
 	OverlayDiff = "Diff"

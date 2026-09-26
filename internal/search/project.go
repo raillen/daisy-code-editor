@@ -201,15 +201,14 @@ var ignoreDirectories = map[string]bool{
 	".oride":       true,
 }
 
-// searchWithWalk is the fallback: a bounded recursive walk.
-func searchWithWalk(root string, query Query) ([]Hit, error) {
-	matcher, err := compileMatcher(query)
-	if err != nil {
-		return nil, err
-	}
-
-	hits := make([]Hit, 0, 64)
-	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+// forEachFile calls fn for every text file the search would consider, in walk
+// order.
+//
+// É a caminhada **compartilhada** entre busca e substituição: os dois precisam
+// olhar os mesmos arquivos, porque uma substituição que olha arquivos que a busca
+// não olha é uma substituição que o leitor não consegue prever — e vice-versa.
+func forEachFile(root string, query Query, fn func(path string) error) error {
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// An unreadable directory is skipped, not fatal: a permission
 			// problem somewhere should not abort a repository-wide search.
@@ -243,16 +242,31 @@ func searchWithWalk(root string, query Query) ([]Hit, error) {
 		if !globAllows(query.Globs, relative) {
 			return nil
 		}
+		return fn(path)
+	})
+}
 
-		found, err := searchFile(path, relative, matcher, query.MaxHits-len(hits))
-		if err != nil {
-			return nil
-		}
-		hits = append(hits, found...)
+// searchWithWalk is the fallback: a bounded recursive walk.
+func searchWithWalk(root string, query Query) ([]Hit, error) {
+	matcher, err := compileMatcher(query)
+	if err != nil {
+		return nil, err
+	}
 
+	hits := make([]Hit, 0, 64)
+	err = forEachFile(root, query, func(path string) error {
 		if len(hits) >= query.MaxHits {
 			return fs.SkipAll
 		}
+		relative, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return nil
+		}
+		found, searchErr := searchFile(path, filepath.ToSlash(relative), matcher, query.MaxHits-len(hits))
+		if searchErr != nil {
+			return nil
+		}
+		hits = append(hits, found...)
 		return nil
 	})
 	if err != nil {

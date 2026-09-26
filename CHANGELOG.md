@@ -36,6 +36,13 @@
   disse — inclusive quando não há upstream. A chave `scm` do dump leva entradas de
   verdade, que é mais cobertura real de paridade.
 
+### Added
+- **Busca e substituição no projeto inteiro:** `Ctrl+Shift+F` abre com três
+  campos (consulta, substituir, glob) e resultados ao vivo; `Enter` abre o arquivo
+  na linha, e com o foco no substituir (ou `Alt`/`Ctrl`) substitui em todos os
+  arquivos, recarregando o que está aberto. Como no oráculo: literal por padrão,
+  grupos com regex, e os dois números no status.
+
 ### Fixed
 - **A navegação foi consertada, e as três causas eram reais:** o mouse **não
   existia** (a TUI declarava a capacidade e não tratava nenhum clique — agora

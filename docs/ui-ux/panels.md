@@ -84,6 +84,25 @@ dump é o que a paridade compara — por isso o painel e a tela tiram do **mesmo
 `git`, e a lista é lida **na ação** (rápido e local, como a referência), não no
 tique.
 
+## A busca no projeto, em sobreposição
+
+`Ctrl+Shift+F` abre, e `Ctrl+H` abre direto no substituir. São **três campos** —
+consulta, substituir e glob — e os resultados, e é a mesma forma da referência:
+`Tab` alterna os campos visíveis (o primeiro revela, os seguintes andam),
+`Alt+G` liga e desliga o glob, `Alt+C` a caixa, `Alt+R` o regex, e `Enter` abre o
+resultado. Com `Alt`/`Ctrl`, ou com o foco no campo de substituir, o `Enter`
+**substitui no projeto inteiro** — e recarrega o que está aberto, para o
+documento não divergir do arquivo que ele acabou de escrever.
+
+Verificado por `TestProjectFindOpensAndSearchesLive`,
+`TestTabRevealsTheReplaceFieldAndThenTheGlob`, `TestAltTogglesTheOptionsWithoutTyping`,
+`TestEnterOpensTheSelectedHit`, `TestReplaceAcrossTheProjectWritesAndReloads` e
+`TestEscapeClosesTheProjectSearch` — todos com um workspace de verdade, porque
+`find` sem disco é um jeito elegante de não testar nada.
+
+Uma busca vazia não busca: um padrão que casa com tudo reescreveria o repositório,
+e é recusado antes de olhar qualquer arquivo.
+
 ## Fechar
 
 `Esc` na busca **recolhe o painel** quando a busca era a aba da frente: um painel

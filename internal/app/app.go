@@ -161,6 +161,14 @@ type App struct {
 	// conformance dump. The composition root turns this into a command.
 	ClipboardWrite string
 
+	// ProjectFind is the project search state: query, optional replace and glob,
+	// the hits, and which one the keyboard is on.
+	//
+	// Model state, e não apresentação: o estado dirige a captura da tecla e a
+	// recomputação a cada tecla — e é do mesmo formato que o oráculo dumpha,
+	// porque um dia um caso de paridade vai exercê-lo.
+	ProjectFind ProjectFindState
+
 	// Overlay names what floats above the surfaces, in the oracle's vocabulary.
 	//
 	// It is model state, not presentation: the Rust dumps it, so which overlay is

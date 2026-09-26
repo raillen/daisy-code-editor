@@ -15,6 +15,7 @@ import (
 	"errors"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -87,6 +88,13 @@ type Model struct {
 	diffLines []string
 	// diffPath is the file the diff is about, e é o título da sobreposição.
 	diffPath string
+	// findQuery, findReplace e findGlob são os três campos da busca no projeto,
+	// e são `textinput` pelos mesmos motivos da barra de busca: inserção, apagar
+	// por rune, placeholder e cauda são do componente — e aqui triplicados, porque
+	// são três campos que o leitor edita.
+	findQuery   textinput.Model
+	findReplace textinput.Model
+	findGlob    textinput.Model
 
 	// gitBadges é o estado do git por caminho, relativo ao workspace, e é lido
 	// no mesmo tique que a branch. Guardar no modelo e não na aplicação é
@@ -143,6 +151,9 @@ func New(application *app.App, keys *keymap.Map) Model {
 		surface:     focus.Editor,
 		query:       newFindField(),
 		replace:     newFindField(),
+		findQuery:   newFindField(),
+		findReplace: newFindField(),
+		findGlob:    newFindField(),
 	}
 }
 
@@ -801,6 +812,15 @@ func (m *Model) handleKey(key tea.KeyPressMsg) {
 		}
 	}
 
+	// A busca no projeto tem a sua captura, antes do menu: ela é uma
+	// sobreposição de **três campos** (consulta, substituir, glob), e as chaves de
+	// opção (`Alt+C`, `Alt+R`, `Alt+G`) não podem cair no keymap global — que é o
+	// que aconteceria se a captura viesse depois.
+	if m.application.Overlay == app.OverlayProjectFind {
+		m.handleProjectFindKey(key, chord)
+		return
+	}
+
 	// Um menu aberto captura **tudo**, e a regra é a mesma da primeira da
 	// sobreposição: Alt abre, as setas andam, Enter executa, Esc fecha. Sem essa
 	// ordem, digitar com um menu aberto editava o documento por trás dele — que é
@@ -1007,6 +1027,185 @@ func menuHotkey(chord string) (bool, rune) {
 		return false, 0
 	}
 	return true, runes[0]
+}
+
+// handleProjectFindKey routes one keystroke inside the project search.
+//
+// Os **campos** são do componente `textinput`, e a **lista** de resultados é a da
+// sobreposição: digitar recomputa ao vivo, `Tab` alterna os campos visíveis (a
+// mesma regra do oráculo — o primeiro `Tab` revela, os seguintes andam), `Alt+G`
+// liga e desliga o glob, `Alt+C` a caixa, `Alt+R` o regex, e `Enter` abre o
+// resultado ou substitui — como no oráculo, onde `Enter` com Alt/Ctrl, ou com o
+// foco no campo de substituir, executa a substituição.
+func (m *Model) handleProjectFindKey(key tea.KeyPressMsg, chord string) {
+	found := &m.application.ProjectFind
+
+	switch chord {
+	case "escape", "esc", "ctrl+c":
+		m.application.Overlay = app.OverlayNone
+		return
+	case "tab":
+		m.cycleProjectField()
+		return
+	case "alt+g":
+		m.toggleProjectGlob()
+		return
+	case "alt+c":
+		found.Options.CaseSensitive = !found.Options.CaseSensitive
+		m.application.RecomputeProjectFind()
+		return
+	case "alt+r":
+		found.Options.UseRegex = !found.Options.UseRegex
+		m.application.RecomputeProjectFind()
+		return
+	case "enter":
+		m.applyProjectFind(chord)
+		return
+	case "up":
+		m.projectSelect(-1)
+		return
+	case "down":
+		m.projectSelect(1)
+		return
+	}
+
+	m.editProjectField(key)
+}
+
+// cycleProjectField walks the visible fields, in the oracle's order: o primeiro
+// `Tab` revela o substituir, e os seguintes andam entre consulta, substituir e
+// glob — que é a mesma regra que a barra de busca segue no singular.
+func (m *Model) cycleProjectField() {
+	found := &m.application.ProjectFind
+	if !found.HasReplace && !found.HasGlob {
+		found.HasReplace = true
+		found.FocusField = app.ProjectFieldReplace
+		return
+	}
+
+	visible := []int{app.ProjectFieldQuery}
+	if found.HasReplace {
+		visible = append(visible, app.ProjectFieldReplace)
+	}
+	if found.HasGlob {
+		visible = append(visible, app.ProjectFieldGlob)
+	}
+	for index, field := range visible {
+		if field == found.FocusField {
+			found.FocusField = visible[(index+1)%len(visible)]
+			return
+		}
+	}
+	found.FocusField = app.ProjectFieldQuery
+}
+
+// toggleProjectGlob reveals or hides the file glob field, e devolve o foco para
+// a consulta quando esconde: um campo escondido com o foco é um campo que come
+// tecla.
+func (m *Model) toggleProjectGlob() {
+	found := &m.application.ProjectFind
+	if !found.HasGlob {
+		found.HasGlob = true
+		found.FocusField = app.ProjectFieldGlob
+		return
+	}
+	found.HasGlob = false
+	found.Glob = ""
+	m.findGlob.SetValue("")
+	if found.FocusField == app.ProjectFieldGlob {
+		found.FocusField = app.ProjectFieldQuery
+	}
+	m.application.RecomputeProjectFind()
+}
+
+// projectSelect moves the selection inside the results, and clamps it: uma
+// seleção que aponta para um resultado que saiu da lista é uma tecla que age
+// sobre outro arquivo.
+func (m *Model) projectSelect(delta int) {
+	found := &m.application.ProjectFind
+	if len(found.Hits) == 0 {
+		return
+	}
+	found.Selected = min(max(found.Selected+delta, 0), len(found.Hits)-1)
+}
+
+// editProjectField hands the key to the focused field and copies the result back,
+// no mesmo formato de `editFindField`: o componente edita, o modelo guarda.
+func (m *Model) editProjectField(key tea.KeyPressMsg) {
+	found := &m.application.ProjectFind
+
+	switch found.FocusField {
+	case app.ProjectFieldReplace:
+		updated, _ := m.findReplace.Update(key)
+		m.findReplace = updated
+		found.Replace = m.findReplace.Value()
+	case app.ProjectFieldGlob:
+		updated, _ := m.findGlob.Update(key)
+		m.findGlob = updated
+		found.Glob = m.findGlob.Value()
+		m.application.RecomputeProjectFind()
+	default:
+		updated, _ := m.findQuery.Update(key)
+		m.findQuery = updated
+		if found.Query != m.findQuery.Value() {
+			found.Query = m.findQuery.Value()
+			m.application.RecomputeProjectFind()
+		}
+	}
+}
+
+// applyProjectFind runs Enter: substitute when the focus (or a modifier) says so,
+// and jump otherwise — que é a regra do oráculo, copiada sem enfeite.
+func (m *Model) applyProjectFind(chord string) {
+	found := &m.application.ProjectFind
+	_, isAlt := chordModifiers(chord)
+	if found.HasReplace && (isAlt || strings.HasPrefix(chord, "ctrl+") || found.FocusField == app.ProjectFieldReplace) {
+		m.application.ExecuteProjectReplace()
+		return
+	}
+	if len(found.Hits) == 0 {
+		return
+	}
+	selected := min(found.Selected, len(found.Hits)-1)
+	if err := m.application.JumpToProjectHit(found.Hits[selected]); err != nil {
+		m.application.Status = "abrir: " + err.Error()
+		return
+	}
+	m.application.Overlay = app.OverlayNone
+	m.surface = focus.Editor
+	m.application.Focus = app.FocusEditor
+}
+
+// syncProjectOverlay puts the current hits on the screen, with the selection
+// where it is.
+//
+// A lista da sobreposição é a **projeção** dos resultados do modelo: a cada tecla
+// que muda a busca, ela é reconstruída — e a seleção que apontava para um
+// resultado que saiu da lista é limitada, porque uma tecla que age sobre outro
+// arquivo é o defeito que esta máquina projecta evitar.
+func (m *Model) syncProjectOverlay() {
+	found := &m.application.ProjectFind
+	items := m.projectItems()
+
+	selected := 0
+	if len(found.Hits) > 0 {
+		selected = min(found.Selected, len(found.Hits)-1)
+		found.Selected = selected
+	}
+
+	// A lista é reconstruída — e a seleção sai do modelo, não da lista: a lista
+	// não sabe que os resultados mudaram, e uma seleção antiga apontaria para um
+	// arquivo que o leitor nem está vendo.
+	width, height := m.overlaySize()
+	m.overlay.Open(overlay.ProjectFind, "Buscar no projeto", items, width, height)
+	m.overlay.SetSelected(selected)
+}
+
+// chordModifiers reports whether a chord carries Alt (or Ctrl), que é o que o
+// `Enter` com modificador precisa para decidir entre abrir e substituir.
+func chordModifiers(chord string) (bool, bool) {
+	lowered := strings.ToLower(chord)
+	return strings.Contains(lowered, "alt+"), strings.Contains(lowered, "ctrl+")
 }
 
 // refreshAfterCommand re-reads what a command may have changed, pelo mesmo caminho
@@ -2117,6 +2316,16 @@ func (m *Model) handleOverlayKey(key tea.KeyPressMsg) {
 		return
 	}
 
+	// A busca no projeto tem a sua captura **na sobreposição**, e não a genérica:
+	// os campos de query, substituir e glob são editados à parte, e a lista de
+	// resultados é lida do modelo a cada tecla. Sem esta linha, as teclas caíam na
+	// lista vazia — que é o que fazia digitar não buscar nada.
+	if m.application.Overlay == app.OverlayProjectFind {
+		m.handleProjectFindKey(key, key.Keystroke())
+		m.syncProjectOverlay()
+		return
+	}
+
 	// Esc fecha a sobreposição, com filtro digitado ou não.
 	//
 	// A convenção do componente é outra — primeiro o filtro, depois a
@@ -2246,6 +2455,8 @@ func (m Model) kindFor(name string) overlay.Kind {
 		return overlay.Palette
 	case app.OverlayDiff:
 		return overlay.Diff
+	case app.OverlayProjectFind:
+		return overlay.ProjectFind
 	}
 	// A barra de busca não é uma lista, e nenhuma outra sobreposição é nomeada pelo
 	// modelo: as demais nascem de uma ação, e é `openOverlayFor` que as abre.
@@ -2272,6 +2483,23 @@ func (m Model) titleFor(name string) string {
 	return ""
 }
 
+// projectItems is the overlay's rows: the hits, each with where it is.
+//
+// A linha é `caminho:linha · texto`, porque é o que o leitor reconhece de um
+// `rg` — e a mesma gramática do LSP e do painel de problemas, para não haver
+// três formas de dizer a mesma coisa.
+func (m Model) projectItems() []overlay.Item {
+	items := make([]overlay.Item, 0, len(m.application.ProjectFind.Hits))
+	for _, hit := range m.application.ProjectFind.Hits {
+		label := hit.Path + ":" + strconv.Itoa(hit.Line) + " · " + hit.Text
+		items = append(items, overlay.Item{Label: label, Value: label})
+	}
+	if len(items) == 0 {
+		items = append(items, overlay.Item{Label: "(sem resultados)"})
+	}
+	return items
+}
+
 func (m Model) itemsFor(name string) []overlay.Item {
 	switch name {
 	case overlayThemePicker:
@@ -2284,6 +2512,8 @@ func (m Model) itemsFor(name string) []overlay.Item {
 		return m.paletteItems()
 	case app.OverlayHelp:
 		return bindingItems(m.keys)
+	case app.OverlayProjectFind:
+		return m.projectItems()
 	}
 	return nil
 }

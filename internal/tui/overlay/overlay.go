@@ -30,6 +30,11 @@ const (
 	// aplicar. É uma pergunta transitória, não mobília — e por isso abre numa
 	// sobreposição que fecha com `Esc`, e não num painel.
 	Diff
+	// ProjectFind é a busca no projeto: a consulta, o substituir e o glob são
+	// campos que o leitor edita, e os resultados são linhas que ele abre. É a
+	// sobreposição mais complexa que existe, e a complexidade mora no **modelo** —
+	// aqui só há linhas.
+	ProjectFind
 	// OpenFile is the file picker: `Ctrl+P`, the fastest way to open a file, which
 	// was advertised in the generated keymap and did nothing.
 	OpenFile
@@ -149,6 +154,12 @@ func (m Model) View() string {
 }
 
 // Selected is the row the reader is on, if any.
+// SetSelected moves the list's selection, clamped by the component: uma seleção
+// que aponta para fora da lista não é uma seleção, é um índice.
+func (m *Model) SetSelected(index int) {
+	m.list.Select(index)
+}
+
 func (m Model) Selected() (Item, bool) {
 	choice, ok := m.list.SelectedItem().(Item)
 	return choice, ok
@@ -172,6 +183,12 @@ func (m Model) Filtering() bool { return m.list.FilterState() == list.Filtering 
 // `SetFilterState` só move o estado. Inverter as duas deixa o filtro preenchido e
 // fechado — a lista casa o que foi digitado e não aceita mais nada.
 func (m *Model) StartFilter(text string) {
+	// Uma lista **vazia** não filtra: o `SetFilterText` do componente faz panic
+	// nela, e um filtro sobre nada é nada para filtrar. Por isso este método —
+	// e não cada chamador — é quem guarda.
+	if len(m.list.Items()) == 0 {
+		return
+	}
 	if text != "" {
 		m.list.SetFilterText(text)
 	}
