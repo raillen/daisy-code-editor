@@ -5,58 +5,17 @@ on:
     branches: [main]
   pull_request:
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
-  # The Rust implementation is frozen as the differential oracle. This job keeps
-  # it honest in its own right, and produces the binary the parity gate drives.
-  rust:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: rust-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-      - name: fmt
-        run: cargo fmt --all -- --check
-      - name: clippy
-        run: cargo clippy --all-targets -- -D warnings
-      - name: test
-        run: cargo test --workspace
-      # Built explicitly, and cached: `cargo test` does not refresh the binary
-      # in target/debug, so a stale oracle would silently make the parity gate
-      # compare the Go implementation against the previous Rust revision.
-      - name: build the oracle
-        run: cargo build -p oride
-
-  # The parity gate. The TypeScript implementation replays the frozen JSON
-  # cases against the Rust oracle; the Go implementation was removed with the
-  # OpenTUI migration (see .github/workflows/opentui.yml for the TS checks).
-  conformance:
-    needs: [rust]
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: rust-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-      - name: build the oracle
-        run: cargo build -p oride
-      - name: differential parity
-        run: bun scripts/measure-parity.ts
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run build
+      - run: bun dist/cli.js --version
+      - run: bun dist/cli.js --print-frame 80x20

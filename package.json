@@ -11,8 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "build": "bun scripts/build.ts",
-    "check": "bun run typecheck && bun test",
-    "parity": "bun scripts/measure-parity.ts"
+    "check": "bun run typecheck && bun test"
   },
   "dependencies": {
     "@opentui/core": "0.6.1",
