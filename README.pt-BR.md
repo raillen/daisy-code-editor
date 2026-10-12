@@ -40,16 +40,37 @@ Projetado para alta performance, ergonomia de teclado e arquitetura limpa, o Dai
 
 ---
 
-## 🚀 Início Rápido
+## 🚀 Início Rápido & Instalação
 
-### Pré-requisitos
+### ⚡ Instalador Interativo One-Line (Linux & macOS)
 
-- [Bun](https://bun.sh) (v1.2 ou superior)
-- Terminal com suporte a truecolor (Kitty, Ghostty, WezTerm, Alacritty, iTerm2, Windows Terminal)
+Instale o Daisy diretamente com nosso instalador interativo que permite escolher a versão e o formato de pacote desejado:
 
-### Instalação
+```bash
+curl -fsSL https://raw.githubusercontent.com/raillen/daisy-code-editor/main/scripts/install.sh | bash
+```
 
-Clone o repositório e instale as dependências:
+Para instalações automatizadas sem interação:
+```bash
+# Escolha o formato: appimage, arch, deb, rpm, flatpak, ou binary
+FORMAT=appimage curl -fsSL https://raw.githubusercontent.com/raillen/daisy-code-editor/main/scripts/install.sh | bash
+
+# Escolha a versão específica do release
+VERSION=v0.2.0 curl -fsSL https://raw.githubusercontent.com/raillen/daisy-code-editor/main/scripts/install.sh | bash
+```
+
+### 📦 Pacotes Pré-compilados por Distribuição
+
+Todos os pacotes estão disponíveis para download direto no [GitHub Releases](https://github.com/raillen/daisy-code-editor/releases):
+- **AppImage Universal**: `chmod +x Daisy-*.AppImage && ./Daisy-*.AppImage`
+- **Arch Linux**: `sudo pacman -U daisy-code-editor-*.pkg.tar.zst`
+- **Debian / Ubuntu**: `sudo dpkg -i daisy_*_amd64.deb`
+- **Fedora / RHEL**: `sudo dnf install ./daisy-code-editor-*.rpm`
+- **Flatpak**: `flatpak install --bundle daisy-*.flatpak`
+
+### 🛠️ Executando a partir do Código-Fonte
+
+**Pré-requisitos:** [Bun](https://bun.sh) (v1.2+)
 
 ```bash
 git clone https://github.com/raillen/daisy-code-editor.git
