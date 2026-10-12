@@ -1,0 +1,42 @@
+# Caso de paridade TS↔Rust. Formato TOML: tabelas para config/divergence, [[files]] e [[steps]] em ordem.
+description = "find command: moving through matches with find_next and find_prev, and replacing the current one"
+open = "notas.txt"
+
+[[files]]
+path = "notas.txt"
+content = "alfa beta\ngama alfa\nbeta alfa\n"
+
+[[steps]]
+kind = "search"
+query = "alfa"
+ignore_accents = true
+
+[[steps]]
+kind = "action"
+action = "find_next"
+
+[[steps]]
+kind = "action"
+action = "find_next"
+
+[[steps]]
+kind = "action"
+action = "find_prev"
+
+[[steps]]
+kind = "action"
+action = "find"
+
+[[steps]]
+kind = "search"
+query = "alfa"
+replace = "ALFA"
+ignore_accents = true
+
+[[steps]]
+kind = "action"
+action = "find_next"
+
+[[steps]]
+kind = "action"
+action = "replace"

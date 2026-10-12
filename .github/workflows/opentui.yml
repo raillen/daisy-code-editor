@@ -1,0 +1,28 @@
+name: OpenTUI migration
+
+on:
+  push:
+    branches: [main, feat/opentui-solid]
+  pull_request:
+
+jobs:
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run build
+      - run: bun dist/cli.js --version
+      - run: bun dist/cli.js --print-frame 80x20
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build -p oride
+      - run: bun scripts/measure-parity.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opentui-partial-parity
+          path: docs/migration/opentui-parity-report.json

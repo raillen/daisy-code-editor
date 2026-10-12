@@ -1,165 +1,188 @@
-# Oride
+# 🌼 Daisy Code Editor
 
-**English** · [Português](README.pt-BR.md)
+[![Runtime: Bun](https://img.shields.io/badge/Runtime-Bun%201.2+-fbf0df?logo=bun&logoColor=black)](https://bun.sh)
+[![Language: TypeScript](https://img.shields.io/badge/Language-TypeScript%205.9+-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![UI: SolidJS](https://img.shields.io/badge/UI-SolidJS%201.9+-2c4f7c?logo=solid&logoColor=white)](https://www.solidjs.com)
+[![Engine: OpenTUI](https://img.shields.io/badge/Engine-OpenTUI-blueviolet)](https://github.com/opentui)
+[![Version](https://img.shields.io/badge/Version-0.2.0-brightgreen)](https://github.com/raillen/daisy-code-editor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Oride** (Ori + IDE) is a modular, lightweight, and extensible **terminal code editor / mini-IDE** built in Rust. It features a navigable project tree, collapsible embedded terminal, Vim-style modal editing, integrated declarative task runner (`tasks.toml`), environment health diagnostics (`:health`), and syntax highlighting for multiple languages (Rust, C, Bash, Markdown, Ori, HTML, CSS, JavaScript/TypeScript, Python, D, Lua, Nim, and Ruby).
+> **Daisy Code Editor** is a modern, modular, and blazing-fast terminal code editor and mini-IDE built with **OpenTUI + SolidJS** on top of **TypeScript & Bun**.
 
-Status: **`0.2.0`** — self-contained TUI mini-IDE (editor, project file tree, PTY terminal, Git/SCM with ahead/behind and pull/push, project search & replace with globs/regex, on-demand multi-LSP, rich Markdown preview with images and links, dynamic splits, opt-in mouse support).  
-Repository: [ori-team/oride](https://github.com/ori-team/oride).  
-Documentation: [User Guide](docs/guides/en/user-guide.md) · [Architecture & Design](docs/en/design.md) · [Configuration](docs/guides/en/config.md) · [Themes](docs/guides/en/themes.md) · [Roadmap](ROADMAP.md).
+Designed for high performance, keyboard ergonomics, and clean architecture, Daisy delivers a full-featured development environment right inside your terminal with zero browser bloat.
 
-![Oride Interface](assets/oride-interface.png)
+---
 
-## Goals (Lean & Contained Product)
+## ✨ Features
 
-- **Everything in the TUI:** Zero browser preview dependency, no slow scripting bloat, no heavy macro engines.
-- **Full-featured Layout:** Multiple buffer tabs, project tree with Nerd Font glyphs, interactive PTY terminal, buffer & project-wide find and replace, Git/SCM status, lightweight workspace sessions.
-- **Supported Languages:** Rust, C, Bash, Markdown, Ori, HTML, CSS, JS/TS, Python, D (dlang), Lua, Nim, and Ruby — auto-detection, syntax highlight, comment toggling, and Markdown fence injections ([details](docs/guides/en/syntax.md)).
-- **On-demand LSP:** Local intelligent autocomplete + language servers spawned on-demand for **Ori** (`ori-lsp`), Rust (`rust-analyzer`), C/C++ (`clangd`), Bash (`bash-language-server`), etc. (fully configurable in `config.toml`).
-- **Rich Terminal Markdown Preview:** Unicode box-drawing tables, fenced code blocks with syntax highlighting, and terminal graphics protocol rendering on supported terminals (Kitty/Ghostty/WezTerm).
-- **Preview Links:** Open links in the system web browser via mouse click or `Alt+Enter`.
-- **Opt-in Mouse:** Disabled by default (`mouse = false`); when enabled, supports caret positioning, text selection by dragging, and split divider resizing.
+- ⚡ **Reactive Terminal Engine**: Built on `@opentui/core` and `@opentui/solid` with fine-grained reactivity, fast ASCII line layout, and smooth rendering.
+- 📁 **File Explorer & Tabbed Buffers**: Navigable project file tree with Nerd Font glyphs, multi-tab buffer management, middle-click tab closing, and split editor views.
+- 🖥️ **Embedded PTY Terminal**: Full interactive terminal emulator with ANSI/VT escape sequences, split-pane support, and draggable dividers.
+- 🧠 **Code Intelligence & Autocomplete**:
+  - **On-Demand LSP**: Language Server Protocol integration via `$PATH` (`typescript-language-server`, `rust-analyzer`, `gopls`, `pyright`, `clangd`).
+  - **Offline Intelligence**: Built-in language catalog (keywords, functions, docstrings) and multi-buffer word indexing with fuzzy ranking.
+  - **Smart Snippets**: Tabstop expansions (`$0`) for TypeScript, Rust, Go, and Python.
+  - **Code Actions & Refactoring**: Local whole-word symbol rename (`F2`) and hover documentation (`Ctrl+K`).
+- 🎨 **Syntax Highlighting & Theming**: Shiki-powered lexical highlighting supporting TypeScript, JavaScript, Rust, Go, Python, C, Bash, Markdown, HTML, CSS, Lua, and more. Built-in themes include Catppuccin, Nord, Tokyo Night, Gruvbox, and One Dark.
+- 🔍 **High-Performance Search & Replace**:
+  - Buffer-level find & replace with regex, case-sensitivity, accent-folding, and whole-word matching.
+  - Project-wide recursive search & disk replacement.
+  - Dedicated background Web Worker for fuzzy finding across 20,000+ files without UI lag.
+- 🐙 **Git / SCM Integration**: Status gutter indicators (added/modified/deleted), staging/unstaging, commits, interactive diff view, and git blame overlay (`Ctrl+Alt+B`).
+- 📖 **Markdown Preview**: Real-time side-by-side or pane preview with formatted tables, fenced code blocks, and syntax highlighting.
+- ⚙️ **Config & Settings Menu**:
+  - Interactive settings dropdown to toggle auto-wrap, auto-closing pairs, line numbers, modal mode, nerd icons, and mouse capture.
+  - Direct opening of user and workspace `config.toml` files in editor tabs with live hot reload upon saving.
+- ⌨️ **Vim Modal Mode & Rebindable Chords**: Optional Vim normal/insert/visual mode (`h, j, k, l, w, b, gg, G, x, u, :w, :q`) alongside standard intuitive shortcuts.
+- 🌐 **Multilingual Support**: First-class internationalization (`en-US` and `pt-BR`) for menus, status badges, and notifications.
 
-## Installation
+---
 
-### Linux & macOS (One-Line Installer)
+## 🚀 Quickstart
+
+### Prerequisites
+
+- [Bun](https://bun.sh) (v1.2 or higher)
+- Terminal with truecolor support (Kitty, Ghostty, WezTerm, Alacritty, iTerm2, Windows Terminal)
+
+### Installation
+
+Clone the repository and install dependencies:
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ori-team/oride/main/scripts/install.sh | bash
+git clone https://github.com/raillen/daisy-code-editor.git
+cd daisy-code-editor
+bun install
 ```
-*Automatically detects platform (x86_64, aarch64), downloads the official binary, installs to `~/.local/bin/oride`, and configures your shell PATH.*
 
-### Windows (PowerShell)
-```powershell
-irm https://raw.githubusercontent.com/ori-team/oride/main/scripts/install.ps1 | iex
-```
-*Automatically installs `oride.exe` to `$HOME\.oride\bin` and permanently configures your Windows User PATH.*
-
-### Distributions & Package Managers
-- **Debian / Ubuntu:** Download `.deb` from [Releases](https://github.com/ori-team/oride/releases) and install via `sudo dpkg -i oride_*.deb`.
-- **Arch Linux:** Install via [`packaging/arch/PKGBUILD`](packaging/arch/PKGBUILD) (`makepkg -si`) or pre-built `.pkg.tar.zst`.
-- **Fedora / RHEL:** Build RPM via [`packaging/fedora/oride.spec`](packaging/fedora/oride.spec).
-- **Void Linux:** Build package via [`packaging/void/template`](packaging/void/template).
-- **Nix / NixOS:** Run instantly via `nix run github:ori-team/oride` or install via `nix profile install github:ori-team/oride`.
-
-## Building from Source
+### Running Daisy
 
 ```bash
-cargo build --release
-./target/release/oride                  # CWD as workspace + empty buffer
-./target/release/oride path/to/file     # Open specific file
-./target/release/oride path/to/dir      # Open directory as workspace
-./target/release/oride --version
+# Open Daisy in current directory
+bun run start
+
+# Or launch directly with daisy CLI
+bun ./src/cli.tsx .
+
+# Open a specific file
+bun ./src/cli.tsx src/core/document.ts
 ```
 
-### Essential Keybindings (Rebindable via TOML)
+---
 
-| Key | Action |
+## ⌨️ Essential Keybindings
+
+| Keybinding | Action |
 |---|---|
-| Typing / Enter / Backspace / Delete | Direct text editing |
-| Arrow keys, Home, End, PgUp, PgDn | Cursor navigation |
-| `Shift` + Arrow keys / Home / End | Extend selection |
-| `Ctrl+Shift+Home` / `End` | Select to document start / end |
-| `Ctrl+A` | Select all |
+| **Editing** | |
 | `Ctrl+S` | Save active file |
-| `Ctrl+Shift+S` / `F12` / `Alt+Shift+S` | **Save as…** (integrated file browser) |
-| `Ctrl+Alt+S` | Save all open buffers |
-| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
-| `Ctrl+N` / `Ctrl+W` | New tab / Close tab |
-| `Ctrl+PgUp` / `Ctrl+PgDn` / `Alt+←` / `Alt+→` | Previous tab / Next tab |
-| `Ctrl+B` / `Ctrl+E` | Focus project tree / Focus editor |
-| `Ctrl+O` | **Open folder** as workspace (`F2` confirms) |
-| `Ctrl+P` | **Open file** |
-| `Ctrl+"` / `Ctrl+'` / `Ctrl+\`` | Toggle **embedded PTY terminal** |
-| `Ctrl+Shift+G` | **SCM / Git panel** (`s` stage · `u` unstage · `c` commit · `d` diff) |
-| `Ctrl+Shift+O` | **Buffer picker** (switch open tabs) |
-| `Alt+F/E/V/G/I/H` | Menu bar (*File*, *Edit*, *View*, *Go*, *Git*, *Help*) |
-| `Alt+/` | Which-key (essential shortcuts reminder) |
-| `F1` / `Ctrl+G` / `Ctrl+Shift+/` | List all keybindings with search filter |
-| `F2` | Git diff for active file |
-| Type 2+ characters | Automatic local word autocomplete |
-| `Ctrl+Space` / `Ctrl+K` / `F4` | LSP autocomplete / hover info / goto definition |
-| `Ctrl+Shift+I` / `Ctrl+Shift+M` | LSP format document / diagnostics panel |
-| `Alt+=` / `Alt+-` | Increase / decrease terminal panel height |
-| `Ctrl+R` | Reload file from disk |
-| `Ctrl+Shift+F` | **Find & Replace in Project** (recursive fast search) |
-| `Ctrl+Shift+V` / `Alt+P` | Real-time **Markdown preview** |
-| `Ctrl+Alt+V` / `Ctrl+Alt+H` | Split editor vertically / horizontally |
-| `F6` / `Ctrl+Alt+W` | Cycle next split pane / Close pane |
-| `Ctrl+Alt+↑/↓` / `U` | Add multi-cursor / Clear multi-cursors |
-| `Ctrl+F` / `F3` | Find in buffer / Next occurrence |
-| `Ctrl+H` | Replace in buffer |
-| `Alt+C` / `Alt+A` / `Alt+W` / `Alt+R` | Toggle Case Sensitive / Ignore Accents / Whole Word / Regex |
-| `Alt+Enter` / `Ctrl+Alt+Enter` | Replace current match / Replace all matches |
-| `Ctrl+C` / `Ctrl+V` / `Ctrl+X` | Copy / Paste / Cut |
-| `Alt+Z` | Toggle soft word wrap |
+| `Ctrl+Shift+S` | Save as... (interactive path browser) |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo (atomic multi-cursor history) |
+| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | Copy / Cut / Paste |
 | `Ctrl+/` | Toggle line comment |
-| `Esc` or `Ctrl+Q` | Close overlay / Quit |
+| `Alt+Z` | Toggle soft word wrap |
+| `Ctrl+G` | Go to line (`line:col`) |
+| **Navigation & Layout** | |
+| `Ctrl+P` | Quick file open (fuzzy finder) |
+| `Ctrl+Shift+P` | Command palette |
+| `Ctrl+N` / `Ctrl+W` | New tab / Close tab |
+| `Ctrl+PgUp` / `Ctrl+PgDn` | Previous tab / Next tab |
+| `Ctrl+Shift+O` | Buffer picker (switch open tabs) |
+| `Ctrl+B` | Toggle project file tree |
+| `Ctrl+` ` | Toggle embedded PTY terminal |
+| `Ctrl+Alt+V` / `Ctrl+Alt+H` | Split editor vertically / horizontally |
+| `Ctrl+Alt+W` | Close split pane |
+| **Search & Replace** | |
+| `Ctrl+F` / `F3` | Find in buffer / Next match |
+| `Ctrl+H` | Replace in buffer |
+| `Ctrl+Shift+F` | Find & Replace in Project |
+| **Code Intelligence** | |
+| `Ctrl+Space` | Trigger autocomplete dropdown |
+| `Ctrl+K` | Show hover documentation |
+| `F4` | Go to definition |
+| `F2` | Rename symbol (whole word buffer fallback) |
+| `Ctrl+Shift+I` | Format document |
+| **Git & Version Control** | |
+| `Ctrl+Shift+G` | Toggle Git / SCM sidebar |
+| `Ctrl+Alt+B` | Git blame overlay for current line |
+| **Menus & Help** | |
+| `Alt+F`, `Alt+E`, `Alt+V`, `Alt+S`, `Alt+G`, `Alt+H` | Access Menubar (File, Edit, View, Settings, Go, Help) |
+| `Alt+/` | Which-Key (quick shortcut cheat sheet) |
 
-### Navigation & Panels
-- **File Browser (`Ctrl+O` / `Ctrl+P`):** Cyan highlight indicates selection · `↑↓` navigate · `Enter` opens/enters · typing filters items.
-- **Project Tree:** `↑↓` or `jk` navigate · `Enter` opens file or expands folder · `r` rename · `d` delete · `y`/`c` copy path · `Tab`/`Esc` returns focus to editor.
-- **PTY Terminal:** Full interactive shell; `Ctrl+C` sends interrupt to shell when terminal is focused; `Esc` returns to editor.
-- **Vim Modal Mode:** Set `modal_mode = true` in your config (or toggle it via Command Palette → *Toggle modal mode*) to enable modal navigation (`h`, `j`, `k`, `l`, `w`, `b`, `gg`, `G`, `x`, `u`, `:w`, `:q`, `:tasks`, `:health`).
+---
 
-### Configuration
+## 🛠️ Configuration
 
-```bash
-mkdir -p ~/.config/oride
-cp assets/config.example.toml ~/.config/oride/config.toml
+Daisy loads layered configuration from:
+1. User global: `~/.config/daisy/config.toml` (compatible with `.oride/config.toml`)
+2. Workspace local: `.daisy/config.toml`
 
-# Local project configuration:
-mkdir -p .oride && cp assets/config.example.toml .oride/config.toml
+You can open and edit your configuration files at any time via the **Settings** menu or command palette. Changes reload automatically when saved.
+
+```toml
+[editor]
+theme = "catppuccin-mocha"
+locale = "en-US"
+mouse = false
+icons = true
+line_numbers = true
+auto_wrap = true
+auto_pairs = true
+modal_mode = false
+
+[keymap]
+save = "Ctrl+S"
+command_palette = "Ctrl+Shift+P"
+goto_line = "Ctrl+G"
+
+[lsp]
+typescript = ["typescript-language-server", "--stdio"]
+rust = ["rust-analyzer"]
+go = ["gopls"]
+python = ["pyright-langserver", "--stdio"]
 ```
 
-See [`docs/guides/en/config.md`](docs/guides/en/config.md) for full configuration options.
+---
 
-## Workspace Layout
+## 📐 Architecture & Clean Code
+
+Daisy is structured according to Clean Architecture and strict modularity principles:
 
 ```text
-crates/
-  oride-core/     # rope buffers, document tabs, undo history
-  oride-config/   # TOML loading & layered merging
-  oride-keymap/   # chord mapping & action dispatch
-  oride-fs/       # project tree, file management, icons
-  oride-git/      # git status porcelain integration
-  oride-terminal/ # embedded PTY panel
-  oride-syntax/   # Tree-Sitter highlighting & lexical engine
-  tree-sitter-oriscript/  # vendored legacy grammar
-  oride-ui/       # Ratatui widgets & rendering
-  oride-app/      # application orchestration & event loop
-  oride/          # CLI binary
-docs/
-  guides/         # user guides (guides/en/ & guides/pt/)
-  en/             # canonical English documentation
-  design.md       # architecture & design
+src/
+  ├── core/        # Pure domain core (document, keymap, search) — 0 external dependencies
+  ├── services/    # Infrastructure adapters (files, git, lsp, terminal, catalogs)
+  ├── app/         # Application state container, command dispatchers, Vim engine
+  ├── ui/          # OpenTUI Solid components (workbench, editor, statusbar, overlays)
+  └── workers/     # Dedicated background Web Worker for fuzzy finding
 ```
 
-## Roadmap
+### Architectural Invariants
 
-Oride follows a strict **lean, contained, and fail-closed** philosophy with an uncompressed binary budget `<= 12MB`, startup time `< 10ms`, and input latency `< 5ms`.
+1. **Pure Core, Imperative Shell**: `src/core` is 100% pure and testable in memory without any TTY or DOM emulation.
+2. **Actions as Data**: Every keybinding, palette command, and menu item dispatches a declarative `ActionId`.
+3. **Fail-Closed Design**: External process failures (LSP, Git CLI, PTY) report status gracefully and never crash the editor.
+4. **Strict Unidirectional Dependencies**: High-level modules never depend on presentation layers.
 
-### Delivered Milestones
+---
 
-- [x] **`v0.1.0` — Contained TUI Foundation:** Rope buffers, file tree, interactive PTY terminal, buffer/project search, Git status badges, Markdown preview, on-demand multi-LSP client, splits, and multi-cursor.
-- [x] **`v0.2.0` — First-Class Languages & Media:** 13 supported languages, terminal graphics protocols (Kitty/Sixel/iTerm2), clickable links, Git sync & CLI staging (`s`/`u`/`c`/`P`/`p`), persistent session layouts, Vim modal mode, declarative task runner (`tasks.toml`), diagnostics (`:health`), dynamic i18n, and universal cross-platform packaging.
+## 🧪 Testing & Validation
 
-### Upcoming Slices (Road to `v1.0.0`)
+Daisy includes an exhaustive test suite covering unit tests, integration workflows, OpenTUI rendering frames, and microbenchmarks:
 
-- [ ] **`v0.3.0` — Extensibility & Editing Ergonomics:** Lua plugin engine (`mlua`), smart delimiter auto-pairing, modal text objects (`ci"`, `da(`), PTY scrollback history, LSP symbol outline (`Ctrl+Shift+O`), and self-update CLI command (`oride --update`).
-- [ ] **`v0.4.0` — Extreme Performance & Large Files:** Large file streaming mode (>100MB without UI freeze), zero-copy viewport rendering, lazy grammar initialization (<5ms boot), and interactive Git hunk staging.
-- [ ] **`v0.5.0` — Code Intelligence & Refactoring:** LSP code actions / quickfixes (`Alt+Enter`), project-wide symbol renaming (`F2`), tabstop snippets, and direct diagnostics navigation.
-- [ ] **`v0.6.0` — Large-Scale Fuzzy Matching & Resilient Sessions:** High-performance fuzzy matching engine (100k+ files), crash recovery swap sessions, and persistent jump list.
-- [ ] **`v0.7.0` — Visual Diffs & In-TUI Git Tooling:** Side-by-side split visual diff viewer, subtle inline Git blame virtual text, and nested `.gitignore`/submodules.
-- [ ] **`v0.8.0` — Plugin Ecosystem & Secure Sandboxing:** Dynamic language providers via Lua, declarative security sandbox (`config.toml`), and expanded lifecycle hooks.
-- [ ] **`v0.9.0` — TUI Accessibility & Unicode Hardening:** High-contrast themes, CJK & emoji width alignment, binary file safety, and buffer fuzzing.
-- [ ] **`v1.0.0` — Production Stability (LTS):** Lua API freeze, config schema freeze, automated latency (<5ms) and boot (<10ms) regression benchmarks.
+```bash
+# Run full automated test suite (94 tests)
+bun test
 
-> For detailed technical specifications, architectural DAGs, and out-of-scope boundaries, check out the full [Roadmap Specification](docs/en/planning/roadmap.md) or [ROADMAP.md](ROADMAP.md).
+# Run TypeScript typechecker
+bun run typecheck
 
-## Contributing
+# Build distribution bundle
+bun run build
+```
 
-Contributions are warmly welcomed! Please see [CONTRIBUTING.md](CONTRIBUTING.md) ([Português](CONTRIBUTING.pt-BR.md)) for guidelines, invariants, and pull request requirements.
+---
 
-## License
+## 📄 License
 
-MIT — see [LICENSE](LICENSE).
+Daisy Code Editor is open-source software licensed under the [MIT License](LICENSE).

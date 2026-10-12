@@ -24,3 +24,7 @@ coverage.out
 
 # Estado local do agente (taste/sessão), não é conteúdo do projeto
 .commandcode/
+
+# TypeScript/Bun migration
+/node_modules/
+/dist/

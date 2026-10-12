@@ -1,0 +1,5 @@
+preload = ["@opentui/solid/preload"]
+
+[test]
+root = "./tests"
+preload = ["@opentui/solid/preload"]

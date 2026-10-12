@@ -17,6 +17,7 @@ Full example: [`assets/config.example.toml`](../../assets/config.example.toml).
 | `theme` | string | `"default"` | Logical theme name or path to a custom theme |
 | `show_line_numbers` | bool | `true` | Display gutter line numbers |
 | `mouse` | bool | **`false`** | Mouse capture (click, drag, scroll). Disabled by default; toggle via **View → Enable mouse** or command palette |
+| `icons` | bool | **`false`** | Nerd Font file/folder icons in the tree and tabs. Requires a Nerd Font; purely decorative, file names always stay |
 | `language` | string | `"en"` | Interface localization locale (e.g. `"en"`, `"pt-BR"`) |
 | `modal_editing` | bool | `false` | Enable Vim-style modal editing by default |
 | `[editor].tab_size` | u8 | `4` | Tab width in spaces |

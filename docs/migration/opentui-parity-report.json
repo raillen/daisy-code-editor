@@ -1,0 +1,123 @@
+{
+  "schema": 1,
+  "measuredFields": [
+    "text",
+    "bytes",
+    "chars",
+    "lines",
+    "search.matches"
+  ],
+  "unmeasured": [
+    "caret",
+    "selection",
+    "undo_labels",
+    "redo_labels",
+    "tabs",
+    "config",
+    "tree",
+    "scm",
+    "vim",
+    "lsp",
+    "terminal",
+    "overlay",
+    "visual_frames"
+  ],
+  "cases": 11,
+  "frames": 76,
+  "equalFrames": 73,
+  "results": [
+    {
+      "case": "conformance/cases/editor/extended-selection.toml",
+      "frames": 11,
+      "equalFrames": 9,
+      "differences": [
+        {
+          "step": 9,
+          "fields": [
+            "text",
+            "bytes",
+            "chars"
+          ]
+        },
+        {
+          "step": 10,
+          "fields": [
+            "text",
+            "bytes",
+            "chars"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "conformance/cases/editor/indent-tab.toml",
+      "frames": 7,
+      "equalFrames": 7,
+      "differences": []
+    },
+    {
+      "case": "conformance/cases/editor/line-break-semantics.toml",
+      "frames": 2,
+      "equalFrames": 2,
+      "differences": []
+    },
+    {
+      "case": "conformance/cases/editor/multi-cursor.toml",
+      "frames": 9,
+      "equalFrames": 8,
+      "differences": [
+        {
+          "step": 6,
+          "fields": [
+            "text",
+            "bytes",
+            "chars",
+            "lines"
+          ]
+        }
+      ]
+    },
+    {
+      "case": "conformance/cases/editor/typing-undo-groups.toml",
+      "frames": 8,
+      "equalFrames": 8,
+      "differences": []
+    },
+    {
+      "case": "conformance/cases/editor/undo-group-broken-by-movement.toml",
+      "frames": 7,
+      "equalFrames": 7,
+      "differences": []
+    },
+    {
+      "case": "conformance/cases/editor/unicode-editing.toml",
+      "frames": 11,
+      "equalFrames": 11,
+      "differences": []
+    },
+    {
+      "case": "conformance/cases/keymap/rebinding.toml",
+      "frames": 4,
+      "equalFrames": 4,
+      "differences": []
+    },
+    {
+      "case": "conformance/cases/search/find-actions.toml",
+      "frames": 8,
+      "equalFrames": 8,
+      "differences": []
+    },
+    {
+      "case": "conformance/cases/search/in-buffer.toml",
+      "frames": 7,
+      "equalFrames": 7,
+      "differences": []
+    },
+    {
+      "case": "conformance/cases/search/regex-error.toml",
+      "frames": 2,
+      "equalFrames": 2,
+      "differences": []
+    }
+  ]
+}

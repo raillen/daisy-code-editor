@@ -1,5 +1,11 @@
 # Oride
 
+> **Neste branch: migração OpenTUI + Solid, inteiramente TypeScript/Bun.**
+> Execute `bun install --frozen-lockfile && bun run start`.
+> A implementação já é utilizável; **paridade completa ainda não está certificada**.
+> Funcionalidades, testes e diferenças: [status da migração](docs/migration/opentui-solid.md).
+> O conteúdo abaixo descreve a implementação de referência Rust/Go, preservada neste worktree.
+
 [English](README.md) · **Português**
 
 **Oride** (Ori + IDE) é um **editor de código e mini-IDE de terminal** modular, leve e extensível construído em Rust, apresentando uma árvore de projeto navegável, terminal embutido colapsável, edição modal estilo Vim, executor de tarefas integrado (`tasks.toml`), diagnósticos de ambiente (`:health`) e suporte sintático para múltiplas linguagens (Rust, C, Bash, Markdown, Ori, HTML, CSS, JavaScript/TypeScript, Python, D, Lua, Nim e Ruby).

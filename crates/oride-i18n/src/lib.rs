@@ -7,8 +7,10 @@ use std::sync::{Arc, OnceLock, RwLock};
 
 use serde::{Deserialize, Serialize};
 
-static DEFAULT_PT_BR_TOML: &str = include_str!("../../../internal/i18n/catalogs/pt-BR.toml");
-static DEFAULT_EN_US_TOML: &str = include_str!("../../../internal/i18n/catalogs/en-US.toml");
+// Catálogos default moram neste crate (eram `internal/` do Go, removido na
+// migração OpenTUI): o oráculo precisa compilar sem a implementação antiga.
+static DEFAULT_PT_BR_TOML: &str = include_str!("../catalogs/pt-BR.toml");
+static DEFAULT_EN_US_TOML: &str = include_str!("../catalogs/en-US.toml");
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum Locale {

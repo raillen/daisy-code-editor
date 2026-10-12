@@ -45,6 +45,7 @@ const WORKSPACE_PLACEHOLDER: &str = "<workspace>";
 pub enum ConformanceError {
     Document(DocumentError),
     Json(serde_json::Error),
+    Toml(toml::de::Error),
     Io {
         path: PathBuf,
         source: std::io::Error,
@@ -63,6 +64,7 @@ impl fmt::Display for ConformanceError {
         match self {
             Self::Document(error) => write!(formatter, "documento: {error}"),
             Self::Json(error) => write!(formatter, "json: {error}"),
+            Self::Toml(error) => write!(formatter, "toml: {error}"),
             Self::Io { path, source } => write!(formatter, "io em `{}`: {source}", path.display()),
             Self::Keymap(message) => write!(formatter, "keymap: {message}"),
             Self::UnboundChord(chord) => write!(formatter, "chord sem binding: `{chord}`"),
@@ -77,6 +79,7 @@ impl std::error::Error for ConformanceError {
         match self {
             Self::Document(error) => Some(error),
             Self::Json(error) => Some(error),
+            Self::Toml(error) => Some(error),
             Self::Io { source, .. } => Some(source),
             _ => None,
         }
@@ -92,6 +95,12 @@ impl From<DocumentError> for ConformanceError {
 impl From<serde_json::Error> for ConformanceError {
     fn from(error: serde_json::Error) -> Self {
         Self::Json(error)
+    }
+}
+
+impl From<toml::de::Error> for ConformanceError {
+    fn from(error: toml::de::Error) -> Self {
+        Self::Toml(error)
     }
 }
 
@@ -219,8 +228,8 @@ pub enum Step {
 }
 
 impl ConformanceCase {
-    pub fn from_json(source: &str) -> Result<Self, ConformanceError> {
-        Ok(serde_json::from_str(source)?)
+    pub fn from_toml(source: &str) -> Result<Self, ConformanceError> {
+        Ok(toml::from_str(source)?)
     }
 
     pub fn from_path(path: &Path) -> Result<Self, ConformanceError> {
@@ -228,7 +237,7 @@ impl ConformanceCase {
             path: path.to_path_buf(),
             source,
         })?;
-        Self::from_json(&source)
+        Self::from_toml(&source)
     }
 }
 

@@ -1,5 +1,15 @@
 # Current Project State
 
+## OpenTUI/Solid — branch `feat/opentui-solid`
+
+O alvo deste branch é **TypeScript/Bun + OpenTUI/Solid** (`src/`).
+Rust e Go permanecem como referências, sem serem removidos.
+Status verificado e limitações: [`docs/migration/opentui-solid.md`](docs/migration/opentui-solid.md).
+Medição diferencial parcial: **73/76 frames**, em 11 casos, para cinco campos;
+isso **não** representa paridade de todas as funcionalidades.
+
+O restante deste arquivo registra o estado da migração anterior Rust → Go.
+
 - Project: **Oride Terminal IDE**
 - Framework: **Prumo v0.6.0** (Protocolo v3)
 - Current phase: **M4 — Paridade de features** (M0–M3 concluídos)

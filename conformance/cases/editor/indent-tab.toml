@@ -1,0 +1,39 @@
+# Caso de paridade TS↔Rust. Formato TOML: tabelas para config/divergence, [[files]] e [[steps]] em ordem.
+description = "Indentação por Tab com espaços configurados, e o caminho oposto com tab literal. Exercita a configuração efetiva do editor ([editor].insert_spaces e tab_size) e a diferença entre digitar Tab e digitar quatro espaços."
+open = "codigo.txt"
+
+[config]
+tab_size = 2
+insert_spaces = true
+
+[[files]]
+path = "codigo.txt"
+content = "inicio\n"
+
+[[steps]]
+kind = "action"
+action = "move_doc_end"
+
+[[steps]]
+kind = "text"
+text = "\t"
+
+[[steps]]
+kind = "text"
+text = "a"
+
+[[steps]]
+kind = "action"
+action = "insert_tab"
+
+[[steps]]
+kind = "text"
+text = "b"
+
+[[steps]]
+kind = "action"
+action = "undo"
+
+[[steps]]
+kind = "action"
+action = "undo"

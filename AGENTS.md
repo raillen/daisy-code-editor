@@ -1,6 +1,6 @@
-# AGENTS.md — Oride
+# AGENTS.md — Daisy Code Editor
 
-Guia para agentes que implementam o editor TUI **Oride**.
+Guia para agentes que implementam o editor TUI **Daisy Code Editor**.
 
 **Precedência:** este arquivo > skills Grok > defaults do modelo.
 
@@ -8,11 +8,9 @@ Guia para agentes que implementam o editor TUI **Oride**.
 
 | Conceito | Nome |
 |----------|------|
-| Editor | **Oride** |
-| CLI | `oride` |
-| Crates | `oride-*` |
-| Config | TOML (`~/.config/oride/`, `.oride/`) |
-| Design | `docs/design.md` |
+| Editor | **Daisy Code Editor** |
+| CLI | `daisy` |
+| Config | TOML (`~/.config/daisy/`, `.daisy/`, compatível com `.oride/`) |
 | Versão | SemVer (versão atual `0.2.0`) |
 
 ## Skills (obrigatórias neste repo)

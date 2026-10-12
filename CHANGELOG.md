@@ -1,5 +1,57 @@
 # Changelog
 
+## OpenTUI/Solid migration branch — unreleased
+
+- New TypeScript/Bun implementation with Solid/OpenTUI workbench, shared action registry,
+  syntax highlighting, mouse selection, multicursors, tabs/splits, menus, file tree/finder,
+  buffer/project search, Git, native PTY/VT and stdio LSP.
+- TOML configuration, themes/locales, EditorConfig, session compatibility, modal editing,
+  tasks and executable plugins are ported; Rust/Go references remain available.
+- Complete parity is **not certified**. The partial differential report measures
+  73/76 matching frames for five fields; see `docs/migration/opentui-solid.md` for gaps.
+- Hardened: jump list mirroring the oracle (record-first back, dedupe, cap 64,
+  buffer/SCM/search/definition record sites, oracle status lines); disk confirm
+  offering reload for dirty buffers changed externally; Markdown preview gated to
+  the Markdown family with testable image/link policy; multicursor occurrence
+  flow, Escape collapse and multicursor paste covered; bracketed paste routing to
+  prompt/picker/search covered; split panes capped at 2 like the oracle; draggable
+  divider geometry centralized in `src/ui/dividers.ts` with tests.
+- Nerd Font file/folder icons in the tree and tabs (`src/services/icons.ts`,
+  curated from nvim-web-devicons), gated by opt-in top-level `icons = false`;
+  decorative only, names always stay, single-fg rows so no-color is unaffected.
+- Removed the Go implementation from this worktree (`cmd/`, `internal/`,
+  `conformance/*.go`, `go.mod`/`go.sum`, `scripts/gen-tables.py`); the Rust
+  oracle (`crates/`) and JSON cases (`conformance/cases/`) stay for parity, and
+  CI runs the TypeScript parity gate instead of the Go jobs.
+- Parity cases are TOML now (`conformance/cases/**/*.toml`, same schema, byte-equal
+  content verified against the old JSON); the oracle parses them with `toml`
+  and the harness with `smol-toml`, measuring the same 73/76. The i18n catalogs
+  the oracle embeds moved into `crates/oride-i18n/catalogs/` (byte-identical)
+  after the Go removal.
+- Performance and event loop optimizations:
+  - Evaluated MessagePack vs JSON for cache with empirical benchmark (JSON proved 4.4x faster in encode and 2.5x in decode; size delta 26.1% fell short of 30% gate; retained JSON/TOML with zero extra dependencies).
+  - Event loop disk I/O mitigation: in-memory caching for workspace root and resolved paths in `resolvePreviewImage`, plus `resolvePreviewImageAsync` with `node:fs/promises`.
+  - Background CPU worker: offloaded fuzzy query filtering to a native Bun worker (`src/workers/fuzzy.ts`) for lists > 2,000 items with 50ms debouncing, generation tracking, and transparent synchronous fallback, keeping 60 FPS input response.
+  - Search highlighting windowing: `EditorPane.paint` windows `app.matches` checks to the visible screen viewport range, eliminating redundant sweeps across up to 100,000 matches per frame.
+  - Rich Markdown preview interactivity: resolved static rendering by exposing reactive preview scroll methods, capturing `<scrollbox>` ref with `onMouseScroll` wheel support, full keyboard navigation (arrows, j/k, space/page up/down, g/G, q/Escape), and preventing raw keystrokes/pastes from modifying the underlying document while preview is active.
+  - Full session persistence: `.oride/session.toml` stores and restores split orientation, secondary pane file, split ratio percentage, and editor vertical scroll offset (`scroll_y`), with 100% TOML roundtrip interoperability.
+  - Categorized Which-Key & Welcome overlays: structured reference cheat-sheets in `which_key` (`Alt+/`) and `welcome` overlays with localized essential shortcuts.
+  - Centralized dynamic i18n dictionary: expanded `pt-BR` and `en-US` catalogs with dialogs, prompts, status, and messages, wired into `app.t(section, key, params)`.
+  - Block comments for Web formats: added HTML (`<!-- ... -->`) and CSS (`/* ... */`) support to `commentDelimiters` and `Document.toggleComment` with wrap/unwrap logic.
+  - Git gutter indicators: parsed unified diff hunks (`git.diffGutter`, `parseDiffHunks`) and rendered `+`, `~`, `-` gutter markers in `EditorPane.paint` with semantic theme styling.
+  - Interactive Path Browser modal: implemented `app.openPathBrowser` for `save_as` and `open_folder`, supporting directory drilldown, parent navigation, custom filename prompting, and safe workspace switching.
+  - Zero-config offline code intelligence:
+    - Buffer-word completion: indexes identifiers (`[\p{L}\p{N}_]+`) across all open buffers with instant (< 1ms) prefix and fuzzy candidate suggestions.
+    - Embedded language catalog: static keyword, primitive, built-in, and standard library catalog with signatures and documentation across Rust, TypeScript, JavaScript, Python, Go, C, C++, Bash, and Ori.
+    - Lexical symbol & doc-comment extractor: lightweight regex scanner extracting function signatures, structs, classes, types, interfaces, and preceding doc-comments (`///`, `//`, `#`, `/** */`).
+    - Fail-closed multi-tier fallback: `app.complete()` and `app.hover()` gracefully cascade through LSP -> lexical symbols -> static language catalog -> buffer words -> status notification without crashing or hanging.
+  - Menu de Configurações, Autopairs e Edição de TOML como Abas:
+    - Menu dedicado de Configurações na barra superior (`Alt+S`) e Command Palette com checkboxes dinâmicos `[✓]` / `[ ]` para `soft_wrap`, `auto_pairs`, `show_line_numbers`, `modal_mode`, `icons` e `mouse`.
+    - Motor de Autopairs inteligente: auto-fechamento de delimitadores `()`, `[]`, `{}`, `""`, `''`, ```` com cursor posicionado no centro, auto-skip ao digitar fechamento correspondente, auto-surround ao digitar par sobre texto selecionado e backspace inteligente que remove o par quando o cursor está no meio.
+    - Edição de configurações em abas: comandos `open_user_config` (`~/.config/oride/config.toml`) e `open_workspace_config` (`.oride/config.toml`) criam templates comentados caso inexistentes e abrem diretamente como abas editáveis com realce de sintaxe TOML.
+    - Hot-reload automático: salvar arquivos `config.toml` via `Ctrl+S` recarrega as configurações, preferências e temas em tempo de execução sem reiniciar o editor.
+
+
 ## Unreleased
 
 ### Changed

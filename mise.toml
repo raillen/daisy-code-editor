@@ -1,5 +1,4 @@
 [tools]
-# O oráculo Rust (crates/) e a implementação Go (cmd/, internal/) convivem
-# durante a migração, então as duas toolchains ficam pinadas juntas.
-go = "1.26"
+# OpenTUI/Solid é o alvo; Rust continua como referência (oráculo de paridade).
+bun = "1.4.2"
 odin = "latest"
