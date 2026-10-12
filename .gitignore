@@ -28,3 +28,5 @@ coverage.out
 # TypeScript/Bun migration
 /node_modules/
 /dist/
+/daisy-bin
+/release-dist/
