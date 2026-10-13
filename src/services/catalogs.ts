@@ -593,5 +593,43 @@ export const builtInThemes = {
       "type_name": "#ffa657",
       "variable": "#c9d1d9"
     }
+  },
+  "daisy-lain": {
+    "name": "Daisy Lain",
+    "ui": {
+      "background": "#070913",
+      "cursor_bg": "#ffe500",
+      "cursor_fg": "#070913",
+      "foreground": "#f1f1ea",
+      "line_number": "#525f70",
+      "status_bg": "#00106a",
+      "status_dirty": "#ffe500",
+      "status_fg": "#f1f1ea",
+      "accent": "#ffe500",
+      "selection": "#0025c5",
+      "border": "#0025c5"
+    },
+    "syntax": {
+      "attribute": "#67f4ed",
+      "code": "#67f4ed",
+      "comment": "#525f70",
+      "constant": "#ffe500",
+      "emphasis": "#67f4ed",
+      "function": "#67f4ed",
+      "heading": "#ffe500",
+      "keyword": "#ffe500",
+      "link": "#67f4ed",
+      "list_marker": "#ffe500",
+      "number": "#67f4ed",
+      "operator": "#f1f1ea",
+      "property": "#67f4ed",
+      "punctuation": "#7882a0",
+      "quote": "#525f70",
+      "string": "#67f4ed",
+      "strong": "#ffe500",
+      "tag": "#ffe500",
+      "type_name": "#67f4ed",
+      "variable": "#f1f1ea"
+    }
   }
 }

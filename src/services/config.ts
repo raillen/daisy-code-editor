@@ -52,6 +52,7 @@ export async function loadConfig(workspace: string): Promise<Config> {
     const source = await readToml(path)
     if (source) merge(config as unknown as Record<string, unknown>, source)
   }
+  if (process.env.DAISY_THEME) config.theme = process.env.DAISY_THEME
   for (const [chord, action] of Object.entries(config.keys)) if (!actionIds.includes(action)) throw new Error(`Unknown action ${action} for ${chord}`)
   for (const command of Object.values(config.lsp.servers)) if (!Array.isArray(command) || !command.every(argument => typeof argument === "string")) throw new Error("LSP commands must be arrays of strings")
   config.languages = config.languages.map(raw => {

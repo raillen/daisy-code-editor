@@ -1,10 +1,11 @@
 import { RGBA } from "@opentui/core"
 import type { Config } from "../services/config"
 import { builtInThemes } from "../services/catalogs"
-export type Theme = { surface: RGBA; panel: RGBA; text: RGBA; muted: RGBA; accent: RGBA; selection: RGBA; error: RGBA; warning: RGBA; cursor: RGBA; border: RGBA; noColor: boolean }
+export type Theme = { name: string; isLain: boolean; surface: RGBA; panel: RGBA; text: RGBA; muted: RGBA; accent: RGBA; selection: RGBA; error: RGBA; warning: RGBA; cursor: RGBA; border: RGBA; noColor: boolean }
 const palettes: Record<string, string[]> = {
   default: ["#161b22", "#0d1117", "#e6edf3", "#8b949e", "#79c0ff", "#264f78", "#ff7b72", "#e3b341", "#30363d"],
   "default-dark": ["#161b22", "#0d1117", "#e6edf3", "#8b949e", "#79c0ff", "#264f78", "#ff7b72", "#e3b341", "#30363d"],
+  "daisy-lain": ["#070913", "#00106a", "#f1f1ea", "#525f70", "#ffe500", "#0025c5", "#e73748", "#ffe500", "#0025c5"],
   "zed-dark": ["#18181b", "#121215", "#e4e4e7", "#71717a", "#59c2ff", "#27272a", "#f43f5e", "#eab308", "#27272a"],
   dracula: ["#282a36", "#21222c", "#f8f8f2", "#6272a4", "#bd93f9", "#44475a", "#ff5555", "#f1fa8c", "#44475a"],
   nord: ["#2e3440", "#3b4252", "#eceff4", "#81a1c1", "#88c0d0", "#434c5e", "#bf616a", "#ebcb8b", "#434c5e"],
@@ -37,7 +38,10 @@ export function themeOf(config: Config): Theme {
   const accentHex = config.tokens["accent"] ?? effectiveUI["accent"] ?? effectiveSyntax["function"] ?? effectiveSyntax["keyword"] ?? values[4] ?? "#79c0ff"
   const selectionHex = config.tokens["focus"] ?? effectiveUI["selection"] ?? values[5] ?? "#264f78"
   const borderHex = config.tokens["border"] ?? effectiveUI["border"] ?? values[8] ?? values[1] ?? "#333338"
+  const isLain = !noColor && (normTheme === "daisy-lain" || config.theme.toLowerCase() === "daisy-lain")
   return {
+    name: normTheme,
+    isLain,
     surface: color("surface", 0, "background", true),
     panel: color("panel", 1, "status_bg", true),
     text: color("text", 2, "foreground"),

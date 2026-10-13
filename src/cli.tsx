@@ -7,6 +7,7 @@ import { Workbench } from "./ui/workbench"
 const usage = `daisy — Daisy Code Editor (OpenTUI + Solid / Bun)
 
   daisy [FILE...|DIRECTORY]
+  daisy --theme <THEME> [FILE...|DIRECTORY]
   daisy --print-frame [WxH] [FILE|DIRECTORY]
   daisy --version
   daisy --help
@@ -30,8 +31,16 @@ export async function run(args: string[]): Promise<void> {
       if (width < 20 || height < 5 || width > 500 || height > 300) throw new Error("Frame dimensions must be 20..500 by 5..300")
     }
   }
+  let customTheme: string | undefined
+  const themeIndex = args.indexOf("--theme")
+  if (themeIndex !== -1) {
+    customTheme = args[themeIndex + 1]
+    if (!customTheme || customTheme.startsWith("-")) throw new Error("Flag --theme requires a theme name")
+    args.splice(themeIndex, 2)
+  }
   if (args.some(arg => arg.startsWith("--"))) throw new Error("Unknown argument; use --help")
   const app = await Application.open(args, !frame)
+  if (customTheme) { app.config.theme = customTheme; app.changed() }
   if (frame) {
     app.config.lsp.enabled = false // A deterministic snapshot must never start language-server processes.
     const setup = await testRender(() => <Workbench app={app} />, { width, height })

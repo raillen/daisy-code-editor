@@ -357,3 +357,56 @@ test("scrollbar renders for long buffer and tab middle-click closes tab", async 
   } finally { await view.cleanup() }
 })
 
+test("daisy-lain cyberpunk theme renders HUD badges and allows seamless switching back to classic themes", async () => {
+  const view = await setup(125, 25)
+  try {
+    expect(view.app.preferences.themes.has("daisy-lain")).toBe(true)
+
+    // Switch to daisy-lain
+    view.app.config.theme = "daisy-lain"
+    view.app.changed()
+    await view.renderOnce()
+    let frame = view.captureCharFrame()
+
+    // Menubar and HUD indicators
+    expect(frame).toContain("DAISY_")
+    expect(frame).toContain("PORT: 98")
+    expect(frame).toContain("[01]")
+    expect(frame).toContain("[ ✳ DAISY ]")
+    expect(frame).toContain("SIGNAL_STABLE")
+    expect(frame).toContain("[ UTF-8 ]")
+    expect(frame).toContain("[ ✳ FX: ON ]")
+
+    // Modal mode in daisy-lain shows [ 001 NORMAL ]
+    view.app.config.editor.modal_mode = true
+    view.app.vim = "normal"
+    view.app.changed()
+    await view.renderOnce()
+    frame = view.captureCharFrame()
+    expect(frame).toContain("[ 001 NORMAL ]")
+
+    // Overlay in daisy-lain shows ▣ DAISY:// wireframe header
+    await view.app.dispatch("command_palette")
+    await view.renderOnce()
+    frame = view.captureCharFrame()
+    expect(frame).toContain("▣ DAISY://")
+    expect(frame).toContain("QUERY://")
+
+    // Close overlay
+    view.app.overlay = undefined
+
+    // Switch to classic theme (catppuccin-mocha)
+    view.app.config.theme = "catppuccin-mocha"
+    view.app.changed()
+    await view.renderOnce()
+    frame = view.captureCharFrame()
+
+    // In classic theme, cyberpunk badges revert to clean classic style
+    expect(frame).not.toContain("DAISY_")
+    expect(frame).not.toContain("PORT: 98")
+    expect(frame).not.toContain("[ 001 NORMAL ]")
+    expect(frame).toContain("Daisy / Solid")
+    expect(frame).toContain("NORMAL")
+  } finally { await view.cleanup() }
+})
+

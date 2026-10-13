@@ -145,16 +145,37 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
     if (theme().noColor) for (let row = 0; row < height(); row++) buffer.drawText(" ".repeat(columns()), 0, row, RGBA.defaultForeground(), RGBA.defaultBackground())
   }}>
     <box id="menubar" height={1} flexShrink={0} flexDirection="row" backgroundColor={theme().panel}>
-      <For each={menus}>{(menu, index) => <text id={`menu-${index()}`} content={` ${app.config.locale === "pt-BR" ? menu.pt : menu.en} `}
-        fg={state().menu?.column === index() ? theme().accent : theme().text} selectable={false}
-        onMouseDown={() => { app.menu = app.menu?.column === index() ? undefined : { column: index(), selected: 0 }; app.changed() }} />}</For>
-      <text flexGrow={1} textAlign="right" fg={theme().muted} content="Daisy / Solid " />
+      <Show when={theme().isLain}>
+        <text content=" ✳ DAISY_ " fg={theme().accent} selectable={false} />
+      </Show>
+      <For each={menus}>{(menu, index) => {
+        const isOpen = () => state().menu?.column === index()
+        const label = () => {
+          let raw = app.config.locale === "pt-BR" ? menu.pt : menu.en
+          if (theme().isLain && raw.toLowerCase().startsWith("config")) raw = "Config"
+          return theme().isLain ? ` 0${index() + 1} ${raw.toUpperCase()} ` : ` ${raw} `
+        }
+        return <text id={`menu-${index()}`} content={label()}
+          fg={isOpen() ? (theme().isLain ? theme().surface : theme().accent) : theme().text}
+          bg={isOpen() && theme().isLain ? theme().accent : undefined}
+          selectable={false}
+          onMouseDown={() => { app.menu = app.menu?.column === index() ? undefined : { column: index(), selected: 0 }; app.changed() }} />
+      }}</For>
+      <text flexGrow={1} textAlign="right" fg={theme().isLain ? theme().accent : theme().muted}
+        content={theme().isLain ? (columns() >= 80 ? "● CONNECTED / PORT: 98 " : "● WIRED: 98 ") : "Daisy / Solid "}
+        selectable={false} />
     </box>
     <box id="tabs-bar" height={1} flexShrink={0} flexDirection="row" backgroundColor={theme().panel} overflow="hidden">
-      <For each={state().documents}>{document => {
+      <For each={state().documents}>{(document, index) => {
         const isActive = () => document.id === app.activeId
-        return <box flexDirection="row" backgroundColor={isActive() ? theme().surface : theme().panel}>
-          <text id={`tab-${document.id}`} content={` ${isActive() ? "▍" : " "}${document.dirty ? "● " : ""}${app.config.icons ? fileGlyph(document.title) + " " : ""}${document.title}${isActive() ? " ×" : " "} `}
+        const tabContent = () => {
+          if (theme().isLain) {
+            return ` [0${index() + 1}] ${document.dirty ? "● " : ""}${app.config.icons ? fileGlyph(document.title) + " " : ""}${document.title}${isActive() ? " ×" : " "} `
+          }
+          return ` ${isActive() ? "▍" : " "}${document.dirty ? "● " : ""}${app.config.icons ? fileGlyph(document.title) + " " : ""}${document.title}${isActive() ? " ×" : " "} `
+        }
+        return <box flexDirection="row" backgroundColor={isActive() ? (theme().isLain ? theme().selection : theme().surface) : theme().panel}>
+          <text id={`tab-${document.id}`} content={tabContent()}
             fg={isActive() ? theme().accent : theme().muted} selectable={false}
             onMouseDown={event => {
               if (event.button === 1) {
@@ -165,12 +186,16 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
             }} />
         </box>
       }}</For>
-      <text flexGrow={1} textAlign="right" fg={theme().muted} content={` ${app.workspace.split("/").at(-1) || "workspace"}${app.document.path ? ` › ${app.document.title}` : ""} `} selectable={false} />
+      <text flexGrow={1} textAlign="right" fg={theme().muted}
+        content={theme().isLain
+          ? ` WIRED://${app.workspace.split("/").at(-1) || "root"}${app.document.path ? `/${app.document.title}` : ""} `
+          : ` ${app.workspace.split("/").at(-1) || "workspace"}${app.document.path ? ` › ${app.document.title}` : ""} `}
+        selectable={false} />
     </box>
     <box id="main-region" flexGrow={1} minHeight={1} flexDirection="row" overflow="hidden">
       <Show when={treeWidth() > 0}>
         <box id="file-tree" width={treeWidth()} minWidth={1} flexShrink={0} flexDirection="column" overflow="hidden" backgroundColor={theme().panel}>
-          <text content={app.focus === "tree" ? "▍PROJECT  n:new r:ren d:del" : " PROJECT  n:new r:ren d:del"} fg={app.focus === "tree" ? theme().accent : theme().muted} height={1} selectable={false} />
+          <text content={theme().isLain ? (app.focus === "tree" ? "▣ PROJECT // [N:NEW R:REN D:DEL]" : "□ PROJECT // [N:NEW R:REN D:DEL]") : (app.focus === "tree" ? "▍PROJECT  n:new r:ren d:del" : " PROJECT  n:new r:ren d:del")} fg={app.focus === "tree" ? theme().accent : theme().muted} height={1} selectable={false} />
           <For each={(revision(), app.tree.rows.slice(treeStart(), treeStart() + contentHeight() - 1))}>{(row, index) => {
             const isSelected = () => app.tree.selected === treeStart() + index()
             const gitBadge = () => {
@@ -215,7 +240,7 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
       </box>
       <Show when={scmWidth() > 0}>
         <box id="source-control" width={scmWidth()} flexShrink={0} minWidth={1} flexDirection="column" backgroundColor={theme().panel} overflow="hidden">
-          <text height={1} fg={theme().accent} content={app.focus === "scm" ? "▍Git  s:stage u:unstage c:commit" : " Git"} />
+          <text height={1} fg={theme().accent} content={theme().isLain ? (app.focus === "scm" ? "▣ SCM // [S:STAGE U:UNSTAGE C:COMMIT]" : "□ SCM") : (app.focus === "scm" ? "▍Git  s:stage u:unstage c:commit" : " Git")} />
           <Show when={(app.gitStatus.entries?.length ?? 0) > 0} fallback={<text fg={theme().muted} content={app.gitStatus.branch ? "Working tree clean" : "Not a Git repository"} />}>
             <For each={(revision(), (app.gitStatus.entries ?? []).slice(scmStart(), scmStart() + contentHeight() - 2))}>{(entry, index) => <text height={1} wrapMode="none" selectable={false}
               content={`${app.scmSelected === scmStart() + index() ? ">" : " "}${entry.index}${entry.worktree} ${entry.path}`} fg={app.scmSelected === scmStart() + index() && app.focus === "scm" ? theme().accent : theme().text}
@@ -227,8 +252,8 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
     <Show when={state().bottom}>
       <box ref={value => { bottomDivider = value }} id="panel-tabs" height={1} flexShrink={0} flexDirection="row" backgroundColor={theme().panel}
         onMouseDrag={event => { if (bottomDivider && !app.overlay) { app.terminalHeight = clampTerminalHeight(event.y, height()); app.changed() } }}>
-        <text content={`${app.bottom === "terminal" ? "▍" : " "}Terminal `} fg={theme().accent} selectable={false} onMouseDown={() => { if (!app.overlay) void app.guard(() => app.startTerminal()) }} />
-        <text content={`${app.bottom === "problems" ? "▍" : " "}Problems `} fg={theme().text} selectable={false} onMouseDown={() => { if (!app.overlay) { app.bottom = "problems"; app.focus = "editor"; app.changed() } }} />
+        <text content={theme().isLain ? (app.bottom === "terminal" ? "[▶ TERMINAL] " : "[ TERMINAL ] ") : `${app.bottom === "terminal" ? "▍" : " "}Terminal `} fg={theme().accent} selectable={false} onMouseDown={() => { if (!app.overlay) void app.guard(() => app.startTerminal()) }} />
+        <text content={theme().isLain ? (app.bottom === "problems" ? "[▶ PROBLEMS] " : "[ PROBLEMS ] ") : `${app.bottom === "problems" ? "▍" : " "}Problems `} fg={theme().text} selectable={false} onMouseDown={() => { if (!app.overlay) { app.bottom = "problems"; app.focus = "editor"; app.changed() } }} />
       </box>
       <Show when={state().bottom === "terminal"} fallback={<box height={Math.max(1, bottomHeight() - 1)} flexShrink={0} flexDirection="column" overflow="hidden" backgroundColor={theme().panel}>
         <Show when={app.diagnostics.length} fallback={<text content={!app.config.lsp.enabled ? "LSP disabled" : app.servers.size ? "No diagnostics reported" : "No LSP attached · command palette → Environment health"} fg={theme().muted} />}>
@@ -282,12 +307,17 @@ function StatusBar(props: { app: Application; revision: () => number; theme: () 
   }
   const modeFg = () => {
     if (theme().noColor) return theme().text
-    if (!isModal()) return theme().panel
+    if (!isModal()) return theme().surface
     if (vimMode() === "INSERT") return theme().text
-    if (vimMode() === "VISUAL") return theme().panel
-    return theme().panel
+    if (vimMode() === "VISUAL") return theme().surface
+    return theme().surface
   }
-  const modeLabel = () => isModal() ? ` ${vimMode()} ` : " DAISY "
+  const modeLabel = () => {
+    if (theme().isLain) {
+      return isModal() ? ` [ 001 ${vimMode()} ] ` : " [ ✳ DAISY ] "
+    }
+    return isModal() ? ` ${vimMode()} ` : " DAISY "
+  }
 
   return (
     <box id="statusbar" height={1} flexShrink={0} flexDirection="row" justifyContent="space-between" backgroundColor={theme().panel} overflow="hidden">
@@ -296,14 +326,14 @@ function StatusBar(props: { app: Application; revision: () => number; theme: () 
         <text content={modeLabel()} fg={modeFg()} bg={modeBg()} selectable={false}
           onMouseDown={() => { void app.dispatch("toggle_modal") }} />
         <Show when={isDirty()}>
-          <text content=" ●" fg={theme().accent} selectable={false}
+          <text content={theme().isLain ? " [● REC]" : " ●"} fg={theme().isLain ? theme().error : theme().accent} selectable={false}
             onMouseDown={() => { void app.dispatch("save") }} />
         </Show>
-        <text content={` ${focus()}`} fg={theme().text} selectable={false}
+        <text content={theme().isLain ? ` //${focus().toUpperCase()}` : ` ${focus()}`} fg={theme().text} selectable={false}
           onMouseDown={() => { app.focus = "editor"; app.changed() }} />
         <Show when={git().branch && width() >= 55}>
           <text content=" │ " fg={theme().muted} selectable={false} />
-          <text content={`${app.config.icons ? gitBranch + " " : ""}${git().branch}${git().ahead > 0 ? ` ↑${git().ahead}` : ""}${git().behind > 0 ? ` ↓${git().behind}` : ""}`}
+          <text content={theme().isLain ? `//GIT:${git().branch}${git().ahead > 0 ? ` ↑${git().ahead}` : ""}${git().behind > 0 ? ` ↓${git().behind}` : ""}` : `${app.config.icons ? gitBranch + " " : ""}${git().branch}${git().ahead > 0 ? ` ↑${git().ahead}` : ""}${git().behind > 0 ? ` ↓${git().behind}` : ""}`}
             fg={theme().muted} selectable={false}
             onMouseDown={() => { void app.dispatch("toggle_scm") }} />
         </Show>
@@ -312,11 +342,11 @@ function StatusBar(props: { app: Application; revision: () => number; theme: () 
       {/* Center zone: Status messages or essential shortcuts hint */}
       <box flexGrow={1} flexShrink={1} overflow="hidden" paddingLeft={1} paddingRight={1} alignItems="center">
         <Show when={status()} fallback={
-          <Show when={width() >= 75}>
-            <text content="Ctrl+P files · Ctrl+Shift+P commands" fg={theme().muted} wrapMode="none" selectable={false} />
+          <Show when={width() >= 65}>
+            <text content={theme().isLain ? (width() >= 85 ? "SIGNAL_STABLE ▰▰▰▰▰▱▱▱" : "SIGNAL ▰▰▰▰▰") : "Ctrl+P files · Ctrl+Shift+P commands"} fg={theme().muted} wrapMode="none" selectable={false} />
           </Show>
         }>
-          <text content={`● ${status()}`} fg={theme().accent} wrapMode="none" selectable={false}
+          <text content={theme().isLain ? `▶ ${status()}` : `● ${status()}`} fg={theme().accent} wrapMode="none" selectable={false}
             onMouseDown={() => { app.status = ""; app.changed() }} />
         </Show>
       </box>
@@ -326,9 +356,9 @@ function StatusBar(props: { app: Application; revision: () => number; theme: () 
         {/* LSP / Diagnostics */}
         <Show when={width() >= 65}>
           <Show when={!app.config.lsp.enabled} fallback={
-            <Show when={app.servers.size} fallback={<text content="LSP — │ " fg={theme().muted} selectable={false} />}>
+            <Show when={app.servers.size} fallback={<text content={theme().isLain ? "[ LSP: — ] │ " : "LSP — │ "} fg={theme().muted} selectable={false} />}>
               <Show when={diagnostics().length > 0} fallback={
-                <text content={`${app.config.icons ? lspGlyph + " " : ""}LSP clean │ `} fg={theme().muted} selectable={false}
+                <text content={theme().isLain ? "[ LSP: OK ] │ " : `${app.config.icons ? lspGlyph + " " : ""}LSP clean │ `} fg={theme().muted} selectable={false}
                   onMouseDown={() => { void app.dispatch("toggle_diagnostics") }} />
               }>
                 <box flexDirection="row" onMouseDown={() => { void app.dispatch("toggle_diagnostics") }}>
@@ -343,27 +373,35 @@ function StatusBar(props: { app: Application; revision: () => number; theme: () 
               </Show>
             </Show>
           }>
-            <text content="LSP off │ " fg={theme().muted} selectable={false} />
+            <text content={theme().isLain ? "[ LSP: OFF ] │ " : "LSP off │ "} fg={theme().muted} selectable={false} />
           </Show>
+        </Show>
+
+        {/* Encoding (Lain only) */}
+        <Show when={theme().isLain && width() >= 105}>
+          <text content="[ UTF-8 ] │ " fg={theme().muted} selectable={false} />
         </Show>
 
         {/* Language */}
         <Show when={width() >= 55}>
-          <text content={`${app.config.icons ? fileGlyph(app.document.path) + " " : ""}${lang()} │ `} fg={theme().muted} selectable={false}
+          <text content={theme().isLain ? `[ ${lang().toUpperCase()} ] │ ` : `${app.config.icons ? fileGlyph(app.document.path) + " " : ""}${lang()} │ `} fg={theme().muted} selectable={false}
             onMouseDown={() => { void app.dispatch("command_palette") }} />
         </Show>
 
         {/* Indent */}
-        <Show when={width() >= 85}>
-          <text content={`${indent()} │ `} fg={theme().muted} selectable={false} />
+        <Show when={width() >= (theme().isLain ? 115 : 85)}>
+          <text content={theme().isLain ? `[ ${indent()} ] │ ` : `${indent()} │ `} fg={theme().muted} selectable={false} />
         </Show>
 
         {/* Position pill: Ln X, Col Y */}
-        <box backgroundColor={theme().noColor ? theme().panel : theme().surface} paddingLeft={1} paddingRight={1}
+        <box backgroundColor={theme().noColor ? theme().panel : (theme().isLain ? theme().selection : theme().surface)} paddingLeft={1} paddingRight={1}
           onMouseDown={() => { void app.dispatch("goto_line") }}>
-          <text content={`Ln ${pos().line + 1}, Col ${pos().character + 1}${selectionsCount() > 1 ? ` [${selectionsCount()}]` : ""}`}
-            fg={theme().text} selectable={false} />
+          <text content={theme().isLain ? `[ Ln ${pos().line + 1}, Col ${pos().character + 1}${selectionsCount() > 1 ? ` (${selectionsCount()})` : ""} ]` : `Ln ${pos().line + 1}, Col ${pos().character + 1}${selectionsCount() > 1 ? ` [${selectionsCount()}]` : ""}`}
+            fg={theme().isLain ? theme().accent : theme().text} selectable={false} />
         </box>
+        <Show when={theme().isLain && width() >= 120}>
+          <text content=" [ ✳ FX: ON ]" fg={theme().accent} selectable={false} />
+        </Show>
       </box>
     </box>
   )
@@ -373,10 +411,15 @@ function MenuDropdown(props: { app: Application; revision: () => number; theme: 
   const menu = () => { props.revision(); return props.app.menu }
   const entries = () => menus[menu()?.column ?? 0]?.actions ?? []
   return <box id="menu-dropdown" position="absolute" top={1} left={Math.min((menu()?.column ?? 0) * 8, Math.max(0, props.app.width - 48))} width={Math.min(48, props.app.width)} height={entries().length + 2} zIndex={50}
-    border borderStyle="rounded" borderColor={props.theme().accent} backgroundColor={props.theme().panel} flexDirection="column">
-    <For each={entries()}>{(action, index) => <text height={1} selectable={false} fg={menu()?.selected === index() ? props.theme().accent : props.theme().text}
-      content={`${menu()?.selected === index() ? "▎" : " "}${props.app.menuLabel(action)} ${Object.entries(props.app.config.keys).find(([, id]) => id === action)?.[0] ?? ""}`}
-      onMouseDown={() => { void props.app.dispatch(action) }} />}</For>
+    border borderStyle={props.theme().isLain ? "single" : "rounded"} borderColor={props.theme().accent} backgroundColor={props.theme().panel} flexDirection="column">
+    <For each={entries()}>{(action, index) => {
+      const isSelected = () => menu()?.selected === index()
+      return <text height={1} selectable={false}
+        fg={isSelected() ? (props.theme().isLain ? props.theme().surface : props.theme().accent) : props.theme().text}
+        bg={isSelected() && props.theme().isLain ? props.theme().accent : undefined}
+        content={`${isSelected() ? (props.theme().isLain ? "▶ " : "▎") : " "}${props.app.menuLabel(action)} ${Object.entries(props.app.config.keys).find(([, id]) => id === action)?.[0] ?? ""}`}
+        onMouseDown={() => { void props.app.dispatch(action) }} />
+    }}</For>
   </box>
 }
 
@@ -388,12 +431,12 @@ function OverlayView(props: { app: Application; revision: () => number; theme: (
   const start = () => { const value = overlay(); return Math.max(0, (value?.kind === "picker" || value?.kind === "search" ? value.selected : 0) - rows() + 1) }
   return <box id="overlay-scrim" position="absolute" top={0} left={0} width="100%" height="100%" zIndex={100} alignItems="center" justifyContent="center"
     onMouseDown={event => event.stopPropagation()} onMouseScroll={event => event.stopPropagation()}>
-    <box id="overlay" width={Math.min(90, Math.max(20, props.width() - 4))} maxHeight={Math.max(3, props.height() - 2)} flexDirection="column" border borderStyle="rounded" borderColor={props.theme().accent} backgroundColor={props.theme().panel} paddingX={1} overflow="hidden">
-      <text height={1} fg={props.theme().accent} content={`◈ ${title()}`} />
+    <box id="overlay" width={Math.min(90, Math.max(20, props.width() - 4))} maxHeight={Math.max(3, props.height() - 2)} flexDirection="column" border borderStyle={props.theme().isLain ? "single" : "rounded"} borderColor={props.theme().accent} backgroundColor={props.theme().panel} paddingX={1} overflow="hidden">
+      <text height={1} fg={props.theme().accent} content={props.theme().isLain ? `▣ DAISY://${title().toUpperCase()} _ □ ×` : `◈ ${title()}`} />
       <Show when={overlay()?.kind === "confirm"}><text content="Enter: confirm   Esc: cancel" fg={props.theme().warning} /></Show>
-      <Show when={overlay()?.kind === "prompt"}><text content={(() => { const value = overlay(); return value?.kind === "prompt" ? `> ${value.value}▏` : "" })()} fg={props.theme().text} /><text fg={props.theme().muted} content="Enter: accept · Esc: cancel · Ctrl+U: clear" /></Show>
+      <Show when={overlay()?.kind === "prompt"}><text content={(() => { const value = overlay(); return value?.kind === "prompt" ? `${props.theme().isLain ? "root@daisy:~# " : "> "}${value.value}▏` : "" })()} fg={props.theme().text} /><text fg={props.theme().muted} content="Enter: accept · Esc: cancel · Ctrl+U: clear" /></Show>
       <Show when={overlay()?.kind === "picker"}>
-        <text height={1} content={(() => { const value = overlay(); return value?.kind === "picker" ? `${props.app.config.icons ? searchGlyph + " " : "> "}${value.query}▏` : "" })()} fg={props.theme().text} />
+        <text height={1} content={(() => { const value = overlay(); return value?.kind === "picker" ? `${props.theme().isLain ? "QUERY:// " : (props.app.config.icons ? searchGlyph + " " : "> ")}${value.query}▏` : "" })()} fg={props.theme().text} />
         <Show when={entries().length} fallback={<text content="No matching entries" fg={props.theme().muted} />}>
           <For each={entries().slice(start(), start() + rows())}>{(entry, index) => {
             const isSelected = () => overlay()?.kind === "picker" && (overlay() as any).selected === start() + index()
@@ -406,12 +449,13 @@ function OverlayView(props: { app: Application; revision: () => number; theme: (
               return ""
             }
             return <text height={1} wrapMode="none" selectable={false}
-              fg={isSelected() ? props.theme().accent : props.theme().text}
-              content={`${isSelected() ? "▎" : " "}${entryIcon()}${entry.label}${entry.detail ? "  [" + entry.detail + "]" : ""}`}
+              fg={isSelected() ? (props.theme().isLain ? props.theme().surface : props.theme().accent) : props.theme().text}
+              bg={isSelected() && props.theme().isLain ? props.theme().accent : undefined}
+              content={`${isSelected() ? (props.theme().isLain ? "▶ " : "▎") : " "}${entryIcon()}${entry.label}${entry.detail ? "  [" + entry.detail + "]" : ""}`}
               onMouseDown={() => { props.app.overlay = undefined; void props.app.guard(async () => { await entry.run(); props.app.afterEdit() }) }} />
           }}</For>
         </Show>
-        <text height={1} content="↑↓ preview/select · Enter open · Esc close" fg={props.theme().muted} />
+        <text height={1} content={props.theme().isLain ? "↑↓ NAVIGATE · ENTER EXECUTE · ESC ABORT" : "↑↓ preview/select · Enter open · Esc close"} fg={props.theme().muted} />
       </Show>
       <Show when={overlay()?.kind === "read"}><text content={(() => { const value = overlay(); return value?.kind === "read" ? value.text.split("\n").slice(value.scroll, value.scroll + rows()).join("\n") : "" })()} fg={props.theme().text} /><text content="↑↓ scroll · Esc close" fg={props.theme().muted} /></Show>
       <Show when={overlay()?.kind === "search"}>
