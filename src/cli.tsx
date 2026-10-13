@@ -21,22 +21,23 @@ Configuration: ~/.config/daisy/config.toml + .daisy/config.toml (compatible with
 export async function run(args: string[]): Promise<void> {
   if (args.includes("--version") || args.includes("-V")) { console.log("daisy 0.2.0 (Daisy Code Editor · OpenTUI/Solid)"); return }
   if (args.includes("--help") || args.includes("-h")) { console.log(usage); return }
-  const frame = args[0] === "--print-frame"
-  let width = 100, height = 30
-  if (frame) {
-    args = args.slice(1)
-    if (args[0]?.match(/^\d+x\d+$/)) {
-      const values = args.shift()?.split("x").map(Number)
-      width = values?.[0] ?? width; height = values?.[1] ?? height
-      if (width < 20 || height < 5 || width > 500 || height > 300) throw new Error("Frame dimensions must be 20..500 by 5..300")
-    }
-  }
   let customTheme: string | undefined
   const themeIndex = args.indexOf("--theme")
   if (themeIndex !== -1) {
     customTheme = args[themeIndex + 1]
     if (!customTheme || customTheme.startsWith("-")) throw new Error("Flag --theme requires a theme name")
     args.splice(themeIndex, 2)
+  }
+  const frameIndex = args.indexOf("--print-frame")
+  const frame = frameIndex !== -1
+  let width = 100, height = 30
+  if (frame) {
+    args.splice(frameIndex, 1)
+    if (args[frameIndex]?.match(/^\d+x\d+$/)) {
+      const values = args.splice(frameIndex, 1)[0]?.split("x").map(Number)
+      width = values?.[0] ?? width; height = values?.[1] ?? height
+      if (width < 20 || height < 5 || width > 500 || height > 300) throw new Error("Frame dimensions must be 20..500 by 5..300")
+    }
   }
   if (args.some(arg => arg.startsWith("--"))) throw new Error("Unknown argument; use --help")
   const app = await Application.open(args, !frame)
