@@ -23,7 +23,7 @@ Designed for high performance, keyboard ergonomics, and clean architecture, Dais
   - **Offline Intelligence**: Built-in language catalog (keywords, functions, docstrings) and multi-buffer word indexing with fuzzy ranking.
   - **Smart Snippets**: Tabstop expansions (`$0`) for TypeScript, Rust, Go, and Python.
   - **Code Actions & Refactoring**: Local whole-word symbol rename (`F2`) and hover documentation (`Ctrl+K`).
-- 🎨 **Syntax Highlighting & Theming**: Shiki-powered lexical highlighting supporting TypeScript, JavaScript, Rust, Go, Python, C, Bash, Markdown, HTML, CSS, Lua, and more. Built-in themes include the **Daisy Lain Cyberpunk HUD family** (`daisy-lain`, `daisy-lain-purple`, `daisy-lain-pink`, `daisy-lain-light` inspired by Serial Experiments Lain / [daisyweblain](https://daisyweblain.vercel.app/)), Catppuccin Mocha, Nord, Tokyo Night, Dracula, and One Dark. Seamless live theme switching via Command Palette with instant preview!
+- 🎨 **Syntax Highlighting & Theming**: Shiki-powered lexical highlighting supporting TypeScript, JavaScript, Rust, Go, Python, C, Bash, Markdown, HTML, CSS, Lua, and more. Built-in themes include the **Daisy Lain Cyberpunk HUD family** (`daisy-lain` [The Wired], `daisy-lain-cobalt` [Hero Blue], `daisy-lain-glitch` [CRT Anomaly], `daisy-lain-bone` [Brutalist Bone Paper] inspired by Serial Experiments Lain / [daisyweblain](https://daisyweblain.vercel.app/)), Catppuccin Mocha, Nord, Tokyo Night, Dracula, and One Dark. Seamless live theme switching via Command Palette with instant preview!
 - 🔍 **High-Performance Search & Replace**:
   - Buffer-level find & replace with regex, case-sensitivity, accent-folding, and whole-word matching.
   - Project-wide recursive search & disk replacement.

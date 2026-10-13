@@ -102,7 +102,7 @@ export async function highlight(text: string, language: string, theme: string): 
   if (language === "ori") return highlightOri(text)
   const loadedLanguage = Object.keys(bundledLanguages).find((loaded): loaded is keyof typeof bundledLanguages => loaded === language)
   if (!loadedLanguage) return []
-  const normalizedTheme = theme === "one-dark" || theme === "zed-dark" ? "one-dark-pro" : theme === "default-dark" || theme === "default" ? "github-dark" : theme.startsWith("daisy-lain") ? (theme.includes("light") ? "github-light" : "tokyo-night") : theme
+  const normalizedTheme = theme === "one-dark" || theme === "zed-dark" ? "one-dark-pro" : theme === "default-dark" || theme === "default" ? "github-dark" : theme.startsWith("daisy-lain") ? (theme.includes("bone") || theme.includes("paper") || theme.includes("light") ? "github-light" : "tokyo-night") : theme
   const themes = ["github-dark", "github-light", "nord", "dracula", "monokai", "tokyo-night", "one-dark-pro", "catppuccin-mocha", "solarized-dark", "solarized-light"] as const
   const resolvedTheme = themes.find(theme => theme === normalizedTheme) ?? "github-dark"
   sharedHighlighter ??= createHighlighter({ themes: [resolvedTheme], langs: [loadedLanguage] })

@@ -5,6 +5,7 @@
 *.swp
 .DS_Store
 .oride/
+.daisy/
 .mimocode/
 # Prumo: estado derivado e de execução.
 .prumo/runtime/
