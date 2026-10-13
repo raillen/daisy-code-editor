@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="88" height="31" viewBox="0 0 88 31">
+  <rect width="88" height="31" fill="#c0c0c0" stroke="#ffffff" stroke-width="1"/>
+  <line x1="0" y1="30" x2="88" y2="30" stroke="#000000" stroke-width="1.5"/>
+  <line x1="87" y1="0" x2="87" y2="31" stroke="#000000" stroke-width="1.5"/>
+  <rect x="2" y="2" width="83" height="13" fill="#ff4068"/>
+  <text x="44" y="11" font-family="'Courier New', monospace" font-size="8" font-weight="900" fill="#ffffff" text-anchor="middle">NO ELECTRON</text>
+  <rect x="2" y="15" width="83" height="13" fill="#000000"/>
+  <text x="44" y="25" font-family="'Courier New', monospace" font-size="7" font-weight="bold" fill="#ffe500" text-anchor="middle">&lt;35MB RAM</text>
+</svg>

@@ -1,173 +1,184 @@
-# 🌼 Daisy Code Editor — Official Roadmap
+# [ SYS.MAP ] Daisy Code Editor — Official Roadmap
 
-Bem-vindo ao roadmap oficial do **Daisy Code Editor**, detalhando o estado atual do projeto, as funcionalidades consolidadas na **v0.2.0** e as metas estratégicas até a versão estável de longo prazo **v1.0 (LTS)**.
+<p align="center">
+  <b>[ English Roadmap ]</b> · <a href="README.md"><b>[ Readme ]</b></a> · <a href="README.pt-BR.md"><b>[ 🇧🇷 Documentação em Português ]</b></a>
+</p>
+
+```text
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  DAISY CODE EDITOR // STRATEGIC EVOLUTION MAP // v0.2.0 -> v1.0.0 LTS        ║
+║  "Continuous delivery over The Wired protocol."                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+```
+
+Welcome to the official roadmap for **Daisy Code Editor**, tracking the technical milestones from the stable **v0.2.0 baseline** up to the long-term stable release **v1.0 (LTS)**.
 
 ---
 
-## 🏛️ Princípios Arquiteturais
+## [ 🏛️ ] Architectural Invariants
 
-1. **Velocidade & Leveza Absoluta**: Inicialização sub-50ms e taxa de quadros estável em 60 FPS, sem runtime Chromium ou Electron.
-2. **Reatividade Fina**: Construído sobre `@opentui/core` e `@opentui/solid` em **Bun & TypeScript**, recalculando apenas as células alteradas do buffer.
-3. **Desacoplamento e Fail-Closed**: LSP, Git e shell PTY executam como processos externos assíncronos via `$PATH`. Falhas externas nunca travam a interface de edição.
-4. **Ergonomia Híbrida**: Navegação CUA amigável com menus, barra de comandos e atalhos tradicionais, combinada a um modo modal Vim opcional e atalhos mnemônicos via `Alt`.
-5. **Estética Distinta**: Design brutalista e cyberpunk inspirado em *Serial Experiments Lain* e na cultura hacker dos anos 90, com temas neon de alto contraste e legibilidade terminal impecável.
+1. **Absolute Velocity & Zero Bloat**: Sub-40ms cold boots and rock-solid 60 FPS rendering without Chromium, Electron, or heavy web runtimes.
+2. **Fine-Grained Reactivity**: Built upon `@opentui/core` and `@opentui/solid` on **TypeScript & Bun**, recalculating only dirty screen buffer cells.
+3. **Decoupled & Fail-Closed**: LSP, Git, and PTY run as external asynchronous processes via `$PATH`. External process errors never crash the editor.
+4. **Ergonomic Hybrid Editing**: Intuitive CUA navigation with menubars, command palette, and Alt mnemonics paired with an optional Vim modal mode.
+5. **Distinct Brutalist Aesthetic**: High-contrast cyberpunk HUD themes inspired by *Serial Experiments Lain* and 90s hacker culture with terminal legibility.
 
 ---
 
-## 📊 Status dos Marcos
+## [ 📊 ] Milestone Summary
 
-| Versão | Foco Principal | Status |
+| Version | Primary Engineering Focus | Lifecycle Status |
 |---|---|---|
-| **`v0.2.0`** | **Foundation, Cyberpunk HUD & Packaging** | **Entregue (Atual)** ✅ |
-| **`v0.3.0`** | **Tree-Sitter, Code Folding & AST Ergonomics** | 🔨 Próxima Milestone |
-| **`v0.4.0`** | **Visual Diagnostics, Quick Fixes & Multi-LSP** | 📅 Planejado |
-| **`v0.5.0`** | **Side-by-Side Diff, Hunk Staging & Git Tooling** | 📅 Planejado |
-| **`v0.6.0`** | **Terminal Graphics (Kitty/Sixel) & Interactive Markdown** | 📅 Planejado |
-| **`v0.7.0`** | **Daisy Daemon & Persistent Remote Sessions** | 📅 Planejado |
-| **`v0.8.0`** | **Integrated Cyberpunk AI Pair Programmer** | 📅 Planejado |
-| **`v1.0.0`** | **Production Stability & LTS Freeze** | 🎯 Meta de Longo Prazo |
+| **`v0.2.0`** | **Foundation, Cyberpunk HUD & Universal Packaging** | **Delivered & Stable** [OK] |
+| **`v0.3.0`** | **Tree-Sitter WASM, Code Folding & AST Ergonomics** | [NEXT MILESTONE] |
+| **`v0.4.0`** | **Inline Virtual Diagnostics, Quick Fixes & Multi-LSP** | [PLANNED] |
+| **`v0.5.0`** | **Side-by-Side Split Diff, Hunk Staging & Git Tooling** | [PLANNED] |
+| **`v0.6.0`** | **Terminal Graphics (Kitty/Sixel) & Interactive Markdown** | [PLANNED] |
+| **`v0.7.0`** | **Headless Daemon & Persistent Remote Sessions** | [PLANNED] |
+| **`v0.8.0`** | **Integrated Cyberpunk AI Pair Programmer** | [PLANNED] |
+| **`v1.0.0`** | **Production Stability & Long-Term API Freeze (LTS)** | [TARGET] |
 
 ---
 
-## ✅ v0.2.0 — Milestone Atual (Entregue e Consolidado)
+## [ 💾 ] v0.2.0 — Current Consolidated Baseline (Delivered)
 
-Todas as funcionalidades abaixo estão implementadas, testadas e disponíveis na versão estável `0.2.0`:
+All features below are implemented, tested (97 automated tests passing), and available in release `0.2.0`:
 
-- [x] **Motor Reativo OpenTUI + SolidJS**: Renderização por células em buffer otimizado, suporte completo a mouse, scroll suave e splits verticais e horizontais redimensionáveis.
-- [x] **Barra de Menus CUA com Mnemonics Interativos**: Tecla `Alt` ou `F10` ativa sublinhados mnemônicos (`<u><b>A</b></u>rquivo`, `<u><b>E</b></u>ditar`, etc.) com navegação rápida de dois toques e suporte bilíngue (`pt-BR` e `en-US`).
-- [x] **Barra de Comandos Global (`Ctrl+Shift+P`)**: Indexação unificada de todos os menus, ações, seletores diretos de tema, seletor de idioma, comandos de plugins e tags fuzzy inteligentes.
-- [x] **Família de Temas Daisy-Lain Cyberpunk HUD**:
-  - `daisy-lain` (The Wired — Midnight Void, Acid Yellow, Deep Cobalt, Cyan).
-  - `daisy-lain-cobalt` (Hero Blue — Dense Cobalt, Acid Yellow wireframes, Signal White).
-  - `daisy-lain-glitch` (CRT Anomaly — Laser Glitch Crimson, Cyan, Midnight).
-  - `daisy-lain-bone` (Brutalist Bone Paper — High contrast off-white & black ink).
-  - 11 temas clássicos da comunidade (Catppuccin, Nord, Tokyo Night, Dracula, etc.) com live preview interativo.
-- [x] **LSP Desacoplado via PATH**:
-  - Autocompletação baseada em contexto e palavras do workspace.
-  - Hover de documentação e tipo (`K` / `lsp_hover`).
-  - Ir para Definição (`F12` / `lsp_goto_definition`).
-  - Renomeação de símbolos no arquivo e projeto (`F2` / `lsp_rename`).
-  - Formatação de código ao salvar (`format_on_save`).
-  - Agregação de diagnósticos de compiladores ativos.
-- [x] **Git / SCM Integrado**:
-  - Marcadores de Git Gutter em tempo real no editor (`+` adicionado, `~` modificado, `-` removido).
-  - Painel lateral de SCM (`Ctrl+Shift+G`) com status de branch, commits à frente/atrás e staged files.
-  - Git Blame da linha sob o cursor em overlay dedicado (`Alt+B`).
-  - Visualizador de Diff rápido do arquivo atual.
-  - Operações de `git pull` e `git push` com diálogo de confirmação.
-- [x] **Markdown Live Preview**: Split integrado com renderização estilizada de títulos, listas e blocos de código com destaque de sintaxe (`Alt+P`).
-- [x] **Terminal PTY Embutido**: Emulador de terminal completo no rodapé (`Ctrl+\``) com suporte a shells do sistema (bash, zsh, fish).
-- [x] **Modo Modal Vim**: Suporte aos modos Normal, Insert, Visual e Visual-Line (`h, j, k, l, w, b, e, 0, $, gg, G, dd, yy, p, u, Ctrl+R, :w, :q, :wq, /`).
-- [x] **Edição Multicursor & Ferramentas Avançadas**: Adicionar cursores acima/abaixo, selecionar todas as ocorrências de um identificador, envolver com delimitadores (`surround`) e árvore linear de undo (`undo_tree`).
-- [x] **Busca e Substituição no Projeto**: Localizar e substituir em múltiplos arquivos com expressões regulares e filtros de glob (`Ctrl+Shift+F`).
-- [x] **Sistema de Plugins e Tarefas**: Descoberta de plugins TOML com hooks de ciclo de vida (`on_open`, `on_save`) e executor de scripts (`tasks.toml`).
-- [x] **Distribuição e Empacotamento Universal**:
-  - Instalador interativo em uma linha (`curl ... | bash`).
-  - Pacotes binários gerados para **Arch Linux** (`PKGBUILD`), **Fedora** (`.spec`), **Debian/Ubuntu** (`.deb`), **AppImage**, **Flatpak** e binários standalone compilados para `linux-x64` e `linux-arm64`.
+- [x] **Reactive Terminal Engine**: Fine-grained `@opentui/solid` cell buffer layout, full mouse drag, wheel scrolling, and dynamic splits.
+- [x] **CUA Menubar with Interactive Alt Mnemonics**: Pressing `Alt` or `F10` underlines active mnemonics (`<u><b>F</b></u>ile`, `<u><b>E</b></u>dit`...) with bilingual hotkey routing (`pt-BR` and `en-US`).
+- [x] **Global Command Palette (`Ctrl+Shift+P`)**: Unified fuzzy search indexing all menu actions, direct theme quick-pickers, locale options, and plugin commands.
+- [x] **Daisy-Lain Cyberpunk HUD Theme Suite**:
+  - `daisy-lain` (The Wired — Midnight Void `#070913`, Acid Yellow `#ffe500`, Cobalt `#0025c5`, Signal Cyan `#67f4ed`).
+  - `daisy-lain-cobalt` (Hero Blue — Dense Cobalt `#020d58`, Acid Yellow wireframes, Signal White `#f8f7eb`).
+  - `daisy-lain-glitch` (CRT Anomaly — Laser Glitch Crimson `#ff4068`, Signal Cyan, Midnight Void).
+  - `daisy-lain-bone` (Brutalist Bone Paper — Raw bone `#f2efe6`, pitch black ink, yellow accents).
+  - 11 classic community themes with live preview while browsing.
+- [x] **Decoupled Language Server Protocol ($PATH Client)**:
+  - Contextual autocompletion with workspace word indexing and fuzzy ranking.
+  - Hover documentation popup (`K` / `Ctrl+K`).
+  - Go to Definition (`F12` / `gd`).
+  - Symbol rename across open buffers (`F2`).
+  - Format on save (`format_on_save`).
+  - Compiler diagnostics aggregation (`toggle_diagnostics`).
+- [x] **Integrated Git / SCM**:
+  - Real-time Git Gutter markers in line number column (`+` added, `~` modified, `-` deleted).
+  - Dedicated SCM workspace panel (`Ctrl+Shift+G`) with branch status and commit count.
+  - Git Blame overlay on active cursor line (`Alt+B`).
+  - Formatted Git Diff reader (`show_diff`).
+  - Safe `git pull` and `git push` synchronization dialogs.
+- [x] **Live Markdown Preview**: Split viewport rendering formatted headings, tables, and Shiki-highlighted code blocks (`Alt+P`).
+- [x] **Embedded PTY Terminal**: Full interactive terminal emulator (`Ctrl+\``) running user shell (`bash`, `zsh`, `fish`).
+- [x] **Vim Modal Mode**: Normal, Insert, Visual, Visual-Line modes (`h, j, k, l, w, b, e, 0, $, gg, G, dd, yy, p, u, Ctrl+R, :w, :q, :wq, /`).
+- [x] **Multicursor & Advanced Editing**: Add cursor above/below (`Ctrl+Alt+Up/Down`), select all occurrences, surround selection with delimiters, linear undo tree viewer (`undo_tree`).
+- [x] **Project-wide Search & Replace**: Recursive grep with glob filtering and disk replacement (`Ctrl+Shift+F`).
+- [x] **Plugin Architecture & Task Runner**: TOML plugins with `on_open` and `on_save` hooks, path variables (`$FILE`, `$DIR`, `$WORKSPACE`), and task runner (`tasks.toml`).
+- [x] **Universal Packaging**:
+  - Interactive one-line installer (`curl ... | bash`).
+  - Binary packages for Arch Linux (`PKGBUILD`), Fedora (`.spec`), Debian/Ubuntu (`.deb`), AppImage, Flatpak, and standalone binaries (`linux-x64`, `linux-arm64`).
 
 ---
 
-## 🚀 Roadmap Detalhado (Próximas Versões)
+## [ 🗲 ] Detailed Milestone Roadmap (Upcoming Versions)
 
-### 🌟 v0.3.0 — Inteligência Sintática & AST (Tree-Sitter)
-*Foco: Elevar o parsing de código de expressões regulares para árvores sintáticas completas.*
+### [ 🗲 ] v0.3.0 — Syntactic Intelligence & AST (Tree-Sitter)
+*Focus: Transitioning code parsing from regular expressions to real-time abstract syntax trees.*
 
 - [ ] **Tree-sitter WASM Engine**:
-  - Incorporar gramáticas Tree-sitter em WASM para TypeScript, JavaScript, Rust, Python, Go, C/C++, JSON, HTML e Markdown.
-  - Eliminar limitações de realce em código multilinha, template literals e expressões regulares complexas.
-- [ ] **Code Folding Semântico (Dobra de Código)**:
-  - Dobrar e expandir blocos de classes, métodos, funções e declarações de tipos.
-  - Indicadores interativos na margem lateral (`▾` aberto / `▸` fechado), com atalhos de teclado (`zc` fold, `zo` unfold, `zM` fold all, `zR` unfold all).
+  - Incorporate WebAssembly grammars for TypeScript, JavaScript, Rust, Python, Go, C/C++, JSON, HTML, and Markdown.
+  - Eliminate syntax highlighting inaccuracies in multiline strings, nested template literals, and complex expressions.
+- [ ] **Semantic Code Folding**:
+  - Fold and expand functions, classes, interfaces, and blocks.
+  - Interactive visual indicators in the gutter column (`▾` open / `▸` folded) with standard keyboard shortcuts (`zc` fold, `zo` unfold, `zM` fold all, `zR` unfold all).
 - [ ] **Indent Rainbow & Bracket Pair Colorizer**:
-  - Guias verticais sutis indicando os níveis de indentação do código.
-  - Realce em cores neon do par de delimitadores correspondente (`()`, `[]`, `{}`) onde o cursor estiver posicionado.
+  - Subtle vertical indentation guides aligned with tab size.
+  - High-contrast neon highlighting on matching bracket pairs (`()`, `[]`, `{}`) enclosing the cursor.
 - [ ] **Vim AST Text Objects**:
-  - Suporte a operadores estruturais no modo modal: `daf` (delete around function), `cib` (change inside block), `yac` (yank around class).
+  - Structural operators for modal editing: `daf` (delete around function), `cib` (change inside block), `yac` (yank around class).
 
 ---
 
-### ⚡ v0.4.0 — Diagnósticos Visuais & Ergonomia de Refatoração
-*Foco: Trazer o feedback do compilador diretamente para o campo de visão do desenvolvedor.*
+### [ ⚙ ] v0.4.0 — Visual Diagnostics & Refactoring Ergonomics
+*Focus: Bringing compiler feedback directly into developer line-of-sight.*
 
-- [ ] **Inline Ghost Diagnostics (Virtual Text)**:
-  - Renderização de erros e advertências do compilador/LSP diretamente no final da linha em texto fantasma esmaecido (estilo Neovim / Helix / Zed), com glifos estilizados (`󰅚` erro, `󰀪` aviso).
+- [ ] **Inline Virtual Diagnostics (Ghost Text)**:
+  - Render compiler and linter errors/warnings directly at the end of code lines in dim ghost text (similar to Neovim / Helix / Zed), accompanied by glyphs (`󰅚` error, `󰀪` warning).
 - [ ] **LSP Code Actions & Quick Fixes (`Ctrl+.` / `Alt+Enter`)**:
-  - Menu flutuante contextual para aplicar resoluções automáticas sugeridas pelo servidor de linguagem (adicionar import ausente, corrigir tipagem, implementar membros abstratos).
+  - Floating contextual menu to apply automated resolutions suggested by the language server (add missing import, fix types, implement interface members).
 - [ ] **Inlay Hints**:
-  - Exibição de tipos inferidos e nomes de parâmetros de funções diretamente entre os caracteres do código como texto inline não-editável.
-- [ ] **Suporte a Múltiplos Servidores LSP por Arquivo**:
-  - Capacidade de acoplar múltiplos servidores em um único buffer (exemplo: `typescript-language-server` + `tailwindcss-language-server` + `biome`).
+  - Display inferred variable types and function parameter labels directly within code text as unselectable inline ghost text.
+- [ ] **Concurrent Multi-LSP per Buffer**:
+  - Attach multiple language servers to a single document (e.g., `typescript-language-server` + `tailwindcss-language-server` + `biome`).
 
 ---
 
-### 🌿 v0.5.0 — Side-by-Side Diff, Hunk Staging & Git Tooling
-*Foco: Experiência completa de revisão e controle de versão sem sair do editor.*
+### [ 🖧 ] v0.5.0 — Side-by-Side Diff, Hunk Staging & Git Tooling
+*Focus: Complete version control review workflows without leaving the terminal editor.*
 
 - [ ] **Side-by-Side Split Diff Viewer**:
-  - Modo de visualização de diff em duas colunas sincronizadas para comparar a versão de trabalho com o `HEAD` do Git ou commits anteriores.
-- [ ] **Staging Interativo de Hunks**:
-  - Capacidade de navegar entre blocos modificados (`hunks`) e aplicar stage/unstage parcial linha a linha ou bloco a bloco diretamente pelo editor.
-- [ ] **Interactive Merge Conflict 3-Way Resolver**:
-  - Detecção automática de marcadores de conflito (`<<<<<<<`, `=======`, `>>>>>>>`) e botões/atalhos de ação imediata: *Aceitar Atual*, *Aceitar Entrada*, *Aceitar Ambos*.
+  - Synchronized two-column visual diff viewport comparing modified working tree against `HEAD` or historical commits.
+- [ ] **Interactive Hunk Staging**:
+  - Navigate between modified hunks and apply stage/unstage partially line-by-line or hunk-by-hunk directly from the editor.
+- [ ] **Interactive 3-Way Merge Conflict Resolver**:
+  - Automatic detection of conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) with single-key action buttons: *Accept Current*, *Accept Incoming*, *Accept Both*.
 - [ ] **Inline Git Blame Ghost Text**:
-  - Exibição sob demanda de autor, data relativa e mensagem do commit no final da linha ativa sem necessidade de abrir modal.
+  - On-demand subtle display of author, relative date, and commit message at the end of the active cursor line.
 
 ---
 
-### 🎨 v0.6.0 — Gráficos no Terminal & Markdown Rico
-*Foco: Romper os limites do texto simples com suporte aos protocolos gráficos modernos.*
+### [ 🖵 ] v0.6.0 — Terminal Graphics & Interactive Markdown
+*Focus: Breaking the text-only barrier with modern terminal graphics protocols.*
 
-- [ ] **Suporte aos Protocolos Kitty Graphics & Sixel**:
-  - Renderização de imagens de alta resolução dentro do painel de visualização de Markdown e no explorador de arquivos em terminais compatíveis (Kitty, WezTerm, Ghostty, Alacritty c/ Sixel).
-- [ ] **Markdown Preview Interativo**:
-  - Checkboxes de tarefas clicáveis (`[ ]` / `[x]`) que atualizam o arquivo original instantaneamente.
-  - Tabelas Markdown com alinhamento visual automático e bordas desenhadas.
-- [ ] **Diagramas Mermaid & Fórmulas Matemáticas**:
-  - Renderização de diagramas Mermaid em ASCII/SVG e expressões KaTeX simplificadas.
-
----
-
-### 🔌 v0.7.0 — Daisy Daemon & Sessões Remotas
-*Foco: Produtividade distribuída, persistência e desenvolvimento remoto ininterrupto.*
-
-- [ ] **Modo Headless Daemon (`daisy daemon`)**:
-  - Capacidade de executar o núcleo do editor como um serviço desacoplado em segundo plano em servidores locais ou remotos via socket Unix / TCP criptografado.
-- [ ] **Reconexão Instantânea de Sessões (`daisy attach`)**:
-  - Persistência total de buffers abertos, cursores, histórico de desfazer e terminais PTY ao desconectar uma sessão SSH ou fechar o terminal.
-- [ ] **Pair Programming em Terminal**:
-  - Dois ou mais usuários conectando-se à mesma sessão remota do Daisy com cursores sincronizados e cores distintas.
+- [ ] **Kitty Graphics & Sixel Protocols**:
+  - Render high-resolution images inside Markdown preview splits and file explorer previews on compatible terminals (Kitty, WezTerm, Ghostty, Alacritty with Sixel).
+- [ ] **Interactive Markdown Preview**:
+  - Clickable task checkboxes (`[ ]` / `[x]`) that toggle the source file state instantly.
+  - Markdown tables with automatic border alignment.
+- [ ] **Mermaid Diagrams & KaTeX Formulas**:
+  - Render Mermaid diagrams and simplified math formulas directly in the preview pane.
 
 ---
 
-### 🤖 v0.8.0 — Assistente Cyberpunk IA (Daisy Copilot)
-*Foco: Integração nativa e contextual com inteligência artificial generativa.*
+### [ 🔌 ] v0.7.0 — Daisy Daemon & Persistent Remote Sessions
+*Focus: Distributed productivity, session resilience, and remote terminal workflows.*
 
-- [ ] **Painel Lateral de Assistente Cyberpunk**:
-  - Interface conversacional TUI com suporte a modelos locais via Ollama e provedores de nuvem (Anthropic Claude, OpenAI, Google Gemini).
-- [ ] **Diffs de Código Gerados por IA**:
-  - Sugestões de refatoração e geração de código apresentadas como diffs no próprio buffer, aceitas com um único toque (`Ctrl+Y`) ou descartadas (`Ctrl+N`).
-- [ ] **Context Injection Inteligente**:
-  - Injeção automática da assinatura de tipos, erros do compilador sob o cursor e trechos de arquivos selecionados no prompt.
-
----
-
-### 🎯 v1.0.0 — Estabilidade de Produção & LTS Freeze
-*Foco: Garantia de qualidade rigorosa, estabilidade de longo prazo e maturidade de produto.*
-
-- [ ] **Congelamento da API de Extensões & Configuração**:
-  - Estabilidade garantida sem breaking changes no formato de plugins e opções de configuração.
-- [ ] **Hardening de Acessibilidade e Unicode**:
-  - Suporte perfeito a larguras de caracteres CJK, emojis compostos e modos de alto contraste para leitores de tela de terminal.
-- [ ] **Benchmarks Automatizados no CI**:
-  - Verificação de orçamento de inicialização (< 30ms em máquina padrão) e uso de memória (< 45MB em repouso).
-- [ ] **Documentação Completa de 1º Nível**:
-  - Manuais técnicos e guias de usuário completos em Português e Inglês com tutoriais interativos.
+- [ ] **Headless Daemon Mode (`daisy daemon`)**:
+  - Run the editor core as a detached background service on local or remote servers over Unix sockets or encrypted TCP tunnels.
+- [ ] **Instant Session Reconnection (`daisy attach`)**:
+  - Full persistence of open buffers, cursors, undo history, and running PTY shells when SSH drops or terminal windows close.
+- [ ] **Multi-client Terminal Pairing**:
+  - Simultaneous shared sessions allowing two developers to edit the same workspace with synchronized viewports and distinct cursor colors.
 
 ---
 
-## 🤝 Como Contribuir
+### [ 🤖 ] v0.8.0 — Cyberpunk AI Pair Programmer (Daisy Copilot)
+*Focus: Native, contextual integration with local and cloud generative models.*
 
-Interessado em ajudar a construir alguma das funcionalidades do roadmap?
-1. Veja as tarefas abertas em nossas [Issues no GitHub](https://github.com/raillen/daisy-code-editor/issues).
-2. Consulte o guia de desenvolvimento no [README.md](README.md) e [AGENTS.md](AGENTS.md).
-3. Abra um Pull Request focado em uma única funcionalidade por vez com cobertura completa de testes automatizados.
+- [ ] **Cyberpunk AI HUD Sidebar**:
+  - Conversational terminal chat pane supporting local models via Ollama as well as remote APIs (Anthropic Claude, OpenAI, Google Gemini).
+- [ ] **Inline AI Diff Generation**:
+  - Code refactoring and generation presented as interactive diffs directly inside the editor buffer, accepted with `Ctrl+Y` or rejected with `Ctrl+N`.
+- [ ] **Context Injection**:
+  - Automatic inclusion of type signatures, active compiler diagnostics, and selected code ranges into the prompt context.
+
+---
+
+### [ 🎯 ] v1.0.0 — Production Stability & LTS Freeze
+*Focus: Rigorous quality assurance, enterprise stability, and long-term API commitments.*
+
+- [ ] **Plugin API & Configuration Schema Freeze**:
+  - Zero breaking changes guaranteed across minor releases for configuration files and plugins.
+- [ ] **Unicode & CJK Accessibility Hardening**:
+  - Perfect cell alignment for double-width CJK characters, complex emoji sequences, and terminal screen readers.
+- [ ] **Automated CI Latency Benchmarks**:
+  - Continuous enforcement of sub-30ms startup budgets and sub-40MB idle memory footprints.
+- [ ] **Comprehensive Bilingual Documentation**:
+  - Exhaustive user manuals, keyboard cheat sheets, and API documentation in English and Portuguese.
+
+---
+
+## [ 🤝 ] Contributing
+
+Interested in contributing to any of the roadmap milestones?
+1. Check active tasks on [GitHub Issues](https://github.com/raillen/daisy-code-editor/issues).
+2. Consult the engineering guide in [README.md](README.md) and [AGENTS.md](AGENTS.md).
+3. Submit a Pull Request focused on a single milestone feature with full automated test coverage.
