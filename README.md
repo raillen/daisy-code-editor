@@ -192,7 +192,7 @@ src/
 Daisy includes an exhaustive test suite covering unit tests, integration workflows, OpenTUI rendering frames, and microbenchmarks:
 
 ```bash
-# Run full automated test suite (94 tests)
+# Run full automated test suite (97 tests)
 bun test
 
 # Run TypeScript typechecker
@@ -204,6 +204,13 @@ bun run build
 
 ---
 
+## 🗺️ Roadmap & Vision
+
+Explore the future vision, active progress, and upcoming milestones from **v0.3.0** (Tree-Sitter, Code Folding) through **v1.0 (LTS)** in our [ROADMAP.md](ROADMAP.md).
+
+---
+
 ## 📄 License
 
 Daisy Code Editor is open-source software licensed under the [MIT License](LICENSE).
+
