@@ -395,6 +395,30 @@ test("daisy-lain cyberpunk theme renders HUD badges and allows seamless switchin
     // Close overlay
     view.app.overlay = undefined
 
+    // Switch to daisy-lain-purple
+    view.app.config.theme = "daisy-lain-purple"
+    view.app.changed()
+    await view.renderOnce()
+    frame = view.captureCharFrame()
+    expect(frame).toContain("DAISY_")
+    expect(frame).toContain("[ 001 NORMAL ]")
+
+    // Switch to daisy-lain-pink
+    view.app.config.theme = "daisy-lain-pink"
+    view.app.changed()
+    await view.renderOnce()
+    frame = view.captureCharFrame()
+    expect(frame).toContain("DAISY_")
+    expect(frame).toContain("[ 001 NORMAL ]")
+
+    // Switch to daisy-lain-light
+    view.app.config.theme = "daisy-lain-light"
+    view.app.changed()
+    await view.renderOnce()
+    frame = view.captureCharFrame()
+    expect(frame).toContain("DAISY_")
+    expect(frame).toContain("[ 001 NORMAL ]")
+
     // Switch to classic theme (catppuccin-mocha)
     view.app.config.theme = "catppuccin-mocha"
     view.app.changed()

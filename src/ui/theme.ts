@@ -6,6 +6,9 @@ const palettes: Record<string, string[]> = {
   default: ["#161b22", "#0d1117", "#e6edf3", "#8b949e", "#79c0ff", "#264f78", "#ff7b72", "#e3b341", "#30363d"],
   "default-dark": ["#161b22", "#0d1117", "#e6edf3", "#8b949e", "#79c0ff", "#264f78", "#ff7b72", "#e3b341", "#30363d"],
   "daisy-lain": ["#070913", "#00106a", "#f1f1ea", "#525f70", "#ffe500", "#0025c5", "#e73748", "#ffe500", "#0025c5"],
+  "daisy-lain-purple": ["#0f0a1c", "#22123b", "#f3e8ff", "#7b6b99", "#c084fc", "#4c1d95", "#f43f5e", "#fbbf24", "#c084fc"],
+  "daisy-lain-pink": ["#140510", "#2d0a22", "#fdf2f8", "#83536f", "#ff2a85", "#701a4f", "#ff3366", "#ffe600", "#ff2a85"],
+  "daisy-lain-light": ["#f6f8fa", "#eaedf1", "#0a0e1a", "#627282", "#0025c5", "#c7d2fe", "#e11d48", "#d97706", "#0025c5"],
   "zed-dark": ["#18181b", "#121215", "#e4e4e7", "#71717a", "#59c2ff", "#27272a", "#f43f5e", "#eab308", "#27272a"],
   dracula: ["#282a36", "#21222c", "#f8f8f2", "#6272a4", "#bd93f9", "#44475a", "#ff5555", "#f1fa8c", "#44475a"],
   nord: ["#2e3440", "#3b4252", "#eceff4", "#81a1c1", "#88c0d0", "#434c5e", "#bf616a", "#ebcb8b", "#434c5e"],
@@ -38,7 +41,7 @@ export function themeOf(config: Config): Theme {
   const accentHex = config.tokens["accent"] ?? effectiveUI["accent"] ?? effectiveSyntax["function"] ?? effectiveSyntax["keyword"] ?? values[4] ?? "#79c0ff"
   const selectionHex = config.tokens["focus"] ?? effectiveUI["selection"] ?? values[5] ?? "#264f78"
   const borderHex = config.tokens["border"] ?? effectiveUI["border"] ?? values[8] ?? values[1] ?? "#333338"
-  const isLain = !noColor && (normTheme === "daisy-lain" || config.theme.toLowerCase() === "daisy-lain")
+  const isLain = !noColor && (normTheme.startsWith("daisy-lain") || config.theme.toLowerCase().startsWith("daisy-lain"))
   return {
     name: normTheme,
     isLain,

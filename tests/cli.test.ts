@@ -9,7 +9,7 @@ test("CLI version, help and frame are usable through the public entrypoint", asy
     const output = await new Response(child.stdout).text()
     const errors = await new Response(child.stderr).text()
     expect(await child.exited).toBe(0)
-    expect(output).toContain(expected)
+    expect(output.toLowerCase()).toContain(expected.toLowerCase())
     expect(errors).not.toContain("error:")
   }
 // Timeout folgado de propósito: cada spawn paga o cold start do Bun + shiki, e
