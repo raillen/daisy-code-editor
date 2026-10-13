@@ -111,6 +111,7 @@ export class Application {
   completion: CompletionState | undefined
   cursorScreen: CursorScreenPos | undefined
   menu: { column: number; selected: number } | undefined
+  altActive = false
   status = ""
   quit = false
   clipboard = ""
@@ -342,6 +343,7 @@ export class Application {
       const command: Command = commands[action]
       if (!command) throw new Error(`Unknown action: ${action}`)
       this.menu = undefined
+      this.altActive = false
       await command.run(this)
       this.afterEdit()
     })

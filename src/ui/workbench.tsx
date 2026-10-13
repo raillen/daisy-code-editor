@@ -150,16 +150,34 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
       </Show>
       <For each={menus}>{(menu, index) => {
         const isOpen = () => state().menu?.column === index()
-        const label = () => {
-          let raw = app.config.locale === "pt-BR" ? menu.pt : menu.en
-          if (theme().isLain && raw.toLowerCase().startsWith("config")) raw = "Config"
-          return theme().isLain ? ` 0${index() + 1} ${raw.toUpperCase()} ` : ` ${raw} `
+        const showUnderline = () => app.altActive || state().menu !== undefined
+        const isPt = () => app.config.locale === "pt-BR"
+        const raw = () => {
+          let text = isPt() ? menu.pt : menu.en
+          if (theme().isLain && text.toLowerCase().startsWith("config")) text = "Config"
+          return text
         }
-        return <text id={`menu-${index()}`} content={label()}
+        const text = () => theme().isLain ? raw().toUpperCase() : raw()
+        const lead = () => theme().isLain ? ` 0${index() + 1} ` : " "
+        const mnemonic = () => (isPt() ? menu.mnemonicPt : menu.mnemonicEn).toLowerCase()
+        const charIdx = () => text().toLowerCase().indexOf(mnemonic())
+        const before = () => charIdx() >= 0 ? text().slice(0, charIdx()) : text()
+        const m = () => charIdx() >= 0 ? text().charAt(charIdx()) : ""
+        const after = () => charIdx() >= 0 ? text().slice(charIdx() + 1) : ""
+
+        return <text id={`menu-${index()}`}
           fg={isOpen() ? (theme().isLain ? theme().surface : theme().accent) : theme().text}
           bg={isOpen() && theme().isLain ? theme().accent : undefined}
           selectable={false}
-          onMouseDown={() => { app.menu = app.menu?.column === index() ? undefined : { column: index(), selected: 0 }; app.changed() }} />
+          onMouseDown={() => {
+            app.altActive = !isOpen()
+            app.menu = isOpen() ? undefined : { column: index(), selected: 0 }
+            app.changed()
+          }}>
+          {showUnderline() && charIdx() >= 0
+            ? <>{lead()}{before()}<u><b>{m()}</b></u>{after()} </>
+            : `${lead()}${text()} `}
+        </text>
       }}</For>
       <text flexGrow={1} textAlign="right" fg={theme().isLain ? theme().accent : theme().muted}
         content={theme().isLain ? (columns() >= 80 ? "● CONNECTED / PORT: 98 " : "● WIRED: 98 ") : "Daisy / Solid "}

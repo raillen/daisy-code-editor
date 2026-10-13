@@ -16,15 +16,71 @@ function printable(key: KeyEvent): string | undefined {
   return key.sequence && !/[\x00-\x1f\x7f]/.test(key.sequence) ? key.sequence : undefined
 }
 
+const menuColumnByKey: Record<string, number> = {}
+for (const [colIndex, menu] of menus.entries()) {
+  for (const k of menu.altKeys) {
+    menuColumnByKey[k.toLowerCase()] = colIndex
+  }
+}
+
 export function receiveKey(app: Application, key: KeyEvent): void {
   if (key.eventType === "release") return
   key.preventDefault(); key.stopPropagation()
   const chord = chordOf(key)
   if (app.overlay) { void app.guard(() => overlayKey(app, key, chord)); return }
+
+  // Alt solo toggle or F10 menubar focus
+  const isAltSolo = (key.name === "alt" || key.name === "left_alt" || key.name === "right_alt" || key.name === "meta") && !key.ctrl && !key.shift
+  if (isAltSolo) {
+    app.altActive = !app.altActive
+    if (!app.altActive && app.menu) app.menu = undefined
+    app.changed()
+    return
+  }
+  if (key.name === "f10") {
+    if (app.menu) {
+      app.menu = undefined
+      app.altActive = false
+    } else {
+      app.menu = { column: 0, selected: 0 }
+      app.altActive = true
+    }
+    app.changed()
+    return
+  }
+
+  // Active open menu navigation
   if (app.menu) { menuKey(app, key); return }
+
+  // Alt+Key combo (e.g. Alt+F, Alt+A, Alt+E, Alt+V, Alt+X, etc.)
   if (key.meta && !key.ctrl && !key.shift) {
-    const column = ["f", "e", "v", "s", "g", "i", "h"].indexOf(key.name)
-    if (column >= 0) { app.menu = { column, selected: 0 }; app.changed(); return }
+    const column = menuColumnByKey[key.name.toLowerCase()]
+    if (column !== undefined) {
+      app.menu = { column, selected: 0 }
+      app.altActive = true
+      app.changed()
+      return
+    }
+  }
+
+  // If altActive is set (user tapped Alt), pressing a menu mnemonic letter directly opens that menu
+  if (app.altActive) {
+    if (key.name === "escape") {
+      app.altActive = false
+      app.changed()
+      return
+    }
+    if (!key.ctrl && !key.meta && !key.shift) {
+      const column = menuColumnByKey[key.name.toLowerCase()]
+      if (column !== undefined) {
+        app.menu = { column, selected: 0 }
+        app.altActive = true
+        app.changed()
+        return
+      }
+    }
+    app.altActive = false
+    app.changed()
   }
   if (app.focus === "terminal" && app.bottom === "terminal") {
     if (key.name === "escape") { app.focus = "editor"; app.changed() }
@@ -209,14 +265,30 @@ async function overlayKey(app: Application, key: KeyEvent, chord: string): Promi
 function menuKey(app: Application, key: KeyEvent): void {
   const menu = app.menu
   if (!menu) return
-  if (key.name === "escape") app.menu = undefined
-  else if (key.name === "left") { menu.column = (menu.column + menus.length - 1) % menus.length; menu.selected = 0 }
-  else if (key.name === "right") { menu.column = (menu.column + 1) % menus.length; menu.selected = 0 }
-  else if (key.name === "up") menu.selected = Math.max(0, menu.selected - 1)
-  else if (key.name === "down") menu.selected = Math.min((menus[menu.column]?.actions.length ?? 1) - 1, menu.selected + 1)
-  else if (key.name === "return" || key.name === "enter") {
+  if (key.name === "escape") {
+    app.menu = undefined
+    app.altActive = false
+  } else if (key.name === "left") {
+    menu.column = (menu.column + menus.length - 1) % menus.length
+    menu.selected = 0
+  } else if (key.name === "right") {
+    menu.column = (menu.column + 1) % menus.length
+    menu.selected = 0
+  } else if (key.name === "up") {
+    menu.selected = Math.max(0, menu.selected - 1)
+  } else if (key.name === "down") {
+    menu.selected = Math.min((menus[menu.column]?.actions.length ?? 1) - 1, menu.selected + 1)
+  } else if (key.name === "return" || key.name === "enter") {
     const action = menus[menu.column]?.actions[menu.selected]
+    app.menu = undefined
+    app.altActive = false
     if (action) void app.dispatch(action)
+  } else if (!key.ctrl && !key.shift) {
+    const col = menuColumnByKey[key.name.toLowerCase()]
+    if (col !== undefined) {
+      menu.column = col
+      menu.selected = 0
+    }
   }
   app.changed()
 }

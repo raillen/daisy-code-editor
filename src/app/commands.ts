@@ -8,6 +8,7 @@ import { readText, FileTree } from "../services/files"
 import { readToml, record, userConfigDir, loadConfig } from "../services/config"
 import type { Application, PickerEntry } from "./application"
 import { loadPreferences, savePreference } from "../services/preferences"
+import { menus } from "./menus"
 
 export type Command = { label: string; run: (app: Application) => void | Promise<void> }
 const command = (label: string, run: Command["run"]): Command => ({ label, run })
@@ -44,9 +45,7 @@ export const commands: Record<ActionId, Command> = {
   focus_terminal: toggle("Focus terminal", app => app.startTerminal()),
   next_tab: command("Next tab", app => app.cycleTab(1)), prev_tab: command("Previous tab", app => app.cycleTab(-1)),
   close_tab: command("Close tab", app => app.closeTab()), new_tab: command("New tab", app => app.newDocument()),
-  command_palette: command("Command palette", app => app.picker("Commands", actionIds.filter(id => !id.startsWith("move_") && !["backspace", "delete", "insert_newline", "insert_tab"].includes(id)).map<PickerEntry>(id => ({ label: app.label(id), detail: Object.entries(app.config.keys).find(([, action]) => action === id)?.[0], run: () => app.dispatch(id) })).concat([
-    { label: "Toggle icons", detail: app.config.icons ? "on" : "off", run: () => { app.config.icons = !app.config.icons; app.status = app.t("messages", app.config.icons ? "icons_on" : "icons_off"); app.changed() } }
-  ]).concat(app.pluginEntries()))),
+  command_palette: command("Command palette", app => app.picker("Commands", buildPaletteEntries(app))),
   open_file_fuzzy: command("Open file…", app => app.finder()),
   goto_line: command("Go to line…", app => {
     const totalLines = lineRanges(app.document.text).length
@@ -302,4 +301,170 @@ export function deleteTreeSelection(app: Application): void {
     if (row.directory) await rmdir(row.path); else await unlink(row.path)
     await app.tree.refresh(); app.invalidateFiles(); app.changed()
   } }
+}
+
+function actionSynonyms(actionId: string): string {
+  switch (actionId) {
+    case "select_theme":
+      return "tema temas theme color cores visual live preview paleta"
+    case "select_locale":
+      return "idioma language locale tradução pt-br en-us"
+    case "open_user_config":
+      return "configuracao usuario toml settings preferences config"
+    case "open_workspace_config":
+      return "configuracao projeto workspace toml settings config"
+    case "reload_config":
+      return "recarregar reload config toml"
+    case "toggle_tree":
+      return "arvore tree explorer arquivos pasta file"
+    case "toggle_terminal":
+      return "terminal pty shell bash zsh console linha de comando"
+    case "toggle_scm":
+      return "git scm controle versao diff commit stage"
+    case "toggle_md_preview":
+      return "markdown preview visualizar render doc"
+    case "toggle_modal":
+      return "vim modal normal insert visual vi"
+    case "toggle_soft_wrap":
+      return "quebra linha wrap word wrap auto wrap"
+    case "toggle_auto_pairs":
+      return "pares auto close delimitadores brackets parenteses aspas"
+    case "toggle_line_numbers":
+      return "numeros linha line numbers"
+    case "toggle_icons":
+      return "icones nerd font glyphs simbolos"
+    case "toggle_mouse":
+      return "mouse clique cursor scroll"
+    case "goto_line":
+      return "ir linha go to line jump saltar"
+    case "find":
+      return "localizar buscar search find"
+    case "replace":
+      return "substituir replace trocar"
+    case "project_find":
+      return "buscar projeto find project grep procurar"
+    case "project_replace":
+      return "substituir projeto replace project"
+    case "lsp_format":
+      return "formatar codigo format prettier lsp"
+    case "lsp_rename":
+      return "renomear simbolo rename refactor lsp"
+    case "lsp_goto_definition":
+      return "definicao definition jump go to lsp"
+    case "lsp_hover":
+      return "hover documentacao info doc lsp"
+    case "lsp_complete":
+      return "completar autocompletar intellisense suggest"
+    case "toggle_diagnostics":
+      return "problemas erros warnings diagnostics lsp"
+    case "git_blame":
+      return "blame autor quem escreveu linha commit"
+    case "git_pull":
+      return "pull atualizar baixar sincronizar"
+    case "git_push":
+      return "push enviar subir remoto"
+    case "show_diff":
+      return "diff alteracoes mudancas git"
+    case "help":
+      return "ajuda atalhos keybindings help"
+    case "which_key":
+      return "which key atalhos essenciais guia cheatsheet"
+    case "health_check":
+      return "saude diagnostico health check lsp bun"
+    case "run_tasks":
+      return "tarefas tasks scripts run build test"
+    case "undo_tree":
+      return "historico undo history alteracoes"
+    default:
+      return ""
+  }
+}
+
+export function buildPaletteEntries(app: Application): PickerEntry[] {
+  const isPt = app.config.locale === "pt-BR"
+  const entries: PickerEntry[] = []
+  const seenActions = new Set<string>()
+
+  // 1. Actions from menus with category prefixes
+  for (const menu of menus) {
+    const category = isPt ? menu.pt : menu.en
+    for (const actionId of menu.actions) {
+      if (seenActions.has(actionId)) continue
+      seenActions.add(actionId)
+
+      const baseLabel = app.label(actionId)
+      const label = `${category}: ${baseLabel}`
+      const chord = Object.entries(app.config.keys).find(([, action]) => action === actionId)?.[0]
+      const synonyms = actionSynonyms(actionId)
+      const detail = [chord, synonyms].filter(Boolean).join("  ·  ")
+
+      entries.push({
+        label,
+        detail,
+        run: () => app.dispatch(actionId),
+      })
+    }
+  }
+
+  // 2. Direct theme quick-pickers
+  const allThemes = [...app.preferences.themes.keys()]
+  for (const themeName of allThemes) {
+    const isCurrent = app.config.theme.toLowerCase().replaceAll(" ", "-") === themeName.toLowerCase().replaceAll(" ", "-")
+    const label = isPt ? `Tema: ${themeName}` : `Theme: ${themeName}`
+    const detail = [
+      isCurrent ? (isPt ? "[ativo]" : "[active]") : undefined,
+      "tema temas theme color cores visual"
+    ].filter(Boolean).join(" ")
+    entries.push({
+      label,
+      detail,
+      run: async () => {
+        app.config.theme = themeName
+        await savePreference(app.workspace, "theme", themeName)
+        app.highlights.clear()
+        await app.refreshAllHighlights()
+        app.status = app.t("messages", "theme_status", { theme: themeName })
+      },
+    })
+  }
+
+  // 3. Direct locale quick-pickers
+  const allLocales = [...app.preferences.locales.keys()]
+  for (const loc of allLocales) {
+    const isCurrent = app.config.locale === loc
+    const label = isPt ? `Idioma: ${loc}` : `Language: ${loc}`
+    const detail = [
+      isCurrent ? (isPt ? "[ativo]" : "[active]") : undefined,
+      "idioma language locale tradução"
+    ].filter(Boolean).join(" ")
+    entries.push({
+      label,
+      detail,
+      run: async () => {
+        app.config.locale = loc
+        await savePreference(app.workspace, "locale", loc)
+        app.changed()
+      },
+    })
+  }
+
+  // 4. Any other non-menu actionIds
+  for (const id of actionIds) {
+    if (seenActions.has(id) || id.startsWith("move_") || ["backspace", "delete", "insert_newline", "insert_tab"].includes(id)) continue
+    seenActions.add(id)
+    const label = app.label(id)
+    const chord = Object.entries(app.config.keys).find(([, action]) => action === id)?.[0]
+    const synonyms = actionSynonyms(id)
+    const detail = [chord, synonyms].filter(Boolean).join("  ·  ")
+    entries.push({
+      label,
+      detail,
+      run: () => app.dispatch(id),
+    })
+  }
+
+  // 5. Plugin commands
+  entries.push(...app.pluginEntries())
+
+  return entries
 }

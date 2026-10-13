@@ -7,6 +7,7 @@ import { Application } from "../src/app/application"
 import { defaultConfig } from "../src/services/config"
 import { Workbench } from "../src/ui/workbench"
 import { clampTreeWidth, clampSplitRatio, clampTerminalHeight } from "../src/ui/dividers"
+import { receiveKey } from "../src/app/input"
 
 async function waitFor(predicate: () => boolean, timeout = 3000): Promise<void> {
   const deadline = performance.now() + timeout
@@ -433,4 +434,93 @@ test("daisy-lain cyberpunk theme renders HUD badges and allows seamless switchin
     expect(frame).toContain("NORMAL")
   } finally { await view.cleanup() }
 })
+
+test("Alt activates menubar mnemonics and hotkeys navigate menus", async () => {
+  const view = await setup()
+  try {
+    // Initially altActive is false
+    expect(view.app.altActive).toBe(false)
+    expect(view.app.menu).toBeUndefined()
+
+    // Press Alt solo key
+    receiveKey(view.app, { name: "alt", ctrl: false, meta: false, shift: false, eventType: "press", preventDefault: () => {}, stopPropagation: () => {} } as any)
+    await view.flush()
+    expect(view.app.altActive).toBe(true)
+
+    // Press Escape to cancel alt
+    view.mockInput.pressEscape()
+    await view.flush()
+    expect(view.app.altActive).toBe(false)
+
+    // Press Alt+A (or Alt+F) opens Arquivo/File menu (column 0)
+    view.mockInput.pressKey("a", { meta: true })
+    await view.flush()
+    expect(view.app.menu?.column).toBe(0)
+    expect(view.app.altActive).toBe(true)
+
+    // While menu is open, pressing 'e' switches to Edit menu (column 1)
+    view.mockInput.pressKey("e")
+    await view.flush()
+    expect(view.app.menu?.column).toBe(1)
+
+    // Pressing 'c' switches to Configurações menu (column 3)
+    view.mockInput.pressKey("c")
+    await view.flush()
+    expect(view.app.menu?.column).toBe(3)
+
+    // Press Escape closes menu
+    view.mockInput.pressEscape()
+    await view.flush()
+    expect(view.app.menu).toBeUndefined()
+    expect(view.app.altActive).toBe(false)
+  } finally { await view.cleanup() }
+})
+
+test("Command palette includes all menu actions, settings, and direct theme choices", async () => {
+  const view = await setup()
+  try {
+    // Open command palette
+    await view.app.dispatch("command_palette")
+    expect(view.app.overlay?.kind).toBe("picker")
+
+    // Search for "tema"
+    view.mockInput.typeText("tema")
+    await view.flush()
+    if (view.app.overlay?.kind === "picker") {
+      const labels = view.app.pickerEntries.map(e => e.label.toLowerCase())
+      expect(labels.some(l => l.includes("tema") || l.includes("theme"))).toBe(true)
+      expect(labels.some(l => l.includes("daisy-lain"))).toBe(true)
+    }
+
+    // Clear query and search for "config"
+    if (view.app.overlay?.kind === "picker") {
+      view.app.overlay.query = ""
+      view.app.updatePicker()
+    }
+    view.mockInput.typeText("config")
+    await view.flush()
+    if (view.app.overlay?.kind === "picker") {
+      const labels = view.app.pickerEntries.map(e => e.label.toLowerCase())
+      expect(labels.some(l => l.includes("config"))).toBe(true)
+    }
+
+    // Clear query and search for "git"
+    if (view.app.overlay?.kind === "picker") {
+      view.app.overlay.query = ""
+      view.app.updatePicker()
+    }
+    view.mockInput.typeText("git")
+    await view.flush()
+    if (view.app.overlay?.kind === "picker") {
+      const labels = view.app.pickerEntries.map(e => e.label.toLowerCase())
+      expect(labels.some(l => l.includes("git"))).toBe(true)
+    }
+
+    // Close overlay
+    view.mockInput.pressEscape()
+    await view.flush()
+    expect(view.app.overlay).toBeUndefined()
+  } finally { await view.cleanup() }
+})
+
 
