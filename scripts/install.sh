@@ -178,20 +178,20 @@ install_desktop_integration() {
 
     mkdir -p "$apps_dir" "$icons_dir"
 
-    cat << EOF > "$apps_dir/daisy.desktop"
+    cat << EOF > "$apps_dir/daisy-code.desktop"
 [Desktop Entry]
 Type=Application
 Name=Daisy Code Editor
 GenericName=Text Editor
 Comment=Modern terminal code editor and mini-IDE built with OpenTUI + Solid
 Exec=$bin_path %F
-Icon=daisy
+Icon=daisy-code
 Terminal=true
 Categories=Development;TextEditor;IDE;
 Keywords=editor;code;terminal;tui;ide;daisy;
 EOF
 
-    cat << 'EOF' > "$icons_dir/daisy.svg"
+    cat << 'EOF' > "$icons_dir/daisy-code.svg"
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <circle cx="64" cy="64" r="60" fill="#181825"/>
   <circle cx="64" cy="28" r="16" fill="#f5e0dc" opacity="0.9"/>
@@ -309,9 +309,9 @@ main() {
             curl -fSL "${base_url}/${file}" -o "$TMP_DIR/daisy.AppImage"
             
             mkdir -p "$INSTALL_DIR"
-            install -m 755 "$TMP_DIR/daisy.AppImage" "$INSTALL_DIR/daisy"
+            install -m 755 "$TMP_DIR/daisy.AppImage" "$INSTALL_DIR/daisy-code"
             configure_path "$INSTALL_DIR"
-            install_desktop_integration "$INSTALL_DIR/daisy"
+            install_desktop_integration "$INSTALL_DIR/daisy-code"
             ;;
 
         arch)
@@ -410,11 +410,11 @@ main() {
             (cd "$TMP_DIR/extracted" && "$TMP_DIR/daisy.AppImage" --appimage-extract >/dev/null 2>&1)
             
             mkdir -p "$INSTALL_DIR"
-            cp "$TMP_DIR/extracted/squashfs-root/usr/bin/daisy" "$INSTALL_DIR/daisy"
-            chmod 755 "$INSTALL_DIR/daisy"
+            cp "$TMP_DIR/extracted/squashfs-root/usr/bin/daisy" "$INSTALL_DIR/daisy-code"
+            chmod 755 "$INSTALL_DIR/daisy-code"
 
             configure_path "$INSTALL_DIR"
-            install_desktop_integration "$INSTALL_DIR/daisy"
+            install_desktop_integration "$INSTALL_DIR/daisy-code"
             ;;
 
         *)
@@ -428,9 +428,9 @@ main() {
 
     printf "\n"
     printf "  ${BOLD}Getting Started:${RESET}\n"
-    printf "    ${CYAN}daisy .${RESET}             # Open current folder in Daisy\n"
-    printf "    ${CYAN}daisy path/to/file${RESET}  # Open a specific file\n"
-    printf "    ${CYAN}daisy --help${RESET}        # View keyboard shortcuts & options\n\n"
+    printf "    ${CYAN}daisy-code .${RESET}             # Open current folder in Daisy\n"
+    printf "    ${CYAN}daisy-code path/to/file${RESET}  # Open a specific file\n"
+    printf "    ${CYAN}daisy-code --help${RESET}        # View keyboard shortcuts & options\n\n"
 }
 
 main "$@"
