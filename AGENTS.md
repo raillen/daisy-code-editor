@@ -44,7 +44,6 @@ bun run build
 Para scripts do repo:
 ```bash
 bash -n scripts/install.sh
-node? não se aplica
 ```
 
 ## Lições absorvidas das crafting apps (daisy da storytold)
@@ -111,17 +110,5 @@ Diretrizes que passam a valer para este repositório:
 | P4 | **polimento 0.2** (help, find, clipboard, session, i18n, …) |
 | P5 | robustez + performance profiling (history O(n), polling, incremental LSP, snippets) |
 | P6 | multi-cursor UX + DAP + release automation (roadmap future) |
-
-Markdown futuro (preview, fence injections, MDX JSX): `docs/guides/pt/markdown.md` — **não** misturar no P3/P4.
-
-## Fases (resumo)
-
-| Fase | Foco |
-|------|------|
-| P0 | core + TUI + config/keymap/theme |
-| P1 | tabs, árvore, terminal, palette (alpha.2) |
-| P2 | tree-sitter + Markdown rico (alpha.3) |
-| P3 | LSP engine & tooling |
-| P4 | **polimento 0.2** (help, find, clipboard, session, i18n, …) |
 
 Markdown futuro (preview, fence injections, MDX JSX): `docs/guides/pt/markdown.md` — **não** misturar no P3/P4.
