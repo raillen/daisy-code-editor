@@ -76,7 +76,8 @@ export class FileTree {
     else { const file = await open(target, "wx"); await file.close() }
     this.expanded.add(parent)
     await this.refresh()
-    this.selected = Math.max(0, this.rows.findIndex(row => row.path === target))
+    const createdIndex = this.rows.findIndex(row => row.path === target)
+    if (createdIndex >= 0) this.selected = createdIndex
     return target
   }
 }

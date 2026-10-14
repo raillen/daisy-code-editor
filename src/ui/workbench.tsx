@@ -6,14 +6,14 @@ import { join } from "node:path"
 import { execute } from "../services/git"
 import { selectedTheme } from "../services/preferences"
 import type { Application } from "../app/application"
-import { commands } from "../app/commands"
+
 import { receiveKey, receivePaste } from "../app/input"
 import { languageOf, resolvePreviewImage, extractOpenableLink } from "../services/languages"
 import { offsetAt } from "../core/document"
 import { EditorPane } from "./editor"
 import { themeOf, resolveColor, type Theme } from "./theme"
 import { clampTreeWidth, clampSplitRatio, clampTerminalHeight } from "./dividers"
-import { fileGlyph, folderGlyph, gitBranch, lspGlyph, diagnosticError, diagnosticWarning, searchGlyph, chevronGlyph, tabClose, tabDirty } from "../services/icons"
+import { fileGlyph, folderGlyph, gitBranch, lspGlyph, diagnosticError, diagnosticWarning, searchGlyph } from "../services/icons"
 import { menus } from "./menus"
 
 export function Workbench(props: { app: Application; live?: boolean; onQuit?: () => void | Promise<void> }) {
@@ -112,7 +112,7 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
       else renderer.copyToClipboardOSC52(text) }
     if (app.quit && !quitting) { quitting = true; if (props.onQuit) void props.onQuit(); else renderer.destroy() }
   })
-  onMount(() => { if (props.live) poll = setInterval(() => { void app.refreshGit(); void app.guard(() => app.pollDisk()) }, 2000) })
+  onMount(() => { if (props.live) poll = setInterval(() => { void app.refreshGit(); void app.guard(() => app.pollDisk()) }, 3000) })
   onCleanup(() => {
     unsubscribe(); clearInterval(poll); style.destroy(); app.readClipboard = undefined
     app.scrollPreview = delta => { app.previewScroll = Math.max(0, app.previewScroll + delta); app.changed() }

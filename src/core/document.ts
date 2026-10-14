@@ -93,6 +93,7 @@ export class Document {
   savedText: string
   readonly history: Snapshot[] = []
   private future: Snapshot[] = []
+  private historyBytes = 0
   private grouping = false
   private preferredColumn: number | undefined
 
@@ -114,9 +115,16 @@ export class Document {
   }
 
   private remember(label: string, group: boolean): void {
-    if (!group || !this.grouping) this.history.push(this.snapshot(label))
+    if (!group || !this.grouping) {
+      const snapshot = this.snapshot(label)
+      this.history.push(snapshot)
+      this.historyBytes += snapshot.text.length * 2
+    }
     // Bound history by bytes, not only entry count: large files must not exhaust memory.
-    while (this.history.length > 1 && this.history.reduce((size, entry) => size + entry.text.length * 2, 0) > 32 * 1024 * 1024) this.history.shift()
+    while (this.history.length > 1 && this.historyBytes > 32 * 1024 * 1024) {
+      const removed = this.history.shift()
+      if (removed) this.historyBytes = Math.max(0, this.historyBytes - removed.text.length * 2)
+    }
     this.future = []
     this.grouping = group
     this.preferredColumn = undefined
@@ -228,6 +236,7 @@ export class Document {
     this.commit()
     const previous = this.history.pop()
     if (!previous) return
+    this.historyBytes = Math.max(0, this.historyBytes - previous.text.length * 2)
     this.future.push(this.snapshot(previous.label))
     this.restore(previous)
   }
@@ -235,7 +244,9 @@ export class Document {
   redo(): void {
     const next = this.future.pop()
     if (!next) return
-    this.history.push(this.snapshot(next.label))
+    const current = this.snapshot(next.label)
+    this.history.push(current)
+    this.historyBytes += current.text.length * 2
     this.restore(next)
   }
 

@@ -1,6 +1,5 @@
 import { fuzzyScore } from "../core/search"
 import { lineRanges } from "../core/document"
-import { lookupCatalogItem, type LanguageCatalogItem } from "./languageCatalog"
 
 export type DocumentSymbol = {
   name: string

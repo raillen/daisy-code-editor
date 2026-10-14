@@ -1,7 +1,7 @@
 import { stat, readdir, mkdir } from "node:fs/promises"
 import { dirname, join, resolve, basename } from "node:path"
-import { fileURLToPath, pathToFileURL } from "node:url"
-import { Document, offsetAt, type TextEdit } from "../core/document"
+import { fileURLToPath } from "node:url"
+import { Document, offsetAt } from "../core/document"
 import { type ActionId } from "../core/keymap"
 import { fuzzyScore, findMatches, searchDefaults, replacementEdits, type SearchOptions, type Match } from "../core/search"
 import { loadConfig, userConfigDir, type Config } from "../services/config"
@@ -11,6 +11,7 @@ import { highlight, languageOf, type HighlightToken } from "../services/language
 import { TerminalSession } from "../services/terminal"
 import { LspClient } from "../services/lsp"
 import { discoverPlugins, runPlugin, type Plugin, type PluginCommand } from "../services/plugins"
+import { loadUserSnippets } from "../services/snippets"
 import { commands, type Command } from "./commands"
 import { builtInThemes, builtInLocales, t } from "../services/catalogs"
 import { loadPreferences, labelOf, editorIndent, type Preferences } from "../services/preferences"
@@ -1119,6 +1120,36 @@ export class Application {
             }
           })
         }
+      }
+    }
+
+    // 3.5 Snippets definidos pelo usuário em .daisy/snippets
+    const userSnippets = await loadUserSnippets(this.workspace, lang)
+    for (const snippet of userSnippets) {
+      const matches = !word || snippet.trigger.toLowerCase().startsWith(word.toLowerCase()) || (word.length >= 3 && fuzzyScore(snippet.trigger, word) > -Infinity)
+      if (matches && !seenLabels.has(snippet.trigger)) {
+        seenLabels.add(snippet.trigger)
+        items.push({
+          label: snippet.trigger,
+          detail: `${snippet.description ?? "user snippet"} · snippet`,
+          kind: "snippet",
+          doc: snippet.body,
+          insertText: snippet.body,
+          run: () => {
+            const start = document.primary.head - word.length
+            document.select(start, document.primary.head)
+            const insertText = snippet.body
+            if (insertText.includes("$0")) {
+              const cursorOffset = insertText.indexOf("$0")
+              const textToInsert = insertText.replace("$0", "")
+              document.insert(textToInsert, false)
+              document.select(start + cursorOffset)
+            } else {
+              document.insert(insertText, false)
+            }
+            this.afterEdit()
+          }
+        })
       }
     }
 

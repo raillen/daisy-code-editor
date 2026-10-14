@@ -1,13 +1,13 @@
-import { basename, dirname, join, resolve, relative } from "node:path"
+import { basename, dirname, join, relative } from "node:path"
 import { rename, unlink, rmdir, stat } from "node:fs/promises"
 import { actionIds, type ActionId } from "../core/keymap"
 import { offsetAt, lineRanges, type Direction } from "../core/document"
 import { findMatches } from "../core/search"
-import { lineComment, languageOf, commentDelimiters } from "../services/languages"
-import { readText, FileTree } from "../services/files"
-import { readToml, record, userConfigDir, loadConfig } from "../services/config"
+import { languageOf, commentDelimiters } from "../services/languages"
+import { readText } from "../services/files"
+import { readToml, record, userConfigDir } from "../services/config"
 import type { Application, PickerEntry } from "./application"
-import { loadPreferences, savePreference } from "../services/preferences"
+import { savePreference } from "../services/preferences"
 import { menus } from "./menus"
 
 export type Command = { label: string; run: (app: Application) => void | Promise<void> }

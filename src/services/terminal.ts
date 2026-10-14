@@ -72,11 +72,13 @@ export class TerminalSession {
     this.closed = true
     if (this.process.exitCode === null) {
       try { process.kill(-this.process.pid, "SIGKILL") } catch (error) {
+        if (!(error instanceof Error && "code" in error && (error.code === "ESRCH" || error.code === "EPERM"))) throw error
+      }
+      try { this.process.kill("SIGKILL") } catch (error) {
         if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error
       }
     }
     this.terminal.close()
-    this.process.kill("SIGKILL")
     await this.process.exited
     this.emulator.dispose()
   }

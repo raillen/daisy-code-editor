@@ -12,7 +12,15 @@
     "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["bun"]
+    "types": [
+      "bun"
+    ],
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   },
-  "include": ["src", "tests", "scripts/*.ts"]
+  "include": [
+    "src",
+    "tests",
+    "scripts/*.ts"
+  ]
 }
