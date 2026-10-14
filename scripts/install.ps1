@@ -72,8 +72,8 @@ function Main {
     Write-Host "==> To run on Windows, you can also use WSL (Ubuntu/Debian) or install Bun (https://bun.sh)." -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  Getting Started:" -ForegroundColor Cyan
-    Write-Host "    daisy ."
-    Write-Host "    daisy --help"
+    Write-Host "    daisy-code ."
+    Write-Host "    daisy-code --help"
     Write-Host ""
 }
 

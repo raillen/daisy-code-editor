@@ -229,8 +229,34 @@ verify_native_package() {
               contents=$(dpkg-deb --contents "$package" | awk '{ print $NF }') || return 1 ;;
         rpm)  command -v rpm >/dev/null 2>&1 || return 1
               contents=$(rpm -qpl "$package") || return 1 ;;
+        *) log_error "Unknown native format: $format"; return 1 ;;
     esac
-    if printf '%s\n' "$contents" | grep -Eq '(^|/)(daisy|daisy\.desktop|daisy\.svg|daisy\.png)    printf "\n"
+    if printf '%s\n' "$contents" | grep -Eq '(^|/)usr/bin/daisy$|(^|/)daisy\.(desktop|svg|png)$'; then
+        log_error "Package contains legacy Daisy paths and could overwrite Daisy File Manager."
+        log_error "No package was installed. Choose AppImage until native packages are rebuilt."
+        return 1
+    fi
+    if ! printf '%s\n' "$contents" | grep -Eq '(^|/)usr/bin/daisy-code$'; then
+        log_error "Package does not contain /usr/bin/daisy-code. Installation refused."
+        return 1
+    fi
+}
+
+verify_elf() {
+    local target="$1" magic
+    [ -s "$target" ] && [ -x "$target" ] || { log_error "Installed file is missing or non-executable: $target"; return 1; }
+    magic=$(od -An -tx1 -N4 "$target" | tr -d ' \n')
+    [ "$magic" = "7f454c46" ] || { log_error "Artifact is not a Linux executable: $target"; return 1; }
+}
+
+verify_native_install() {
+    [ -x /usr/bin/daisy-code ] || [ -x /usr/local/bin/daisy-code ] || {
+        log_error "Package manager exited successfully, but /usr/bin/daisy-code is missing."
+        return 1
+    }
+}
+
+main() {
     printf "  ${BOLD}${YELLOW}╭────────────────────────────────────────────────────────────╮${RESET}\n"
     printf "  ${BOLD}${YELLOW}│${RESET}               ${BOLD}🌼 Daisy Code Editor Installer${RESET}               ${BOLD}${YELLOW}│${RESET}\n"
     printf "  ${BOLD}${YELLOW}│${RESET}   ${CYAN}Modern Terminal Code Editor · OpenTUI + Solid (Bun)${RESET}     ${BOLD}${YELLOW}│${RESET}\n"
@@ -239,6 +265,13 @@ verify_native_package() {
     TMP_DIR=$(mktemp -d)
     local detected
     detected=$(detect_distro)
+
+    # O ecossistema Daisy possui mais de um app. Para não sobrescrever um
+    # comando `daisy` de outro projeto (ex.: Daisy File Manager), o editor
+    # instala-se explicitamente como `daisy-code`.
+    if command -v daisy >/dev/null 2>&1; then
+        log_warn "Existing 'daisy' command detected. Daisy Code Editor will install as 'daisy-code' to avoid overwriting the other app."
+    fi
 
     # 1. Resolve Version
     local target_version="${VERSION:-}"
@@ -430,474 +463,6 @@ verify_native_package() {
         printf "    ${CYAN}flatpak run io.github.raillen.daisy${RESET}\n"
         return 0
     fi
-    printf "    ${CYAN}daisy-code .${RESET}             # Open current folder in Daisy\n"
-    printf "    ${CYAN}daisy-code path/to/file${RESET}  # Open a specific file\n"
-    printf "    ${CYAN}daisy-code --help${RESET}        # View keyboard shortcuts & options\n\n"
-}
-
-main "$@"
-; then
-        log_error "Package contains legacy Daisy paths and could overwrite Daisy File Manager."
-        log_error "No package was installed. Choose AppImage (option 2) until native packages are rebuilt."
-        return 1
-    fi
-    if ! printf '%s\n' "$contents" | grep -Eq '(^|/)usr/bin/daisy-code    printf "\n"
-    printf "  ${BOLD}${YELLOW}╭────────────────────────────────────────────────────────────╮${RESET}\n"
-    printf "  ${BOLD}${YELLOW}│${RESET}               ${BOLD}🌼 Daisy Code Editor Installer${RESET}               ${BOLD}${YELLOW}│${RESET}\n"
-    printf "  ${BOLD}${YELLOW}│${RESET}   ${CYAN}Modern Terminal Code Editor · OpenTUI + Solid (Bun)${RESET}     ${BOLD}${YELLOW}│${RESET}\n"
-    printf "  ${BOLD}${YELLOW}╰────────────────────────────────────────────────────────────╯${RESET}\n\n"
-
-    TMP_DIR=$(mktemp -d)
-    local detected
-    detected=$(detect_distro)
-
-    # 1. Resolve Version
-    local target_version="${VERSION:-}"
-    if [ -z "$target_version" ]; then
-        log_info "Fetching available releases..."
-        local versions_list
-        versions_list=$(get_available_versions)
-        local latest_version
-        latest_version=$(echo "$versions_list" | head -n 1)
-
-        printf "\n  ${BOLD}Available versions:${RESET}\n"
-        local i=1
-        while IFS= read -r ver; do
-            if [ -n "$ver" ]; then
-                printf "    ${CYAN}[%d]${RESET} %s" "$i" "$ver"
-                if [ "$ver" = "$latest_version" ]; then
-                    printf " ${GREEN}(latest)${RESET}\n"
-                else
-                    printf "\n"
-                fi
-                ((i++))
-            fi
-        done <<< "$versions_list"
-
-        local ver_choice=""
-        read_input "\n  Select version to install [default: 1]: " ver_choice "1"
-        
-        # Check if choice is a number
-        if [[ "$ver_choice" =~ ^[0-9]+$ ]]; then
-            local selected_ver
-            selected_ver=$(echo "$versions_list" | sed -n "${ver_choice}p")
-            target_version="${selected_ver:-$latest_version}"
-        elif [ -n "$ver_choice" ]; then
-            target_version="$ver_choice"
-        else
-            target_version="$latest_version"
-        fi
-    fi
-
-    # Ensure leading 'v'
-    if [[ ! "$target_version" =~ ^v ]]; then
-        target_version="v${target_version}"
-    fi
-    local raw_version="${target_version#v}"
-
-    log_success "Selected release version: ${BOLD}${target_version}${RESET}"
-
-    # 2. Resolve Installation Format
-    local format="${FORMAT:-}"
-    if [ -z "$format" ]; then
-        printf "\n  ${BOLD}Choose installation format / package:${RESET}\n"
-        printf "    ${CYAN}[1]${RESET} Recommended: isolated AppImage (no root or naming conflicts)\n"
-        printf "    ${CYAN}[2]${RESET} AppImage (Universal standalone executable in ~/.local/bin)\n"
-        printf "    ${CYAN}[3]${RESET} Arch Linux (.pkg.tar.zst via pacman)\n"
-        printf "    ${CYAN}[4]${RESET} Debian / Ubuntu (.deb via apt/dpkg)\n"
-        printf "    ${CYAN}[5]${RESET} Fedora / RHEL (.rpm via dnf/rpm)\n"
-        printf "    ${CYAN}[6]${RESET} Flatpak (Universal flatpak bundle)\n"
-        printf "    ${CYAN}[7]${RESET} Standalone Binary (Extracted directly to ~/.local/bin)\n"
-
-        local fmt_choice=""
-        read_input "\n  Select format [default: 1]: " fmt_choice "1"
-
-        case "$fmt_choice" in
-            1) format="appimage" ;;
-            2) format="appimage" ;;
-            3) format="arch" ;;
-            4) format="deb" ;;
-            5) format="rpm" ;;
-            6) format="flatpak" ;;
-            7) format="binary" ;;
-            *) format="appimage" ;;
-        esac
-    fi
-
-    format=$(echo "$format" | tr '[:upper:]' '[:lower:]')
-    log_info "Target format: ${BOLD}${format^^}${RESET}"
-
-    local base_url="https://github.com/${REPO}/releases/download/${target_version}"
-
-    # Execute installation according to chosen format
-    case "$format" in
-        appimage)
-            local file="Daisy-${raw_version}-x86_64.AppImage"
-            log_info "Downloading ${file}..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/daisy.AppImage"
-            
-            mkdir -p "$INSTALL_DIR"
-            install -m 755 "$TMP_DIR/daisy.AppImage" "$INSTALL_DIR/daisy-code"
-            configure_path "$INSTALL_DIR"
-            install_desktop_integration "$INSTALL_DIR/daisy-code"
-            ;;
-
-        arch)
-            local file="daisy-code-editor-${raw_version}-1-x86_64.pkg.tar.zst"
-            log_info "Downloading ${file}..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/$file"
-            
-            if command -v pacman >/dev/null 2>&1; then
-                log_info "Installing via pacman..."
-                if [ "$(id -u)" -eq 0 ]; then
-                    pacman -U --noconfirm "$TMP_DIR/$file"
-                elif command -v sudo >/dev/null 2>&1; then
-                    sudo pacman -U --noconfirm "$TMP_DIR/$file"
-                else
-                    log_warn "No root or sudo available. Extracting package to ~/.local..."
-                    tar --zstd -xf "$TMP_DIR/$file" -C "$HOME/.local"
-                    configure_path "$INSTALL_DIR"
-                fi
-            else
-                log_warn "pacman not found. Extracting package contents into ~/.local..."
-                tar --zstd -xf "$TMP_DIR/$file" -C "$HOME/.local"
-                configure_path "$INSTALL_DIR"
-            fi
-            ;;
-
-        deb)
-            local file="daisy_${raw_version}_amd64.deb"
-            log_info "Downloading ${file}..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/$file"
-
-            if command -v apt-get >/dev/null 2>&1 || command -v dpkg >/dev/null 2>&1; then
-                log_info "Installing Debian package..."
-                if [ "$(id -u)" -eq 0 ]; then
-                    apt-get install -y "$TMP_DIR/$file" || dpkg -i "$TMP_DIR/$file"
-                elif command -v sudo >/dev/null 2>&1; then
-                    sudo apt-get install -y "$TMP_DIR/$file" || sudo dpkg -i "$TMP_DIR/$file"
-                else
-                    log_warn "No root or sudo available. Extracting .deb data to ~/.local..."
-                    ar p "$TMP_DIR/$file" data.tar.zst 2>/dev/null | tar --zstd -xf - -C "$HOME/.local" || \
-                    ar p "$TMP_DIR/$file" data.tar.xz 2>/dev/null | tar -xJf - -C "$HOME/.local" || \
-                    ar p "$TMP_DIR/$file" data.tar.gz 2>/dev/null | tar -xzf - -C "$HOME/.local"
-                    configure_path "$INSTALL_DIR"
-                fi
-            else
-                log_warn "apt/dpkg not found. Extracting .deb to ~/.local..."
-                ar p "$TMP_DIR/$file" data.tar.zst 2>/dev/null | tar --zstd -xf - -C "$HOME/.local" || true
-                configure_path "$INSTALL_DIR"
-            fi
-            ;;
-
-        rpm)
-            local file="daisy-code-editor-${raw_version}-1.x86_64.rpm"
-            log_info "Downloading ${file}..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/$file"
-
-            if command -v dnf >/dev/null 2>&1 || command -v rpm >/dev/null 2>&1; then
-                log_info "Installing RPM package..."
-                if [ "$(id -u)" -eq 0 ]; then
-                    dnf install -y "$TMP_DIR/$file" || rpm -Uvh "$TMP_DIR/$file"
-                elif command -v sudo >/dev/null 2>&1; then
-                    sudo dnf install -y "$TMP_DIR/$file" || sudo rpm -Uvh "$TMP_DIR/$file"
-                else
-                    log_warn "No root or sudo available. Extracting RPM to ~/.local..."
-                    cd "$HOME/.local" && rpm2cpio "$TMP_DIR/$file" | cpio -idmv
-                    configure_path "$INSTALL_DIR"
-                fi
-            else
-                log_warn "dnf/rpm not found. Extracting RPM to ~/.local..."
-                cd "$HOME/.local" && rpm2cpio "$TMP_DIR/$file" | cpio -idmv
-                configure_path "$INSTALL_DIR"
-            fi
-            ;;
-
-        flatpak)
-            local file="daisy-${raw_version}-x86_64.flatpak"
-            log_info "Downloading ${file}..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/$file"
-
-            if command -v flatpak >/dev/null 2>&1; then
-                log_info "Installing Flatpak bundle..."
-                flatpak install --user --bundle -y "$TMP_DIR/$file"
-                log_success "Daisy installed as Flatpak: run with 'flatpak run io.github.raillen.daisy'"
-            else
-                log_error "Flatpak is not installed on this system."
-                exit 1
-            fi
-            ;;
-
-        binary)
-            local file="Daisy-${raw_version}-x86_64.AppImage"
-            log_info "Downloading ${file} to extract standalone binary..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/daisy.AppImage"
-            chmod +x "$TMP_DIR/daisy.AppImage"
-
-            mkdir -p "$TMP_DIR/extracted"
-            (cd "$TMP_DIR/extracted" && "$TMP_DIR/daisy.AppImage" --appimage-extract >/dev/null 2>&1)
-            
-            mkdir -p "$INSTALL_DIR"
-            cp "$TMP_DIR/extracted/squashfs-root/usr/bin/daisy" "$INSTALL_DIR/daisy-code"
-            chmod 755 "$INSTALL_DIR/daisy-code"
-
-            configure_path "$INSTALL_DIR"
-            install_desktop_integration "$INSTALL_DIR/daisy-code"
-            ;;
-
-        *)
-            log_error "Unknown format: $format. Supported: appimage, arch, deb, rpm, flatpak, binary."
-            exit 1
-            ;;
-    esac
-
-    printf "\n"
-    log_success "Daisy Code Editor (${target_version}) successfully installed! 🌼"
-
-    printf "\n"
-    printf "  ${BOLD}Getting Started:${RESET}\n"
-    printf "    ${CYAN}daisy-code .${RESET}             # Open current folder in Daisy\n"
-    printf "    ${CYAN}daisy-code path/to/file${RESET}  # Open a specific file\n"
-    printf "    ${CYAN}daisy-code --help${RESET}        # View keyboard shortcuts & options\n\n"
-}
-
-main "$@"
-; then
-        log_error "Package does not contain /usr/bin/daisy-code. Installation refused."
-        return 1
-    fi
-}
-
-verify_elf() {
-    local target="$1" magic
-    [ -s "$target" ] && [ -x "$target" ] || { log_error "Installed file is missing or non-executable: $target"; return 1; }
-    magic=$(od -An -tx1 -N4 "$target" | tr -d ' \n')
-    [ "$magic" = "7f454c46" ] || { log_error "Artifact is not a Linux executable: $target"; return 1; }
-}
-
-verify_native_install() {
-    [ -x /usr/bin/daisy-code ] || [ -x /usr/local/bin/daisy-code ] || {
-        log_error "Package manager exited successfully, but /usr/bin/daisy-code is missing."
-        return 1
-    }
-}
-
-main() {
-    printf "\n"
-    printf "  ${BOLD}${YELLOW}╭────────────────────────────────────────────────────────────╮${RESET}\n"
-    printf "  ${BOLD}${YELLOW}│${RESET}               ${BOLD}🌼 Daisy Code Editor Installer${RESET}               ${BOLD}${YELLOW}│${RESET}\n"
-    printf "  ${BOLD}${YELLOW}│${RESET}   ${CYAN}Modern Terminal Code Editor · OpenTUI + Solid (Bun)${RESET}     ${BOLD}${YELLOW}│${RESET}\n"
-    printf "  ${BOLD}${YELLOW}╰────────────────────────────────────────────────────────────╯${RESET}\n\n"
-
-    TMP_DIR=$(mktemp -d)
-    local detected
-    detected=$(detect_distro)
-
-    # 1. Resolve Version
-    local target_version="${VERSION:-}"
-    if [ -z "$target_version" ]; then
-        log_info "Fetching available releases..."
-        local versions_list
-        versions_list=$(get_available_versions)
-        local latest_version
-        latest_version=$(echo "$versions_list" | head -n 1)
-
-        printf "\n  ${BOLD}Available versions:${RESET}\n"
-        local i=1
-        while IFS= read -r ver; do
-            if [ -n "$ver" ]; then
-                printf "    ${CYAN}[%d]${RESET} %s" "$i" "$ver"
-                if [ "$ver" = "$latest_version" ]; then
-                    printf " ${GREEN}(latest)${RESET}\n"
-                else
-                    printf "\n"
-                fi
-                ((i++))
-            fi
-        done <<< "$versions_list"
-
-        local ver_choice=""
-        read_input "\n  Select version to install [default: 1]: " ver_choice "1"
-        
-        # Check if choice is a number
-        if [[ "$ver_choice" =~ ^[0-9]+$ ]]; then
-            local selected_ver
-            selected_ver=$(echo "$versions_list" | sed -n "${ver_choice}p")
-            target_version="${selected_ver:-$latest_version}"
-        elif [ -n "$ver_choice" ]; then
-            target_version="$ver_choice"
-        else
-            target_version="$latest_version"
-        fi
-    fi
-
-    # Ensure leading 'v'
-    if [[ ! "$target_version" =~ ^v ]]; then
-        target_version="v${target_version}"
-    fi
-    local raw_version="${target_version#v}"
-
-    log_success "Selected release version: ${BOLD}${target_version}${RESET}"
-
-    # 2. Resolve Installation Format
-    local format="${FORMAT:-}"
-    if [ -z "$format" ]; then
-        printf "\n  ${BOLD}Choose installation format / package:${RESET}\n"
-        printf "    ${CYAN}[1]${RESET} Recommended: isolated AppImage (no root or naming conflicts)\n"
-        printf "    ${CYAN}[2]${RESET} AppImage (Universal standalone executable in ~/.local/bin)\n"
-        printf "    ${CYAN}[3]${RESET} Arch Linux (.pkg.tar.zst via pacman)\n"
-        printf "    ${CYAN}[4]${RESET} Debian / Ubuntu (.deb via apt/dpkg)\n"
-        printf "    ${CYAN}[5]${RESET} Fedora / RHEL (.rpm via dnf/rpm)\n"
-        printf "    ${CYAN}[6]${RESET} Flatpak (Universal flatpak bundle)\n"
-        printf "    ${CYAN}[7]${RESET} Standalone Binary (Extracted directly to ~/.local/bin)\n"
-
-        local fmt_choice=""
-        read_input "\n  Select format [default: 1]: " fmt_choice "1"
-
-        case "$fmt_choice" in
-            1) format="appimage" ;;
-            2) format="appimage" ;;
-            3) format="arch" ;;
-            4) format="deb" ;;
-            5) format="rpm" ;;
-            6) format="flatpak" ;;
-            7) format="binary" ;;
-            *) format="appimage" ;;
-        esac
-    fi
-
-    format=$(echo "$format" | tr '[:upper:]' '[:lower:]')
-    log_info "Target format: ${BOLD}${format^^}${RESET}"
-
-    local base_url="https://github.com/${REPO}/releases/download/${target_version}"
-
-    # Execute installation according to chosen format
-    case "$format" in
-        appimage)
-            local file="Daisy-${raw_version}-x86_64.AppImage"
-            log_info "Downloading ${file}..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/daisy.AppImage"
-            
-            mkdir -p "$INSTALL_DIR"
-            install -m 755 "$TMP_DIR/daisy.AppImage" "$INSTALL_DIR/daisy-code"
-            configure_path "$INSTALL_DIR"
-            install_desktop_integration "$INSTALL_DIR/daisy-code"
-            ;;
-
-        arch)
-            local file="daisy-code-editor-${raw_version}-1-x86_64.pkg.tar.zst"
-            log_info "Downloading ${file}..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/$file"
-            
-            if command -v pacman >/dev/null 2>&1; then
-                log_info "Installing via pacman..."
-                if [ "$(id -u)" -eq 0 ]; then
-                    pacman -U --noconfirm "$TMP_DIR/$file"
-                elif command -v sudo >/dev/null 2>&1; then
-                    sudo pacman -U --noconfirm "$TMP_DIR/$file"
-                else
-                    log_warn "No root or sudo available. Extracting package to ~/.local..."
-                    tar --zstd -xf "$TMP_DIR/$file" -C "$HOME/.local"
-                    configure_path "$INSTALL_DIR"
-                fi
-            else
-                log_warn "pacman not found. Extracting package contents into ~/.local..."
-                tar --zstd -xf "$TMP_DIR/$file" -C "$HOME/.local"
-                configure_path "$INSTALL_DIR"
-            fi
-            ;;
-
-        deb)
-            local file="daisy_${raw_version}_amd64.deb"
-            log_info "Downloading ${file}..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/$file"
-
-            if command -v apt-get >/dev/null 2>&1 || command -v dpkg >/dev/null 2>&1; then
-                log_info "Installing Debian package..."
-                if [ "$(id -u)" -eq 0 ]; then
-                    apt-get install -y "$TMP_DIR/$file" || dpkg -i "$TMP_DIR/$file"
-                elif command -v sudo >/dev/null 2>&1; then
-                    sudo apt-get install -y "$TMP_DIR/$file" || sudo dpkg -i "$TMP_DIR/$file"
-                else
-                    log_warn "No root or sudo available. Extracting .deb data to ~/.local..."
-                    ar p "$TMP_DIR/$file" data.tar.zst 2>/dev/null | tar --zstd -xf - -C "$HOME/.local" || \
-                    ar p "$TMP_DIR/$file" data.tar.xz 2>/dev/null | tar -xJf - -C "$HOME/.local" || \
-                    ar p "$TMP_DIR/$file" data.tar.gz 2>/dev/null | tar -xzf - -C "$HOME/.local"
-                    configure_path "$INSTALL_DIR"
-                fi
-            else
-                log_warn "apt/dpkg not found. Extracting .deb to ~/.local..."
-                ar p "$TMP_DIR/$file" data.tar.zst 2>/dev/null | tar --zstd -xf - -C "$HOME/.local" || true
-                configure_path "$INSTALL_DIR"
-            fi
-            ;;
-
-        rpm)
-            local file="daisy-code-editor-${raw_version}-1.x86_64.rpm"
-            log_info "Downloading ${file}..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/$file"
-
-            if command -v dnf >/dev/null 2>&1 || command -v rpm >/dev/null 2>&1; then
-                log_info "Installing RPM package..."
-                if [ "$(id -u)" -eq 0 ]; then
-                    dnf install -y "$TMP_DIR/$file" || rpm -Uvh "$TMP_DIR/$file"
-                elif command -v sudo >/dev/null 2>&1; then
-                    sudo dnf install -y "$TMP_DIR/$file" || sudo rpm -Uvh "$TMP_DIR/$file"
-                else
-                    log_warn "No root or sudo available. Extracting RPM to ~/.local..."
-                    cd "$HOME/.local" && rpm2cpio "$TMP_DIR/$file" | cpio -idmv
-                    configure_path "$INSTALL_DIR"
-                fi
-            else
-                log_warn "dnf/rpm not found. Extracting RPM to ~/.local..."
-                cd "$HOME/.local" && rpm2cpio "$TMP_DIR/$file" | cpio -idmv
-                configure_path "$INSTALL_DIR"
-            fi
-            ;;
-
-        flatpak)
-            local file="daisy-${raw_version}-x86_64.flatpak"
-            log_info "Downloading ${file}..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/$file"
-
-            if command -v flatpak >/dev/null 2>&1; then
-                log_info "Installing Flatpak bundle..."
-                flatpak install --user --bundle -y "$TMP_DIR/$file"
-                log_success "Daisy installed as Flatpak: run with 'flatpak run io.github.raillen.daisy'"
-            else
-                log_error "Flatpak is not installed on this system."
-                exit 1
-            fi
-            ;;
-
-        binary)
-            local file="Daisy-${raw_version}-x86_64.AppImage"
-            log_info "Downloading ${file} to extract standalone binary..."
-            curl -fSL "${base_url}/${file}" -o "$TMP_DIR/daisy.AppImage"
-            chmod +x "$TMP_DIR/daisy.AppImage"
-
-            mkdir -p "$TMP_DIR/extracted"
-            (cd "$TMP_DIR/extracted" && "$TMP_DIR/daisy.AppImage" --appimage-extract >/dev/null 2>&1)
-            
-            mkdir -p "$INSTALL_DIR"
-            cp "$TMP_DIR/extracted/squashfs-root/usr/bin/daisy" "$INSTALL_DIR/daisy-code"
-            chmod 755 "$INSTALL_DIR/daisy-code"
-
-            configure_path "$INSTALL_DIR"
-            install_desktop_integration "$INSTALL_DIR/daisy-code"
-            ;;
-
-        *)
-            log_error "Unknown format: $format. Supported: appimage, arch, deb, rpm, flatpak, binary."
-            exit 1
-            ;;
-    esac
-
-    printf "\n"
-    log_success "Daisy Code Editor (${target_version}) successfully installed! 🌼"
-
-    printf "\n"
-    printf "  ${BOLD}Getting Started:${RESET}\n"
     printf "    ${CYAN}daisy-code .${RESET}             # Open current folder in Daisy\n"
     printf "    ${CYAN}daisy-code path/to/file${RESET}  # Open a specific file\n"
     printf "    ${CYAN}daisy-code --help${RESET}        # View keyboard shortcuts & options\n\n"

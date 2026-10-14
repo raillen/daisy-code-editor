@@ -150,7 +150,7 @@ Direct binary downloads are hosted on [GitHub Releases](https://github.com/raill
 | **Debian / Ubuntu (.deb)** | `sudo dpkg -i daisy_0.2.0_amd64.deb` |
 | **Fedora / RHEL (.rpm)** | `sudo dnf install ./daisy-code-editor-0.2.0-1.x86_64.rpm` |
 | **Flatpak Bundle** | `flatpak install --bundle daisy-0.2.0.flatpak` |
-| **Standalone Binary** | `chmod +x daisy-linux-x64 && sudo mv daisy-linux-x64 /usr/local/bin/daisy` |
+| **Standalone Binary** | `chmod +x daisy-linux-x64 && sudo mv daisy-linux-x64 /usr/local/bin/daisy-code` |
 
 ---
 

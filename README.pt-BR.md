@@ -150,7 +150,7 @@ Downloads binários diretos estão disponíveis em [GitHub Releases](https://git
 | **Debian / Ubuntu (.deb)** | `sudo dpkg -i daisy_0.2.0_amd64.deb` |
 | **Fedora / RHEL (.rpm)** | `sudo dnf install ./daisy-code-editor-0.2.0-1.x86_64.rpm` |
 | **Flatpak Bundle** | `flatpak install --bundle daisy-0.2.0.flatpak` |
-| **Binário Standalone** | `chmod +x daisy-linux-x64 && sudo mv daisy-linux-x64 /usr/local/bin/daisy` |
+| **Binário Standalone** | `chmod +x daisy-linux-x64 && sudo mv daisy-linux-x64 /usr/local/bin/daisy-code` |
 
 ---
 
