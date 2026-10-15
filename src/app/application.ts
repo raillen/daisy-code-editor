@@ -1,7 +1,7 @@
 import { stat, readdir, mkdir } from "node:fs/promises"
 import { dirname, join, resolve, basename } from "node:path"
 import { fileURLToPath } from "node:url"
-import { Document, offsetAt } from "../core/document"
+import { Document, offsetAt, positionAt } from "../core/document"
 import { type ActionId } from "../core/keymap"
 import { fuzzyScore, findMatches, searchDefaults, replacementEdits, type SearchOptions, type Match } from "../core/search"
 import { loadConfig, userConfigDir, type Config } from "../services/config"
@@ -884,6 +884,30 @@ export class Application {
   }
   async gitStashPop(): Promise<void> {
     this.status = await this.git.stashPop(); this.changed(); await this.refreshGit()
+  }
+  async gitStageHunk(): Promise<void> {
+    const path = this.document.path
+    if (!path) { this.status = this.config.locale === "pt-BR" ? "Sem arquivo ativo" : "No active file"; this.changed(); return }
+    const cursorLine = positionAt(this.document.text, this.document.selections[0]?.anchor ?? 0).line + 1
+    try {
+      const output = await this.git.stageHunk(path, cursorLine)
+      this.status = output || (this.config.locale === "pt-BR" ? "Hunk staged" : "Staged hunk")
+      await this.refreshGit()
+    } catch (error) {
+      this.report(error)
+    } finally { this.changed() }
+  }
+  async gitUnstageHunk(): Promise<void> {
+    const path = this.document.path
+    if (!path) { this.status = this.config.locale === "pt-BR" ? "Sem arquivo ativo" : "No active file"; this.changed(); return }
+    const cursorLine = positionAt(this.document.text, this.document.selections[0]?.anchor ?? 0).line + 1
+    try {
+      const output = await this.git.unstageHunk(path, cursorLine)
+      this.status = output || (this.config.locale === "pt-BR" ? "Hunk unstaged" : "Unstaged hunk")
+      await this.refreshGit()
+    } catch (error) {
+      this.report(error)
+    } finally { this.changed() }
   }
   async refreshGit(): Promise<void> {
     if (this.gitReading || this.closed) return

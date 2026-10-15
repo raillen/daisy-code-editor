@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process"
+import { unlink, writeFile } from "node:fs/promises"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
 export type GitEntry = { path: string; index: string; worktree: string; badge: string }
 export type GitStatus = { branch: string; ahead: number; behind: number; entries: GitEntry[] }
 
@@ -74,6 +77,33 @@ export class Git {
   }
   stash(message = "Daisy stash"): Promise<string> { return execute("git", ["stash", "push", "-m", message], this.root, 60000) }
   stashPop(): Promise<string> { return execute("git", ["stash", "pop"], this.root, 60000) }
+  async diffUnstaged(path: string): Promise<string> {
+    try { return await execute("git", ["diff", "--no-color", "-U3", "--no-ext-diff", "--", path], this.root) } catch { return "" }
+  }
+  async diffStaged(path: string): Promise<string> {
+    try { return await execute("git", ["diff", "--cached", "--no-color", "-U3", "--no-ext-diff", "--", path], this.root) } catch { return "" }
+  }
+  private async applyPatch(patch: string, reverse = false): Promise<string> {
+    const patchFile = join(tmpdir(), `daisy-hunk-${process.pid}.patch`)
+    try {
+      await writeFile(patchFile, `${patch.endsWith("\n") ? patch : `${patch}\n`}`, "utf8")
+      return await execute("git", ["apply", reverse ? "-R" : undefined, "--cached", "--whitespace=nowarn", patchFile].filter(Boolean) as string[], this.root, 30000)
+    } finally {
+      await unlink(patchFile).catch(() => undefined)
+    }
+  }
+  async stageHunk(path: string, cursorLine: number): Promise<string> {
+    const diff = path === null ? "" : await this.diffUnstaged(path)
+    const patch = selectHunkPatch(diff, cursorLine)
+    const output = await this.applyPatch(patch)
+    return output.trim() || "Staged hunk"
+  }
+  async unstageHunk(path: string, cursorLine: number): Promise<string> {
+    const diff = await this.diffStaged(path)
+    const patch = selectHunkPatch(diff, cursorLine)
+    const output = await this.applyPatch(patch, true)
+    return output.trim() || "Unstaged hunk"
+  }
   stashList(): Promise<string> { return execute("git", ["stash", "list"], this.root, 10000) }
   async diffGutter(path: string): Promise<Map<number, GutterKind>> {
     try {
@@ -88,6 +118,40 @@ export class Git {
       }
     }
   }
+}
+
+export function selectHunkPatch(diffText: string, cursorLine: number): string {
+  const lines = diffText.split("\n")
+  const meta: string[] = []
+  const hunks: { header: string; body: string[]; newStart: number; newCount: number }[] = []
+  let current: string[] | null = null
+  let header = ""
+  let newStart = 0, newCount = 0
+  for (const line of lines) {
+    if (line.startsWith("@@ ")) {
+      if (current !== null) hunks.push({ header, body: current, newStart, newCount })
+      const match = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/)
+      newStart = match ? Number(match[1]) : 0
+      newCount = match && match[2] !== undefined ? Number(match[2]) : 1
+      header = line
+      current = []
+    } else if (current !== null) current.push(line)
+    else meta.push(line)
+  }
+  if (current !== null) hunks.push({ header, body: current, newStart, newCount })
+  if (!hunks.length) throw new Error("No changed hunks")
+  let best = hunks[0]!, bestDistance = Infinity
+  for (const hunk of hunks) {
+    const start = hunk.newStart
+    const end = start + Math.max(0, hunk.newCount - 1)
+    let distance = 0
+    if (cursorLine < start) distance = start - cursorLine
+    else if (cursorLine > end) distance = cursorLine - end
+    else distance = 0
+    if (distance < bestDistance) { best = hunk; bestDistance = distance }
+  }
+  const body = best.body.filter((line, index) => !(index === best.body.length - 1 && line.trim() === ""))
+  return [...meta, best.header, ...body].join("\n")
 }
 
 export type GutterKind = "added" | "modified" | "deleted"

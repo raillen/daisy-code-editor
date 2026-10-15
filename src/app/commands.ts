@@ -135,6 +135,8 @@ export const commands: Record<ActionId, Command> = {
   git_pull: command("Git pull", app => confirmGit(app, "pull")), git_push: command("Git push", app => confirmGit(app, "push")),
   git_stash: command("Git stash", async app => { await app.gitStash(); app.status = "Stashed" }),
   git_stash_pop: command("Git stash pop", async app => { await app.gitStashPop(); app.status = "Stash applied" }),
+  git_stage_hunk: command("Git stage current hunk", async app => { await app.gitStageHunk() }),
+  git_unstage_hunk: command("Git unstage current hunk", async app => { await app.gitUnstageHunk() }),
   git_blame: command("Git blame line", async app => {
     if (!app.document.path) throw new Error("Untitled document")
     const line = app.document.position.line + 1
