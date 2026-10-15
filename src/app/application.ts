@@ -1404,6 +1404,28 @@ export class Application {
       this.changed()
     }
   }
+  async references(): Promise<void> {
+    const document = this.document, server = await this.ensureLsp()
+    if (!server || !document.path) throw new Error("No running LSP for this document")
+    const response = await server.references(document.path, document.position, false)
+    const locations = Array.isArray(response) ? response : response ? [response] : []
+    if (!locations.length) { this.status = this.config.locale === "pt-BR" ? "Sem referências" : "No references"; this.changed(); return }
+    const normalized = locations.map(location => {
+      const anyLocation = location as any
+      const uri = "uri" in location ? location.uri : anyLocation.targetUri
+      const range = "range" in location ? location.range : (anyLocation.targetSelectionRange ?? anyLocation.range)
+      return { uri, range, label: `${basename(uri)}:${range.start.line + 1}:${range.start.character + 1}` }
+    })
+    if (normalized.length === 1) {
+      const location = normalized[0]!
+      this.recordJump()
+      await this.openFile(fileURLToPath(location.uri)); this.document.select(offsetAt(this.document.text, location.range.start.line, location.range.start.character)); this.recordJump(); this.changed(); return
+    }
+    this.picker(this.config.locale === "pt-BR" ? "Referências LSP" : "LSP references", normalized.map(location => ({
+      label: location.label,
+      run: () => { void this.openFile(fileURLToPath(location.uri)).then(() => { this.document.select(offsetAt(this.document.text, location.range.start.line, location.range.start.character)); this.changed() }) },
+    })))
+  }
   async definition(): Promise<void> {
     const document = this.document, server = await this.ensureLsp()
     if (!server || !document.path) throw new Error("No running LSP for this document")

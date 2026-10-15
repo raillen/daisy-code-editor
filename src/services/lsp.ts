@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
 import { pathToFileURL } from "node:url"
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter, CancellationTokenSource, type MessageConnection } from "vscode-languageserver-protocol/node"
-import { InitializeRequest, InitializedNotification, DidOpenTextDocumentNotification, DidChangeTextDocumentNotification, DidSaveTextDocumentNotification, DidCloseTextDocumentNotification, PublishDiagnosticsNotification, CompletionRequest, HoverRequest, DefinitionRequest, DocumentFormattingRequest, RenameRequest, DocumentSymbolRequest, ShutdownRequest, ExitNotification, type Diagnostic, type Position, type TextEdit, type WorkspaceEdit, type DocumentSymbol, type SymbolInformation } from "vscode-languageserver-protocol/node"
+import { InitializeRequest, InitializedNotification, DidOpenTextDocumentNotification, DidChangeTextDocumentNotification, DidSaveTextDocumentNotification, DidCloseTextDocumentNotification, PublishDiagnosticsNotification, CompletionRequest, HoverRequest, DefinitionRequest, ReferencesRequest, DocumentFormattingRequest, RenameRequest, DocumentSymbolRequest, ShutdownRequest, ExitNotification, type Diagnostic, type Position, type TextEdit, type WorkspaceEdit, type DocumentSymbol, type SymbolInformation } from "vscode-languageserver-protocol/node"
 
 export class LspClient {
   private process: ChildProcessWithoutNullStreams
@@ -62,6 +62,7 @@ export class LspClient {
   completion(path: string, position: Position) { return this.deadline(source => this.connection.sendRequest(CompletionRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position }, source.token)) }
   hover(path: string, position: Position) { return this.deadline(source => this.connection.sendRequest(HoverRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position }, source.token)) }
   definition(path: string, position: Position) { return this.deadline(source => this.connection.sendRequest(DefinitionRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position }, source.token)) }
+  references(path: string, position: Position, includeDeclaration = false) { return this.deadline(source => this.connection.sendRequest(ReferencesRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position, context: { includeDeclaration } }, source.token)) }
   formatting(path: string, tabSize: number, insertSpaces: boolean): Promise<TextEdit[] | null> { return this.deadline(source => this.connection.sendRequest(DocumentFormattingRequest.type, { textDocument: { uri: pathToFileURL(path).href }, options: { tabSize, insertSpaces } }, source.token)) }
   rename(path: string, position: Position, newName: string): Promise<WorkspaceEdit | null> { return this.deadline(source => this.connection.sendRequest(RenameRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position, newName }, source.token)) }
   documentSymbols(path: string): Promise<Array<DocumentSymbol | SymbolInformation> | null> { return this.deadline(source => this.connection.sendRequest(DocumentSymbolRequest.type, { textDocument: { uri: pathToFileURL(path).href } }, source.token)) }
