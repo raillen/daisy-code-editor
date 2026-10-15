@@ -129,6 +129,10 @@ test("search overlay captures text and project result opens correct line", async
 test("Markdown preview and terminal shortcuts display actual panels", async () => {
   const view = await setup()
   try {
+    // process.env.SHELL vaza para o teste; alguns shells (fish/zsh) recusam o
+    // PTY do Bun 1.4.2 por falta de job control e nunca executam o comando.
+    // Fixamos um shell previsível para asserir o round-trip real do painel.
+    view.app.config.terminal.shell = Bun.which("bash") ?? "sh"
     await view.app.openFile(join(view.root, "notes.md"))
     view.mockInput.pressKey("p", { meta: true }); await view.flush()
     expect(view.app.preview).toBe(true)

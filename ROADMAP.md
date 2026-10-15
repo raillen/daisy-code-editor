@@ -68,6 +68,7 @@ All features below are implemented, tested (97 automated tests passing), and ava
   - Safe `git pull` and `git push` synchronization dialogs.
 - [x] **Live Markdown Preview**: Split viewport rendering formatted headings, tables, and Shiki-highlighted code blocks (`Alt+P`).
 - [x] **Embedded PTY Terminal**: Full interactive terminal emulator (`Ctrl+\``) running user shell (`bash`, `zsh`, `fish`).
+  - *Known constraint (Bun 1.4.2): `Bun.Terminal` ptys carry no reliable controlling-terminal/job-control state, so shells that insist on it (`fish`, `zsh`) can refuse to execute interactively; `bash` works. The panel fails closed (the shell's own warning is shown). A follow-up pass will detect and mitigate this (see `tests/helpers/pty.ts` header).*
 - [x] **Vim Modal Mode**: Normal, Insert, Visual, Visual-Line modes (`h, j, k, l, w, b, e, 0, $, gg, G, dd, yy, p, u, Ctrl+R, :w, :q, :wq, /`).
 - [x] **Multicursor & Advanced Editing**: Add cursor above/below (`Ctrl+Alt+Up/Down`), select all occurrences, surround selection with delimiters, linear undo tree viewer (`undo_tree`).
 - [x] **Project-wide Search & Replace**: Recursive grep with glob filtering and disk replacement (`Ctrl+Shift+F`).
