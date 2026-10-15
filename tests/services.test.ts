@@ -31,6 +31,24 @@ test("tree creates exclusively under selection and rejects traversal/symlinks", 
   expect(tree.create("../outside/x.txt", false)).rejects.toThrow()
   expect(tree.create("main.ts", false)).rejects.toThrow()
 })
+test("tree refresh bounds depth and entries and reports truncation", async () => {
+  const root = await fixture()
+  let deep = root
+  const chain: string[] = []
+  for (let level = 0; level < 10; level++) { deep = join(deep, `d${level}`); await mkdir(deep); chain.push(deep) }
+  for (let file = 0; file < 10; file++) await Bun.write(join(root, `f${file}.txt`), "x")
+  const bounded = new FileTree(root, false, { maxDepth: 3, maxEntries: 5 })
+  for (const directory of chain) bounded.expanded.add(directory)
+  await bounded.refresh()
+  expect(bounded.truncated).toBe(true)
+  expect(bounded.rows.length).toBeLessThanOrEqual(5)
+  expect(bounded.rows.every(row => row.depth <= 3)).toBe(true)
+  const full = new FileTree(root)
+  for (const directory of chain) full.expanded.add(directory)
+  await full.refresh()
+  expect(full.truncated).toBe(false)
+  expect(full.rows.length).toBeGreaterThan(bounded.rows.length)
+})
 test("sessions restore active file and layout in compatible TOML", async () => {
   const root = await fixture(); await mkdir(join(root, ".oride"))
   await saveSession({

@@ -25,24 +25,36 @@ export async function readText(path: string): Promise<string> {
 }
 
 export type TreeRow = { path: string; name: string; directory: boolean; depth: number; expanded: boolean }
+export type TreeLimits = { maxDepth: number; maxEntries: number }
+const defaultTreeLimits: TreeLimits = { maxDepth: 64, maxEntries: 100000 }
 export class FileTree {
   rows: TreeRow[] = []
   selected = 0
   expanded = new Set<string>()
-  constructor(public root: string, public showHidden = false) { this.expanded.add(root) }
+  truncated = false
+  readonly limits: TreeLimits
+  constructor(public root: string, public showHidden = false, limits?: Partial<TreeLimits>) {
+    this.expanded.add(root)
+    this.limits = { ...defaultTreeLimits, ...limits }
+  }
 
   async refresh(): Promise<void> {
     const selectedPath = this.rows[this.selected]?.path
     const rows: TreeRow[] = [{ path: this.root, name: basename(this.root), directory: true, depth: 0, expanded: true }]
+    this.truncated = false
     const visit = async (directory: string, depth: number): Promise<void> => {
       const entries = await readdir(directory, { withFileTypes: true })
       entries.sort((left, right) => Number(right.isDirectory()) - Number(left.isDirectory()) || left.name.localeCompare(right.name))
       for (const entry of entries) {
+        if (rows.length >= this.limits.maxEntries) { this.truncated = true; return }
         if ([".git", "node_modules", "target", "dist"].includes(entry.name) || (!this.showHidden && entry.name.startsWith("."))) continue
         const path = join(directory, entry.name)
         const expanded = this.expanded.has(path)
         rows.push({ path, name: entry.name, directory: entry.isDirectory(), depth, expanded })
-        if (entry.isDirectory() && expanded) await visit(path, depth + 1)
+        if (entry.isDirectory() && expanded) {
+          if (depth < this.limits.maxDepth) await visit(path, depth + 1)
+          else this.truncated = true
+        }
       }
     }
     await visit(this.root, 1)
