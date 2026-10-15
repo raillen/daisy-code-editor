@@ -117,7 +117,43 @@ export async function highlight(text: string, language: string, theme: string): 
   // Without this warm-up, a freshly loaded grammar can return a single invalid span.
   engine.codeToTokens(text, { lang: loadedLanguage, theme: resolvedTheme })
   const tokens = engine.codeToTokens(text, { lang: loadedLanguage, theme: resolvedTheme, includeExplanation: "scopeName" }).tokens
-  return tokens.flatMap(line => line.map((token: ThemedToken) => ({ start: token.offset, end: token.offset + token.content.length, color: token.color, fontStyle: token.fontStyle ?? 0, role: syntaxRole(token.explanation?.flatMap(explanation => explanation.scopes.map(scope => scope.scopeName)) ?? []) })))
+  const base = tokens.flatMap(line => line.map((token: ThemedToken) => ({ start: token.offset, end: token.offset + token.content.length, color: token.color, fontStyle: token.fontStyle ?? 0, role: syntaxRole(token.explanation?.flatMap(explanation => explanation.scopes.map(scope => scope.scopeName)) ?? []) })))
+  if (language === "markdown" || language === "mdx") return injectFenceTokens(text, base, theme)
+  return base
+}
+
+export type FenceBlock = { codeStart: number; codeEnd: number; language: string }
+
+export function parseFenceBlocks(text: string): FenceBlock[] {
+  const blocks: FenceBlock[] = []
+  let offset = 0, openMarker = "", openLength = 0, codeStart = 0, tag = ""
+  for (const line of text.split("\n")) {
+    const lineStart = offset
+    offset += line.length + 1
+    if (!openMarker) {
+      const open = /^(```+|~~~+)\s*([\w+-]*)\s*$/.exec(line)
+      if (open) { openMarker = open[1]![0]!; openLength = open[1]!.length; tag = open[2] ?? ""; codeStart = offset }
+    } else if (line.startsWith(openMarker.repeat(openLength)) && line.slice(openLength).trim() === "") {
+      if (tag) blocks.push({ codeStart, codeEnd: lineStart, language: tag })
+      openMarker = ""; tag = ""
+    }
+  }
+  return blocks
+}
+
+async function injectFenceTokens(text: string, base: HighlightToken[], theme: string): Promise<HighlightToken[]> {
+  const blocks = parseFenceBlocks(text)
+  if (!blocks.length) return base
+  let merged = base
+  for (const block of blocks) {
+    const language = extensions[block.language] ?? block.language
+    if (language === "markdown" || language === "mdx") continue
+    const inner = await highlight(text.slice(block.codeStart, block.codeEnd), language, theme)
+    if (!inner.length) continue
+    const shifted = inner.map(token => ({ ...token, start: token.start + block.codeStart, end: token.end + block.codeStart }))
+    merged = [...merged.filter(token => token.end <= block.codeStart || token.start >= block.codeEnd), ...shifted]
+  }
+  return merged.sort((left, right) => left.start - right.start)
 }
 function syntaxRole(scopes: string[]): string | undefined {
   const scope = scopes.join(" ")

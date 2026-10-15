@@ -7,7 +7,7 @@ import { Git, execute, parsePorcelain, parseDiffHunks, parseHunks, hunkSummary }
 import { TerminalSession } from "../src/services/terminal"
 import { DebugAdapter } from "../src/services/dap"
 import { LspClient, lspBackoffDelay, lspRetryAllowed } from "../src/services/lsp"
-import { highlight, isMarkdownLanguage, resolvePreviewImage, resolvePreviewImageAsync, clearPreviewImageCache, extractOpenableLink } from "../src/services/languages"
+import { highlight, isMarkdownLanguage, parseFenceBlocks, resolvePreviewImage, resolvePreviewImageAsync, clearPreviewImageCache, extractOpenableLink } from "../src/services/languages"
 import { fileGlyph, folderGlyph, defaultFile } from "../src/services/icons"
 const roots: string[] = []
 async function fixture(): Promise<string> { const root = await mkdtemp(join(tmpdir(), "oride-solid-")); roots.push(root); return root }
@@ -172,6 +172,14 @@ test("DAP adapter runs a full session against the fixture", async () => {
     const variables = await adapter.request<{ variables?: Array<{ name: string; value: string }> }>("variables", { variablesReference: 7 })
     expect(variables?.variables?.[0]).toMatchObject({ name: "x", value: "42" })
   } finally { await adapter.disconnect() }
+})
+test("markdown fences parse and highlight inner languages", async () => {
+  expect(parseFenceBlocks("# t\n```ts\nconst x = 1\n```\n")).toHaveLength(1)
+  expect(parseFenceBlocks("# t\n```\nplain\n```\n")).toEqual([])
+  expect(parseFenceBlocks("# t\n```ts\nunclosed\n")).toEqual([])
+  expect(parseFenceBlocks("~~~\nplain\n~~~\n\n```py\nx = 1\n```\n").map(block => block.language)).toEqual(["py"])
+  const roles = new Set((await highlight("# Title\n\n```ts\nconst x: number = 1 // hi\n```\n", "markdown", "default")).map(token => token.role))
+  for (const role of ["heading", "keyword", "number", "comment"]) expect(roles.has(role)).toBe(true)
 })
 test("LSP retry backoff grows exponentially and caps at 30s", () => {
   expect(lspBackoffDelay(0)).toBe(1000)
