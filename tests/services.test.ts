@@ -6,7 +6,7 @@ import { atomicWrite, FileTree, readText, saveSession, loadSession } from "../sr
 import { Git, execute, parsePorcelain, parseDiffHunks, parseHunks, hunkSummary } from "../src/services/git"
 import { TerminalSession } from "../src/services/terminal"
 import { DebugAdapter } from "../src/services/dap"
-import { LspClient, lspBackoffDelay, lspRetryAllowed } from "../src/services/lsp"
+import { LspClient, lspBackoffDelay, lspRetryAllowed, incrementalEdit } from "../src/services/lsp"
 import { highlight, isMarkdownLanguage, parseFenceBlocks, resolvePreviewImage, resolvePreviewImageAsync, clearPreviewImageCache, extractOpenableLink } from "../src/services/languages"
 import { fileGlyph, folderGlyph, defaultFile } from "../src/services/icons"
 const roots: string[] = []
@@ -121,7 +121,7 @@ test("PTY runs a real shell, renders VT screen and resizes", async () => {
   } finally { await terminal.close() }
 })
 test("LSP stdio initialization, completion, hover, definitions and formatting", async () => {
-  const root = await fixture(), server = new LspClient([process.execPath, resolve("tests/fixtures/lsp-server.ts")], root, 1000, () => undefined)
+  const root = await fixture(), server = new LspClient([process.execPath, resolve("tests/fixtures/lsp-server.ts"), join(root, "did-change.json")], root, 1000, () => undefined)
   try {
     await server.initialize(); await server.sync(join(root, "test.ts"), "typescript", "const foo = 1", 0)
     const response = await server.completion(join(root, "test.ts"), { line: 0, character: 8 })
@@ -132,6 +132,18 @@ test("LSP stdio initialization, completion, hover, definitions and formatting", 
     expect((await server.references(join(root, "test.ts"), { line: 0, character: 7 }))?.length).toBe(1)
     expect((await server.signatureHelp(join(root, "test.ts"), { line: 0, character: 8 }))?.signatures[0]?.label).toBe("foobar(arg: string): void")
     expect((await server.codeAction(join(root, "test.ts"), { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }, []))?.[0]?.title).toBe("Fixture fix")
+    expect(server.supports("hoverProvider")).toBe(true)
+    expect(server.supports("renameProvider")).toBe(false)
+    await server.sync(join(root, "test.ts"), "typescript", "const foo = 2", 1)
+    let change: { textDocument: { version: number }; contentChanges: Array<{ range: unknown; text: string }> } | undefined
+    for (let attempt = 0; attempt < 200 && !change; attempt++) {
+      try { change = JSON.parse(await readFile(join(root, "did-change.json"), "utf8")) } catch { await Bun.sleep(10) }
+    }
+    expect(change?.textDocument.version).toBe(1)
+    expect(change?.textDocument.version).toBe(1)
+    expect(change?.contentChanges).toHaveLength(1)
+    expect(change?.contentChanges[0]?.range).toEqual({ start: { line: 0, character: 12 }, end: { line: 0, character: 13 } })
+    expect(change?.contentChanges[0]?.text).toBe("2")
   } finally { await server.close() }
 })
 test("Git hunk parser summarizes and stages hunks by index", async () => {
@@ -197,6 +209,14 @@ test("markdown fences parse and highlight inner languages", async () => {
   expect(parseFenceBlocks("~~~\nplain\n~~~\n\n```py\nx = 1\n```\n").map(block => block.language)).toEqual(["py"])
   const roles = new Set((await highlight("# Title\n\n```ts\nconst x: number = 1 // hi\n```\n", "markdown", "default")).map(token => token.role))
   for (const role of ["heading", "keyword", "number", "comment"]) expect(roles.has(role)).toBe(true)
+})
+test("incremental edits cover prefix, suffix and multi-line spans", () => {
+  expect(incrementalEdit("abc", "abc")).toBeNull()
+  expect(incrementalEdit("abc", "aXc")).toEqual({ start: 1, end: 2, text: "X" })
+  expect(incrementalEdit("ab", "abcd")).toEqual({ start: 2, end: 2, text: "cd" })
+  expect(incrementalEdit("abcd", "ab")).toEqual({ start: 2, end: 4, text: "" })
+  expect(incrementalEdit("a\nb\nc", "a\nB\nc")).toEqual({ start: 2, end: 3, text: "B" })
+  expect(incrementalEdit("", "hi")).toEqual({ start: 0, end: 0, text: "hi" })
 })
 test("LSP retry backoff grows exponentially and caps at 30s", () => {
   expect(lspBackoffDelay(0)).toBe(1000)

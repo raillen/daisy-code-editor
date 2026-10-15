@@ -998,6 +998,12 @@ export class Application {
   private currentLanguage(): string | undefined {
     return this.document.path ? languageOf(this.document.path, this.config) : undefined
   }
+  private lspSupported(server: LspClient, provider: keyof import("../services/lsp").ServerCapabilities, feature: string): boolean {
+    if (server.supports(provider)) return true
+    this.status = this.config.locale === "pt-BR" ? `LSP não suporta ${feature}` : `LSP does not support ${feature}`
+    this.changed()
+    return false
+  }
   private maxLspBytes(): number { return 8 * 1024 * 1024 }
   async nextDiagnostic(delta = 1): Promise<void> {
     const items = [...this.diagnostics].sort((left, right) => {
@@ -1049,6 +1055,7 @@ export class Application {
   async format(): Promise<void> {
     const document = this.document, server = await this.ensureLsp()
     if (!server || !document.path) throw new Error("No running LSP for this document")
+    if (!this.lspSupported(server, "documentFormattingProvider", "formatting")) return
     const version = document.version
     const edits = await server.formatting(document.path, this.config.editor.tab_size, this.config.editor.insert_spaces)
     if (document.version !== version) throw new Error("Document changed while formatting")
@@ -1074,7 +1081,7 @@ export class Application {
     if (document.path && this.config.lsp.enabled) {
       try {
         const server = await this.ensureLsp()
-        if (server) {
+        if (server && this.lspSupported(server, "renameProvider", "rename")) {
           const workspaceEdit = await server.rename(document.path, document.position, newName)
           if (workspaceEdit) {
             if (workspaceEdit.changes) {
@@ -1182,7 +1189,7 @@ export class Application {
     }
     const version = document.version
     const server = await this.ensureLsp().catch(() => undefined)
-    const response = server && document.path ? await server.completion(document.path, document.position).catch(() => null) : null
+    const response = server && document.path && server.supports("completionProvider") ? await server.completion(document.path, document.position).catch(() => null) : null
     if (document.version !== version || this.closed || (automatic && this.overlay)) return
 
     const items: CompletionItem[] = []
@@ -1390,7 +1397,7 @@ export class Application {
 
     // 1. Tenta LSP se disponível
     const server = await this.ensureLsp().catch(() => undefined)
-    if (server && document.path) {
+    if (server && document.path && server.supports("hoverProvider")) {
       try {
         const response = await server.hover(document.path, document.position)
         const contents = response?.contents
@@ -1440,6 +1447,7 @@ export class Application {
   async references(): Promise<void> {
     const document = this.document, server = await this.ensureLsp()
     if (!server || !document.path) throw new Error("No running LSP for this document")
+    if (!this.lspSupported(server, "referencesProvider", "references")) return
     const response = await server.references(document.path, document.position, false)
     const locations = Array.isArray(response) ? response : response ? [response] : []
     if (!locations.length) { this.status = this.config.locale === "pt-BR" ? "Sem referências" : "No references"; this.changed(); return }
@@ -1462,6 +1470,7 @@ export class Application {
   async signatureHelp(): Promise<void> {
     const document = this.document, server = await this.ensureLsp()
     if (!server || !document.path) throw new Error("No running LSP for this document")
+    if (!this.lspSupported(server, "signatureHelpProvider", "signature help")) return
     const help = await server.signatureHelp(document.path, document.position)
     const signatures = help?.signatures ?? []
     if (!signatures.length) {
@@ -1482,6 +1491,7 @@ export class Application {
   async codeActions(): Promise<void> {
     const document = this.document, server = await this.ensureLsp()
     if (!server || !document.path) throw new Error("No running LSP for this document")
+    if (!this.lspSupported(server, "codeActionProvider", "code actions")) return
     const { anchor, head } = document.primary
     const range = { start: positionAt(document.text, Math.min(anchor, head)), end: positionAt(document.text, Math.max(anchor, head)) }
     const uri = pathToFileURL(document.path).href
@@ -1511,6 +1521,7 @@ export class Application {
   async definition(): Promise<void> {
     const document = this.document, server = await this.ensureLsp()
     if (!server || !document.path) throw new Error("No running LSP for this document")
+    if (!this.lspSupported(server, "definitionProvider", "go to definition")) return
     const response = await server.definition(document.path, document.position)
     const locations = Array.isArray(response) ? response : response ? [response] : []
     const location = locations[0]
@@ -1791,6 +1802,7 @@ export class Application {
     if (!path) { this.status = this.config.locale === "pt-BR" ? "Salve o arquivo antes de símbolos" : "Save file before symbols"; this.changed(); return }
     const server = await this.ensureLsp().catch(() => undefined)
     if (!server) { this.status = this.config.locale === "pt-BR" ? "Sem LSP ativo" : "No LSP attached"; this.changed(); return }
+    if (!this.lspSupported(server, "documentSymbolProvider", "document symbols")) return
     try {
       const symbols = await server.documentSymbols(path)
       const entries: PickerEntry[] = symbols ? flattenLspSymbols(this, symbols, path) : []

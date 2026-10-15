@@ -1,9 +1,22 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
 import { pathToFileURL } from "node:url"
+import { positionAt } from "../core/document"
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter, CancellationTokenSource, type MessageConnection } from "vscode-languageserver-protocol/node"
-import { InitializeRequest, InitializedNotification, DidOpenTextDocumentNotification, DidChangeTextDocumentNotification, DidSaveTextDocumentNotification, DidCloseTextDocumentNotification, PublishDiagnosticsNotification, CompletionRequest, HoverRequest, DefinitionRequest, ReferencesRequest, SignatureHelpRequest, CodeActionRequest, DocumentFormattingRequest, RenameRequest, DocumentSymbolRequest, ShutdownRequest, ExitNotification, type Diagnostic, type Position, type Range, type TextEdit, type WorkspaceEdit, type DocumentSymbol, type SymbolInformation, type SignatureHelp, type CodeAction, type Command } from "vscode-languageserver-protocol/node"
+import { InitializeRequest, InitializedNotification, DidOpenTextDocumentNotification, DidChangeTextDocumentNotification, DidSaveTextDocumentNotification, DidCloseTextDocumentNotification, PublishDiagnosticsNotification, CompletionRequest, HoverRequest, DefinitionRequest, ReferencesRequest, SignatureHelpRequest, CodeActionRequest, DocumentFormattingRequest, RenameRequest, DocumentSymbolRequest, ShutdownRequest, ExitNotification, type Diagnostic, type Position, type Range, type TextEdit, type WorkspaceEdit, type DocumentSymbol, type SymbolInformation, type SignatureHelp, type CodeAction, type Command, type ServerCapabilities } from "vscode-languageserver-protocol/node"
 
-export type { CodeAction, Command as LspCommand, SignatureHelp } from "vscode-languageserver-protocol/node"
+export type { CodeAction, Command as LspCommand, SignatureHelp, ServerCapabilities } from "vscode-languageserver-protocol/node"
+
+// Minimal single-span diff (offsets in UTF-16 code units, matching the
+// negotiated `utf-16` position encoding). Returns null when texts match.
+export function incrementalEdit(previous: string, next: string): { start: number; end: number; text: string } | null {
+  if (previous === next) return null
+  let start = 0
+  const minLength = Math.min(previous.length, next.length)
+  while (start < minLength && previous.charCodeAt(start) === next.charCodeAt(start)) start++
+  let oldEnd = previous.length, newEnd = next.length
+  while (oldEnd > start && newEnd > start && previous.charCodeAt(oldEnd - 1) === next.charCodeAt(newEnd - 1)) { oldEnd--; newEnd-- }
+  return { start, end: oldEnd, text: next.slice(start, newEnd) }
+}
 
 export function lspBackoffDelay(consecutiveFailures: number): number {
   if (!Number.isFinite(consecutiveFailures) || consecutiveFailures < 0) return 1000
@@ -18,9 +31,11 @@ export class LspClient {
   private process: ChildProcessWithoutNullStreams
   private connection: MessageConnection
   private opened = new Map<string, number>()
+  private lastText = new Map<string, string>()
   private closed = false
   private stderr = ""
   readonly diagnostics = new Map<string, Diagnostic[]>()
+  readonly serverCapabilities: ServerCapabilities = {}
 
   constructor(readonly command: readonly string[], readonly workspace: string, readonly timeout: number, readonly onChange: () => void) {
     const executable = command[0]
@@ -50,24 +65,41 @@ export class LspClient {
     } finally { clearTimeout(timer); cancellation.dispose() }
   }
 
+  supports(provider: keyof ServerCapabilities): boolean {
+    return this.serverCapabilities[provider] !== undefined && this.serverCapabilities[provider] !== false && this.serverCapabilities[provider] !== null
+  }
+
   async initialize(): Promise<void> {
-    await this.deadline(source => this.connection.sendRequest(InitializeRequest.type, {
+    const result = await this.deadline(source => this.connection.sendRequest(InitializeRequest.type, {
       processId: process.pid, rootUri: pathToFileURL(this.workspace).href,
       capabilities: { general: { positionEncodings: ["utf-16"] }, textDocument: { synchronization: { didSave: true }, completion: { completionItem: { snippetSupport: false } }, hover: { contentFormat: ["markdown", "plaintext"] }, publishDiagnostics: {} } },
-    }, source.token))
+    }, source.token)) as { capabilities?: ServerCapabilities } | undefined
+    Object.assign(this.serverCapabilities, result?.capabilities ?? {})
     await this.connection.sendNotification(InitializedNotification.type, {})
   }
 
   async sync(path: string, language: string, text: string, version: number): Promise<void> {
     const uri = pathToFileURL(path).href
-    if (!this.opened.has(uri)) await this.connection.sendNotification(DidOpenTextDocumentNotification.type, { textDocument: { uri, languageId: language, version, text } })
-    else if (this.opened.get(uri) !== version) await this.connection.sendNotification(DidChangeTextDocumentNotification.type, { textDocument: { uri, version }, contentChanges: [{ text }] })
+    if (!this.opened.has(uri)) {
+      await this.connection.sendNotification(DidOpenTextDocumentNotification.type, { textDocument: { uri, languageId: language, version, text } })
+      this.lastText.set(uri, text)
+    } else if (this.opened.get(uri) !== version) {
+      const edit = this.lastText.has(uri) ? incrementalEdit(this.lastText.get(uri)!, text) : null
+      if (edit) {
+        const previous = this.lastText.get(uri)!
+        await this.connection.sendNotification(DidChangeTextDocumentNotification.type, { textDocument: { uri, version }, contentChanges: [{ range: { start: positionAt(previous, edit.start), end: positionAt(previous, edit.end) }, text: edit.text }] })
+      } else {
+        await this.connection.sendNotification(DidChangeTextDocumentNotification.type, { textDocument: { uri, version }, contentChanges: [{ text }] })
+      }
+      this.lastText.set(uri, text)
+    }
     this.opened.set(uri, version)
   }
   saved(path: string): Promise<void> { return this.connection.sendNotification(DidSaveTextDocumentNotification.type, { textDocument: { uri: pathToFileURL(path).href } }) }
   async closeDocument(path: string): Promise<void> {
     const uri = pathToFileURL(path).href
     if (!this.opened.delete(uri)) return
+    this.lastText.delete(uri)
     await this.connection.sendNotification(DidCloseTextDocumentNotification.type, { textDocument: { uri } })
   }
   completion(path: string, position: Position) { return this.deadline(source => this.connection.sendRequest(CompletionRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position }, source.token)) }
@@ -89,6 +121,7 @@ export class LspClient {
     this.closed = true
     this.connection.dispose()
     if (this.process.exitCode === null) this.process.kill("SIGKILL")
+    this.lastText.clear()
   }
 }
 

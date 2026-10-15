@@ -1,10 +1,14 @@
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from "vscode-languageserver-protocol/node"
 const connection = createMessageConnection(new StreamMessageReader(process.stdin), new StreamMessageWriter(process.stdout))
+const changeCapture = process.argv[2] as string | undefined
 let uri = "file:///test.ts"
 connection.onRequest("initialize", () => ({ capabilities: { textDocumentSync: 1, completionProvider: {}, hoverProvider: true, definitionProvider: true, documentFormattingProvider: true, referencesProvider: true, signatureHelpProvider: {}, codeActionProvider: true } }))
 connection.onNotification("textDocument/didOpen", (params: { textDocument: { uri: string } }) => {
   uri = params.textDocument.uri
   void connection.sendNotification("textDocument/publishDiagnostics", { uri, diagnostics: [{ range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } }, severity: 2, message: "fixture warning" }] })
+})
+connection.onNotification("textDocument/didChange", (params: unknown) => {
+  if (changeCapture) void Bun.write(changeCapture, JSON.stringify(params))
 })
 connection.onRequest("textDocument/completion", () => [{ label: "foobar", insertText: "foobar" }])
 connection.onRequest("textDocument/hover", () => ({ contents: { kind: "plaintext", value: "hover from fixture" } }))
