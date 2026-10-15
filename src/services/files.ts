@@ -33,12 +33,34 @@ export class FileTree {
   expanded = new Set<string>()
   truncated = false
   readonly limits: TreeLimits
+  private scanning: Promise<void> | null = null
+  private stale = false
   constructor(public root: string, public showHidden = false, limits?: Partial<TreeLimits>) {
     this.expanded.add(root)
     this.limits = { ...defaultTreeLimits, ...limits }
   }
 
+  // Coalesces overlapping refreshes (file watchers, git ops): concurrent
+  // callers share one scan, and at most one trailing scan covers drift.
   async refresh(): Promise<void> {
+    if (this.scanning) {
+      this.stale = true
+      await this.scanning
+      return
+    }
+    this.scanning = this.scan()
+    try {
+      await this.scanning
+    } finally {
+      this.scanning = null
+    }
+    if (this.stale) {
+      this.stale = false
+      await this.refresh()
+    }
+  }
+
+  private async scan(): Promise<void> {
     const selectedPath = this.rows[this.selected]?.path
     const rows: TreeRow[] = [{ path: this.root, name: basename(this.root), directory: true, depth: 0, expanded: true }]
     this.truncated = false

@@ -33,6 +33,18 @@ test("tree creates exclusively under selection and rejects traversal/symlinks", 
   expect(tree.create("../outside/x.txt", false)).rejects.toThrow()
   expect(tree.create("main.ts", false)).rejects.toThrow()
 })
+test("tree refresh coalesces concurrent scans without corruption", async () => {
+  const root = await fixture()
+  await mkdir(join(root, "src")); await Bun.write(join(root, "src", "a.ts"), "x"); await Bun.write(join(root, "b.txt"), "y")
+  const tree = new FileTree(root)
+  tree.expanded.add(join(root, "src"))
+  await Promise.all([tree.refresh(), tree.refresh(), tree.refresh(), tree.refresh(), tree.refresh()])
+  const single = new FileTree(root)
+  single.expanded.add(join(root, "src"))
+  await single.refresh()
+  expect(tree.rows).toEqual(single.rows)
+  expect(tree.truncated).toBe(false)
+})
 test("tree refresh bounds depth and entries and reports truncation", async () => {
   const root = await fixture()
   let deep = root
