@@ -5,6 +5,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
 // launch/configurationDone/continue, threads/stackTrace) e falha de forma
 // explícita quando o adapter não existe.
 export type DebugBreakpoint = { line: number; verified: boolean }
+export type DebugSourceBreakpoint = { line: number; condition?: string }
 export type DebugSessionStatus = "ready" | "running" | "stopped" | "exited" | "failed"
 
 export class DebugAdapter {
@@ -13,7 +14,7 @@ export class DebugAdapter {
   private nextSeq = 1
   private pending = new Map<number, (result: unknown) => void>()
   private onChange: (status: DebugSessionStatus, message?: string) => void
-  readonly breakpoints = new Map<string, number[]>()
+  readonly breakpoints = new Map<string, DebugSourceBreakpoint[]>()
   status: DebugSessionStatus = "ready"
   adapterError: string | undefined
 
@@ -63,8 +64,14 @@ export class DebugAdapter {
     await this.request("setExceptionBreakpoints", { filters: [] })
   }
 
-  async setBreakpoints(path: string, lines: readonly number[]): Promise<void> {
-    this.breakpoints.set(path, [...lines])
+  async setBreakpoints(path: string, breakpoints: readonly DebugSourceBreakpoint[]): Promise<DebugBreakpoint[]> {
+    this.breakpoints.set(path, breakpoints.map(entry => ({ ...entry })))
+    const response = await this.request<{ breakpoints?: DebugBreakpoint[] }>("setBreakpoints", {
+      source: { path, name: path.split("/").pop() ?? path },
+      breakpoints: breakpoints.map(entry => (entry.condition ? { line: entry.line, condition: entry.condition } : { line: entry.line })),
+      sourceModified: false,
+    })
+    return response?.breakpoints ?? []
   }
 
   async launch(config: unknown): Promise<void> {

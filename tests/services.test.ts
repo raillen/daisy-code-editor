@@ -5,6 +5,7 @@ import { join, resolve } from "node:path"
 import { atomicWrite, FileTree, readText, saveSession, loadSession } from "../src/services/files"
 import { Git, execute, parsePorcelain, parseDiffHunks } from "../src/services/git"
 import { TerminalSession } from "../src/services/terminal"
+import { DebugAdapter } from "../src/services/dap"
 import { LspClient, lspBackoffDelay, lspRetryAllowed } from "../src/services/lsp"
 import { highlight, isMarkdownLanguage, resolvePreviewImage, resolvePreviewImageAsync, clearPreviewImageCache, extractOpenableLink } from "../src/services/languages"
 import { fileGlyph, folderGlyph, defaultFile } from "../src/services/icons"
@@ -132,6 +133,22 @@ test("LSP stdio initialization, completion, hover, definitions and formatting", 
     expect((await server.signatureHelp(join(root, "test.ts"), { line: 0, character: 8 }))?.signatures[0]?.label).toBe("foobar(arg: string): void")
     expect((await server.codeAction(join(root, "test.ts"), { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }, []))?.[0]?.title).toBe("Fixture fix")
   } finally { await server.close() }
+})
+test("DAP adapter runs a full session against the fixture", async () => {
+  const root = await fixture(), capture = join(root, "dap-requests.json")
+  const adapter = new DebugAdapter([process.execPath, resolve("tests/fixtures/dap-adapter.ts"), capture], root, () => undefined)
+  try {
+    await adapter.initialize()
+    expect(await adapter.setBreakpoints("/test.ts", [{ line: 10, condition: "x > 1" }])).toEqual([{ verified: true, line: 10 }])
+    expect(JSON.parse(await readFile(capture, "utf8"))).toEqual({ source: { path: "/test.ts", name: "test.ts" }, breakpoints: [{ line: 10, condition: "x > 1" }] })
+    await adapter.launch({ program: "/test.ts" })
+    expect(await adapter.threads()).toEqual([{ id: 1, name: "main" }])
+    expect((await adapter.stackTrace(1))[0]?.name).toBe("main")
+    const scopes = await adapter.request<{ scopes?: Array<{ name: string; variablesReference: number }> }>("scopes", { frameId: 11 })
+    expect(scopes?.scopes?.[0]?.variablesReference).toBe(7)
+    const variables = await adapter.request<{ variables?: Array<{ name: string; value: string }> }>("variables", { variablesReference: 7 })
+    expect(variables?.variables?.[0]).toMatchObject({ name: "x", value: "42" })
+  } finally { await adapter.disconnect() }
 })
 test("LSP retry backoff grows exponentially and caps at 30s", () => {
   expect(lspBackoffDelay(0)).toBe(1000)

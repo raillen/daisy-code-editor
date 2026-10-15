@@ -126,6 +126,7 @@ export const commands: Record<ActionId, Command> = {
   debug_step_over: command("Debug step over", app => { void app.debugStepOver() }),
   debug_show_threads: command("Show debug threads", app => { void app.showDebugThreads() }),
   debug_variables: command("Show debug variables", app => { void app.showDebugVariables() }),
+  debug_breakpoint_condition: command("Breakpoint condition…", app => app.breakpointCondition()),
   toggle_diagnostics: toggle("Problems", app => { app.bottom = app.bottom === "problems" ? undefined : "problems"; app.focus = "editor" }),
   split_vertical: command("Split vertically", app => app.split("vertical")), split_horizontal: command("Split horizontally", app => app.split("horizontal")),
   focus_next_pane: command("Next editor pane", app => app.focusPane(app.focusedPane + 1)), close_pane: command("Close editor pane", app => app.closePane()),

@@ -118,7 +118,7 @@ export class Application {
   bottom: "terminal" | "problems" | undefined
   terminal: TerminalSession | undefined
   terminalHeight: number
-  debugBreakpoints = new Map<string, number[]>()
+  debugBreakpoints = new Map<string, Array<{ line: number; condition?: string }>>()
   debug: DebugAdapter | undefined
   debugStatus: string = "idle"
   focus: Focus = "editor"
@@ -1594,18 +1594,35 @@ export class Application {
       split,
     })
   }
-  debugBreakpointLines(): number[] { return this.debugBreakpoints.get(this.document.path ?? "") ?? [] }
+  debugBreakpointLines(): number[] { return (this.debugBreakpoints.get(this.document.path ?? "") ?? []).map(entry => entry.line) }
 
   toggleBreakpoint(): void {
     const path = this.document.path
     if (!path) { this.status = this.config.locale === "pt-BR" ? "Salve o arquivo antes de usar breakpoint" : "Save the file before using breakpoints"; this.changed(); return }
     const line = this.document.position.line + 1
-    const lines = this.debugBreakpoints.get(path) ?? []
-    const index = lines.indexOf(line)
-    if (index >= 0) lines.splice(index, 1); else lines.push(line)
-    this.debugBreakpoints.set(path, lines.sort((a, b) => a - b))
+    const entries = this.debugBreakpoints.get(path) ?? []
+    const index = entries.findIndex(entry => entry.line === line)
+    if (index >= 0) entries.splice(index, 1); else entries.push({ line })
+    this.debugBreakpoints.set(path, entries.sort((a, b) => a.line - b.line))
     this.status = this.config.locale === "pt-BR" ? `Breakpoint ${index >= 0 ? "removido" : "adicionado"} da linha ${line}` : `Breakpoint ${index >= 0 ? "removed" : "added"} at line ${line}`
     this.changed()
+  }
+  breakpointCondition(): void {
+    const path = this.document.path
+    if (!path) { this.status = this.config.locale === "pt-BR" ? "Salve o arquivo antes de usar breakpoint" : "Save the file before using breakpoints"; this.changed(); return }
+    const line = this.document.position.line + 1
+    const current = (this.debugBreakpoints.get(path) ?? []).find(entry => entry.line === line)?.condition ?? ""
+    const title = this.config.locale === "pt-BR" ? `Condição do breakpoint na linha ${line}` : `Breakpoint condition at line ${line}`
+    this.prompt(title, current, async value => {
+      const entries = this.debugBreakpoints.get(path) ?? []
+      const existing = entries.find(entry => entry.line === line)
+      const condition = value.trim() || undefined
+      if (existing) existing.condition = condition
+      else entries.push({ line, condition })
+      this.debugBreakpoints.set(path, entries.sort((a, b) => a.line - b.line))
+      this.status = this.config.locale === "pt-BR" ? `Breakpoint da linha ${line} atualizado` : `Breakpoint at line ${line} updated`
+      this.changed()
+    })
   }
 
   private debugAdapterCommand(language: string): string[] | undefined {
@@ -1643,8 +1660,8 @@ export class Application {
     const adapter = new DebugAdapter(command, this.workspace, (status, message) => { this.debugStatus = status; this.status = message ? `Debug ${status}: ${message}` : `Debug ${status}`; this.changed() })
     try {
       await adapter.initialize()
-      const lines = this.debugBreakpoints.get(debugBreakpointsPath) ?? []
-      await adapter.setBreakpoints(debugBreakpointsPath, lines)
+      const breakpoints = this.debugBreakpoints.get(debugBreakpointsPath) ?? []
+      await adapter.setBreakpoints(debugBreakpointsPath, breakpoints)
       await adapter.launch({ cwd, program, args })
       this.debug = adapter
       this.debugStatus = "running"
