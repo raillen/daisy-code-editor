@@ -12,7 +12,7 @@ import { languageOf, resolvePreviewImage, extractOpenableLink } from "../service
 import { offsetAt } from "../core/document"
 import { EditorPane } from "./editor"
 import { themeOf, resolveColor, type Theme } from "./theme"
-import { clampTreeWidth, clampScmWidth, clampSplitRatio, clampTerminalHeight } from "../core/layout"
+import { clampTreeWidth, clampSplitRatio, clampTerminalHeight } from "../core/layout"
 import { fileGlyph, folderGlyph, gitBranch, lspGlyph, diagnosticError, diagnosticWarning, searchGlyph } from "../services/icons"
 import { menus } from "./menus"
 
@@ -28,15 +28,13 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
   }
   const unsubscribe = app.subscribe(() => setRevision(value => value + 1))
   const theme = createMemo(() => { revision(); return themeOf({ ...app.config, ui: { ...selectedTheme(app.config, app.preferences).ui, ...app.config.ui }, tokens: { ...selectedTheme(app.config, app.preferences).tokens, ...app.config.tokens } }) })
-  const state = createMemo(() => { revision(); return { tree: app.showTree, scm: app.showScm, bottom: app.bottom, overlay: app.overlay, menu: app.menu, preview: app.preview && ["markdown", "mdx"].includes(languageOf(app.document.path, app.config)), documents: [...app.documents], panes: [...app.panes], completion: app.completion } })
+  const state = createMemo(() => { revision(); return { tree: app.showTree, bottom: app.bottom, overlay: app.overlay, menu: app.menu, preview: app.preview && ["markdown", "mdx"].includes(languageOf(app.document.path, app.config)), documents: [...app.documents], panes: [...app.panes], completion: app.completion } })
   const columns = () => dimensions().width
   const height = () => dimensions().height
   const treeWidth = () => state().tree && columns() >= 45 ? Math.min(app.config.tree.width, Math.floor(columns() * 0.35)) : 0
-  const scmWidth = () => state().scm && columns() >= 70 ? Math.min(app.config.scm.width, Math.floor(columns() * 0.3)) : 0
   const bottomHeight = () => state().bottom ? Math.max(3, Math.min(app.terminalHeight, Math.floor(height() / 2))) : 0
   const contentHeight = () => Math.max(1, height() - 3 - bottomHeight())
   const treeStart = () => Math.max(0, app.tree.selected - contentHeight() + 2)
-  const scmStart = () => Math.max(0, app.scmSelected - contentHeight() + 3)
   const style = SyntaxStyle.fromStyles({
     default: { fg: RGBA.fromHex("#e6edf3") }, keyword: { fg: RGBA.fromHex("#ff7b72") }, string: { fg: RGBA.fromHex("#a5d6ff") },
     comment: { fg: RGBA.fromHex("#8b949e"), italic: true }, "markup.heading": { fg: RGBA.fromHex("#79c0ff"), bold: true },
@@ -61,7 +59,6 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
   let poll: ReturnType<typeof setInterval> | undefined
   let quitting = false
   let treeDivider: BoxRenderable | undefined
-  let scmDivider: BoxRenderable | undefined
   let bottomDivider: BoxRenderable | undefined
   let splitDivider: BoxRenderable | undefined
   let terminalBox: BoxRenderable | undefined
@@ -250,25 +247,13 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
           }}><markdown content={(revision(), app.document.text)} syntaxStyle={style} fg={theme().text} renderNode={renderMarkdownNode} streaming internalBlockMode="top-level" /></scrollbox>}>
           <For each={state().panes}>{(pane, index) => <>
             <Show when={index() > 0}><box ref={value => { splitDivider = value }} width={app.orientation === "vertical" ? 1 : "100%"} height={app.orientation === "horizontal" ? 1 : "100%"} flexShrink={0} backgroundColor={theme().panel}
-              onMouseDrag={event => { if (splitDivider && !app.overlay) { app.splitRatio = app.orientation === "vertical" ? clampSplitRatio(event.x - treeWidth(), columns() - treeWidth() - scmWidth()) : clampSplitRatio(event.y - 2, contentHeight()); app.changed() } }} /></Show>
+              onMouseDrag={event => { if (splitDivider && !app.overlay) { app.splitRatio = app.orientation === "vertical" ? clampSplitRatio(event.x - treeWidth(), columns() - treeWidth()) : clampSplitRatio(event.y - 2, contentHeight()); app.changed() } }} /></Show>
             <box flexGrow={index() === 0 && state().panes.length === 2 ? app.splitRatio : state().panes.length === 2 ? 100 - app.splitRatio : 1} flexBasis={0} minWidth={1} minHeight={1}>
               <EditorPane app={app} pane={pane} index={index()} revision={revision} />
             </box>
           </>}</For>
         </Show>
       </box>
-      <Show when={scmWidth() > 0}>
-        <box ref={value => { scmDivider = value }} width={1} flexShrink={0} backgroundColor={theme().border}
-          onMouseDrag={event => { if (!app.overlay && !app.menu && scmDivider) { app.config.scm.width = clampScmWidth(event.x, columns()); app.changed() } }} />
-        <box id="source-control" width={scmWidth()} flexShrink={0} minWidth={1} flexDirection="column" backgroundColor={theme().panel} overflow="hidden">
-          <text height={1} fg={theme().accent} content={theme().isLain ? (app.focus === "scm" ? "▣ SCM // [S:STAGE U:UNSTAGE C:COMMIT]" : "□ SCM") : (app.focus === "scm" ? "▍Git  s:stage u:unstage c:commit" : " Git")} />
-          <Show when={(app.gitStatus.entries?.length ?? 0) > 0} fallback={<text fg={theme().muted} content={app.gitStatus.branch ? "Working tree clean" : "Not a Git repository"} />}>
-            <For each={(revision(), (app.gitStatus.entries ?? []).slice(scmStart(), scmStart() + contentHeight() - 2))}>{(entry, index) => <text height={1} wrapMode="none" selectable={false}
-              content={`${app.scmSelected === scmStart() + index() ? ">" : " "}${entry.index}${entry.worktree} ${entry.path}`} fg={app.scmSelected === scmStart() + index() && app.focus === "scm" ? theme().accent : theme().text}
-              onMouseDown={() => { if (!app.overlay && !app.menu) { app.focus = "scm"; app.scmSelected = scmStart() + index(); app.changed() } }} />}</For>
-          </Show>
-        </box>
-      </Show>
     </box>
     <Show when={state().bottom}>
       <box ref={value => { bottomDivider = value }} id="panel-tabs" height={1} flexShrink={0} flexDirection="row" backgroundColor={theme().panel}
@@ -446,10 +431,17 @@ function MenuDropdown(props: { app: Application; revision: () => number; theme: 
 
 function OverlayView(props: { app: Application; revision: () => number; theme: () => Theme; width: () => number; height: () => number }) {
   const overlay = () => { props.revision(); return props.app.overlay }
-  const title = () => { const value = overlay(); return value?.kind === "search" ? `${value.project ? "Project" : "Buffer"} ${value.replace ? "find & replace" : "find"}` : value?.title ?? "" }
+  const title = () => {
+    const value = overlay()
+    if (value?.kind === "search") return `${value.project ? "Project" : "Buffer"} ${value.replace ? "find & replace" : "find"}`
+    if (value?.kind === "scm") return `Git${props.app.gitStatus.branch ? ` · ${props.app.gitStatus.branch}` : ""}`
+    return value?.title ?? ""
+  }
   const rows = () => Math.max(1, props.height() - 9)
   const entries = () => { props.revision(); const value = overlay(); return value?.kind === "picker" ? props.app.pickerEntries : [] }
   const start = () => { const value = overlay(); return Math.max(0, (value?.kind === "picker" || value?.kind === "search" ? value.selected : 0) - rows() + 1) }
+  const scmEntries = () => { props.revision(); return props.app.gitStatus.entries }
+  const scmStart = () => { const value = overlay(); return Math.max(0, (value?.kind === "scm" ? value.selected : 0) - rows() + 1) }
   return <box id="overlay-scrim" position="absolute" top={0} left={0} width="100%" height="100%" zIndex={100} alignItems="center" justifyContent="center" backgroundColor={props.theme().surface}
     onMouseDown={event => event.stopPropagation()} onMouseScroll={event => event.stopPropagation()}>
     <box id="overlay" width={Math.min(90, Math.max(20, props.width() - 4))} maxHeight={Math.max(3, props.height() - 2)} flexDirection="column" border borderStyle={props.theme().isLain ? "single" : "rounded"} borderColor={props.theme().accent} backgroundColor={props.theme().panel} paddingX={1} overflow="hidden">
@@ -479,6 +471,19 @@ function OverlayView(props: { app: Application; revision: () => number; theme: (
         <text height={1} content={props.theme().isLain ? "↑↓ NAVIGATE · ENTER EXECUTE · ESC ABORT" : "↑↓ preview/select · Enter open · Esc close"} fg={props.theme().muted} />
       </Show>
       <Show when={overlay()?.kind === "read"}><text content={(() => { const value = overlay(); return value?.kind === "read" ? value.text.split("\n").slice(value.scroll, value.scroll + rows()).join("\n") : "" })()} fg={props.theme().text} /><text content="↑↓ scroll · Esc close" fg={props.theme().muted} /></Show>
+      <Show when={overlay()?.kind === "scm"}>
+        <Show when={scmEntries().length} fallback={<text content={props.app.gitStatus.branch ? "Working tree clean" : "Not a Git repository"} fg={props.theme().muted} />}>
+          <For each={scmEntries().slice(scmStart(), scmStart() + rows())}>{(entry, index) => {
+            const isSelected = () => overlay()?.kind === "scm" && (overlay() as any).selected === scmStart() + index()
+            return <text height={1} wrapMode="none" selectable={false}
+              fg={isSelected() ? (props.theme().isLain ? props.theme().surface : props.theme().accent) : props.theme().text}
+              bg={isSelected() ? (props.theme().isLain ? props.theme().accent : props.theme().selection) : undefined}
+              content={`${isSelected() ? (props.theme().isLain ? "▶ " : "▎") : " "}${entry.index}${entry.worktree} ${entry.path}`}
+              onMouseDown={() => { const value = overlay(); if (value?.kind === "scm") { value.selected = scmStart() + index(); props.app.changed() } }} />
+          }}</For>
+        </Show>
+        <text height={1} content={props.theme().isLain ? "↑↓ MOVER · ENTER ABRIR · S STAGE · U UNSTAGE · D DIFF · C COMMIT · ESC FECHAR" : "↑↓ move · Enter open · s stage · u unstage · d diff · c commit · r refresh · P push · p pull · Esc close"} fg={props.theme().muted} />
+      </Show>
       <Show when={overlay()?.kind === "search"}>
         <text height={1} content={(() => { const value = overlay(); return value?.kind === "search" ? `${value.field === 0 ? "▎" : " "} Find: ${value.query}▏` : "" })()} fg={props.theme().text} />
         <Show when={(() => { const value = overlay(); return value?.kind === "search" && value.replace })()}><text height={1} content={(() => { const value = overlay(); return value?.kind === "search" ? `${value.field === 1 ? "▎" : " "} Replace: ${value.replacement}▏` : "" })()} fg={props.theme().text} /></Show>

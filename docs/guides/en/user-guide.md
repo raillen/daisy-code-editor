@@ -46,7 +46,7 @@ Oride's user interface is crafted for optimal terminal ergonomics using the Rata
 - **Buffer Tabs:** Displays all open documents. The active buffer is highlighted, and unsaved changes are marked with an asterisk (`*`).
 - **Project File Tree:** Left panel providing recursive file browsing, directory collapse/expansion, Nerd Font icons, and Git status badges (`M`, `A`, `?`).
 - **Editor Workspace:** Supports line numbers (gutter), multi-cursor editing, soft word wrapping (`Alt+Z`), and Tree-Sitter syntax highlighting.
-- **Git / SCM Panel:** Accessible on the right via `Ctrl+Shift+G`, showing modified files across your working tree.
+- **Git / SCM Overlay:** `Ctrl+Shift+G` opens a modal listing modified files across your working tree. Inside it: `↑`/`↓` navigate, `Enter` opens the file, `s` stages, `u` unstages, `d` shows the diff, `c` commits, `r` refreshes, `P`/`p` push/pull, and `Esc` closes.
 - **Embedded Terminal (PTY):** A collapsible, full-featured interactive shell at the bottom (`Ctrl+\`` or `Ctrl+"`).
 - **Status Line:** Displays caret position (line, column), file encoding, detected language, active editing mode, and system feedback.
 

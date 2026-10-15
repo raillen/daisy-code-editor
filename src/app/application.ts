@@ -20,13 +20,14 @@ import { extractBufferWords, suggestBufferWords, wordAtOffset, extractDocumentSy
 import { getLanguageCatalog, lookupCatalogItem } from "../services/languageCatalog"
 import type { FuzzyWorkerRequest, FuzzyWorkerResponse } from "../workers/fuzzy"
 
-export type Focus = "editor" | "tree" | "terminal" | "scm"
+export type Focus = "editor" | "tree" | "terminal"
 export type PickerEntry = { label: string; detail?: string; run: () => void | Promise<void> }
 export type Overlay =
   | { kind: "picker"; title: string; query: string; selected: number; entries: PickerEntry[]; onSelect?: (entry: PickerEntry, index: number) => void; onCancel?: () => void; filtered?: PickerEntry[]; generation?: number }
   | { kind: "prompt"; title: string; value: string; submit: (value: string) => void | Promise<void> }
   | { kind: "read"; title: string; text: string; scroll: number }
   | { kind: "confirm"; title: string; accept: () => void | Promise<void> }
+  | { kind: "scm"; selected: number }
   | { kind: "search"; project: boolean; field: number; query: string; replacement: string; glob: string; replace: boolean; selected: number; hits: ProjectHit[]; error: string; generation: number }
 export type ProjectHit = { path: string; line: number; column: number; text: string; match: Match }
 export type Pane = { documentId: number; scroll: number; scrollX: number }
@@ -112,9 +113,7 @@ export class Application {
   git: Git
   gitStatus: GitStatus = { branch: "", ahead: 0, behind: 0, entries: [] }
   gitGutters = new Map<string, Map<number, GutterKind>>()
-  scmSelected = 0
   showTree = true
-  showScm = false
   bottom: "terminal" | "problems" | undefined
   terminal: TerminalSession | undefined
   terminalHeight: number
@@ -222,9 +221,7 @@ export class Application {
       }
     }
     app.showTree = previous.show_tree ?? true
-    app.showScm = previous.show_scm ?? false
     app.config.tree.width = Math.max(8, previous.tree_width ?? app.config.tree.width)
-    app.config.scm.width = Math.max(15, previous.scm_width ?? app.config.scm.width)
     await app.refreshGit()
     return app
   }
@@ -534,9 +531,6 @@ export class Application {
         "[tree]",
         "width = 28",
         "show_hidden = false",
-        "",
-        "[scm]",
-        "width = 30",
         "",
         "[terminal]",
         "default_height = 10",
@@ -942,7 +936,7 @@ export class Application {
     this.gitReading = true
     try {
       this.gitStatus = await this.git.status()
-      this.scmSelected = Math.min(this.scmSelected, Math.max(0, this.gitStatus.entries.length - 1))
+      if (this.overlay?.kind === "scm") this.overlay.selected = Math.min(this.overlay.selected, Math.max(0, this.gitStatus.entries.length - 1))
       await this.refreshGitGutter()
       this.changed()
     }
@@ -1655,9 +1649,7 @@ export class Application {
       active_index: Math.max(0, files.indexOf(this.document.path ?? "")),
       scroll_y: this.panes[0]?.scroll ?? 0,
       show_tree: this.showTree,
-      show_scm: this.showScm,
       tree_width: this.config.tree.width,
-      scm_width: this.config.scm.width,
       split,
     })
   }

@@ -46,7 +46,7 @@ A interface do Oride foi desenhada para eficiência máxima no terminal, aprovei
 - **Abas de Buffers (Tabs):** Exibe todos os arquivos abertos, indicando o ativo com fundo destacado e alterações não salvas com um indicador `*`.
 - **Árvore de Arquivos (Project Tree):** Painel lateral esquerdo com navegação recursiva, ícones Nerd Fonts e status Git (`M`, `A`, `?`).
 - **Área de Edição de Texto:** Suporta números de linha (gutter), múltiplos cursores, quebra de linha suave (`Alt+Z`) e realce sintático Tree-Sitter.
-- **Painel Git / SCM:** Acessível via `Ctrl+Shift+G` no lado direito, listando arquivos modificados na working tree.
+- **Modal Git / SCM:** `Ctrl+Shift+G` abre um modal listando os arquivos modificados na working tree. Dentro dele: `↑`/`↓` navegam, `Enter` abre o arquivo, `s` adiciona ao índice, `u` tira do índice, `d` mostra o diff, `c` faz o commit, `r` relê o disco, `P`/`p` fazem push/pull e `Esc` fecha.
 - **Terminal Embutido (PTY):** Terminal interativo colapsável na parte inferior (`Ctrl+\`` ou `Ctrl+"`).
 - **Linha de Status:** Rodapé exibindo posição do cursor (linha, coluna), codificação, linguagem detectada, modo de edição ativo e mensagens do sistema.
 

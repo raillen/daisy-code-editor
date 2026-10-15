@@ -2,7 +2,7 @@ import { basename, dirname, join, relative } from "node:path"
 import { rename, unlink, rmdir, stat } from "node:fs/promises"
 import { actionIds, type ActionId } from "../core/keymap"
 import { offsetAt, lineRanges, type Direction } from "../core/document"
-import { clampTreeWidth, clampScmWidth } from "../core/layout"
+import { clampTreeWidth } from "../core/layout"
 import { findMatches } from "../core/search"
 import { languageOf, commentDelimiters } from "../services/languages"
 import { readText } from "../services/files"
@@ -42,8 +42,6 @@ export const commands: Record<ActionId, Command> = {
   terminal_shrink: toggle("Shrink terminal", app => { app.terminalHeight = Math.max(3, app.terminalHeight - 2) }),
   tree_grow: toggle("Grow tree", app => { app.config.tree.width = clampTreeWidth(app.config.tree.width + 2, app.width) }),
   tree_shrink: toggle("Shrink tree", app => { app.config.tree.width = clampTreeWidth(app.config.tree.width - 2, app.width) }),
-  scm_grow: toggle("Grow source control", app => { app.config.scm.width = clampScmWidth(app.width - app.config.scm.width - 2, app.width) }),
-  scm_shrink: toggle("Shrink source control", app => { app.config.scm.width = clampScmWidth(app.width - app.config.scm.width + 2, app.width) }),
   focus_tree: toggle("Focus tree", app => { app.showTree = true; app.focus = "tree" }),
   focus_editor: toggle("Focus editor", app => { app.focus = "editor" }),
   focus_terminal: toggle("Focus terminal", app => app.startTerminal()),
@@ -138,8 +136,7 @@ export const commands: Record<ActionId, Command> = {
   resize_pane_shrink: toggle("Shrink focused pane", app => { app.splitRatio = Math.max(15, app.splitRatio - 5) }),
   add_cursor_above: command("Add cursor above", app => app.document.addCursor(-1)), add_cursor_below: command("Add cursor below", app => app.document.addCursor(1)),
   clear_extra_cursors: command("Clear extra cursors", app => app.document.clearExtraCursors()),
-  toggle_scm: toggle("Source control", app => { app.showScm = !app.showScm; app.focus = app.showScm ? "scm" : "editor"; void app.refreshGit() }),
-  focus_scm: toggle("Focus source control", app => { app.showScm = true; app.focus = "scm" }),
+  toggle_scm: toggle("Source control", app => { app.overlay = app.overlay?.kind === "scm" ? undefined : { kind: "scm", selected: 0 }; void app.refreshGit() }),
   git_pull: command("Git pull", app => confirmGit(app, "pull")), git_push: command("Git push", app => confirmGit(app, "push")),
   git_rebase: command("Git rebase onto branch…", app => app.prompt(app.config.locale === "pt-BR" ? "Rebase onto branch:" : "Rebase onto branch:", "", branch => confirmRebase(app, branch))),
   git_rebase_continue: command("Git rebase continue", async app => { await app.guard(async () => { app.status = await app.git.rebaseContinue(); await app.refreshGit() }) }),

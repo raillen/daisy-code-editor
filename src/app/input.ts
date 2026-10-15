@@ -114,7 +114,6 @@ export function receiveKey(app: Application, key: KeyEvent): void {
   if (key.name === "tab" && app.focus !== "editor") { app.focus = "editor"; app.changed(); return }
   if (key.name === "tab" && key.shift) { app.showTree = true; app.focus = "tree"; app.changed(); return }
   if (app.focus === "tree" && !key.ctrl && !key.meta) { void app.guard(() => treeKey(app, key)); return }
-  if (app.focus === "scm" && !key.ctrl && !key.meta) { void app.guard(() => scmKey(app, key)); return }
   if (app.config.editor.modal_mode && receiveVimKey(app, key)) return
   const action = app.config.keys[chord]
   if (action) { void app.dispatch(action); return }
@@ -216,6 +215,21 @@ async function overlayKey(app: Application, key: KeyEvent, chord: string): Promi
     if (key.name === "down" || key.name === "pagedown") overlay.scroll = Math.min(Math.max(0, overlay.text.split("\n").length - 1), overlay.scroll + (key.name === "down" ? 1 : 10))
     if (key.name === "up" || key.name === "pageup") overlay.scroll = Math.max(0, overlay.scroll - (key.name === "up" ? 1 : 10))
   }
+  if (overlay.kind === "scm") {
+    const entries = app.gitStatus.entries
+    const entry = entries[overlay.selected]
+    if (enter && entry) { app.overlay = undefined; app.recordJump(); await app.openFile(join(app.workspace, entry.path)) }
+    else if (key.name === "down" || key.name === "j") overlay.selected = Math.min(entries.length - 1, overlay.selected + 1)
+    else if (key.name === "up" || key.name === "k") overlay.selected = Math.max(0, overlay.selected - 1)
+    else if (key.name === "s" && entry) { await app.git.stage(entry.path); await app.refreshGit() }
+    else if (key.name === "u" && entry) { await app.git.unstage(entry.path); await app.refreshGit() }
+    else if (key.name === "d" && entry) app.overlay = { kind: "read", title: "Git diff", text: await app.git.diff(entry.path), scroll: 0 }
+    else if (key.name === "c") app.prompt("Git commit message", "", async message => { app.status = await app.git.commit(message); await app.refreshGit() })
+    else if (key.name === "r") await app.refreshGit()
+    else if (key.name === "P") await app.dispatch("git_push")
+    else if (key.name === "p") await app.dispatch("git_pull")
+    app.changed(); return
+  }
   if (overlay.kind === "prompt") {
     if (enter) { app.overlay = undefined; await overlay.submit(overlay.value); app.afterEdit() }
     else if (key.name === "backspace") overlay.value = erase(overlay.value)
@@ -302,19 +316,5 @@ async function treeKey(app: Application, key: KeyEvent): Promise<void> {
   else if (key.name === "d") deleteTreeSelection(app)
   else if (key.name === "n") await app.dispatch("tree_new_file")
   else if (["y", "c"].includes(key.name) && row) { app.clipboard = row.path; app.clipboardWrite = `\x1b]52;c;${Buffer.from(row.path).toString("base64")}\x07` }
-  app.changed()
-}
-async function scmKey(app: Application, key: KeyEvent): Promise<void> {
-  const entry = app.gitStatus.entries[app.scmSelected]
-  if (["up", "k"].includes(key.name)) app.scmSelected = Math.max(0, app.scmSelected - 1)
-  else if (["down", "j"].includes(key.name)) app.scmSelected = Math.min(app.gitStatus.entries.length - 1, app.scmSelected + 1)
-  else if (["return", "enter"].includes(key.name) && entry) { app.recordJump(); await app.openFile(join(app.workspace, entry.path)) }
-  else if (key.name === "s" && entry) { await app.git.stage(entry.path); await app.refreshGit() }
-  else if (key.name === "u" && entry) { await app.git.unstage(entry.path); await app.refreshGit() }
-  else if (key.name === "d" && entry) app.overlay = { kind: "read", title: "Git diff", text: await app.git.diff(entry.path), scroll: 0 }
-  else if (key.name === "c") app.prompt("Git commit message", "", async message => { app.status = await app.git.commit(message); await app.refreshGit() })
-  else if (key.name === "r") await app.refreshGit()
-  else if (key.name === "P") await app.dispatch("git_push")
-  else if (key.name === "p") await app.dispatch("git_pull")
   app.changed()
 }

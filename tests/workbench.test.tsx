@@ -6,7 +6,8 @@ import { testRender } from "@opentui/solid"
 import { Application } from "../src/app/application"
 import { defaultConfig } from "../src/services/config"
 import { Workbench } from "../src/ui/workbench"
-import { clampTreeWidth, clampScmWidth, clampSplitRatio, clampTerminalHeight } from "../src/core/layout"
+import { clampTreeWidth, clampSplitRatio, clampTerminalHeight } from "../src/core/layout"
+import { execute } from "../src/services/git"
 import { receiveKey } from "../src/app/input"
 
 async function waitFor(predicate: () => boolean, timeout = 3000): Promise<void> {
@@ -208,22 +209,6 @@ test("divider geometry clamps tree, split ratio and terminal height", () => {
   expect(clampTerminalHeight(12, 25)).toBe(12)
   expect(clampTerminalHeight(0, 25)).toBe(20)
   expect(clampTerminalHeight(24, 25)).toBe(3)
-  expect(clampScmWidth(69, 100)).toBe(31)
-  expect(clampScmWidth(95, 100)).toBe(15)
-  expect(clampScmWidth(0, 100)).toBe(60)
-  expect(clampScmWidth(50, 70)).toBe(20)
-})
-test("dragging the SCM divider resizes the source control panel", async () => {
-  const view = await setup()
-  try {
-    view.app.showScm = true; view.app.changed()
-    await view.renderOnce()
-    expect(view.app.config.scm.width).toBe(30)
-    await view.mockMouse.drag(70, 5, 64, 5)
-    expect(view.app.config.scm.width).toBe(36)
-    await view.renderOnce()
-    expect(view.captureCharFrame()).toContain("Git")
-  } finally { await view.cleanup() }
 })
 test("command palette covers the background, filters and runs entries", async () => {
   const view = await setup()
@@ -235,11 +220,11 @@ test("command palette covers the background, filters and runs entries", async ()
     const covered = view.captureCharFrame()
     expect(covered).toContain("Commands")
     expect(covered).not.toContain("PROJECT")
-    await view.mockInput.typeText("grow source")
+    await view.mockInput.typeText("grow tree")
     await view.flush()
-    expect(view.app.pickerEntries[0]?.label).toMatch(/grow source control/i)
+    expect(view.app.pickerEntries[0]?.label).toMatch(/grow tree/i)
     view.mockInput.pressEnter()
-    await waitFor(() => view.app.config.scm.width === 32)
+    await waitFor(() => view.app.config.tree.width === 30)
     expect(view.app.overlay).toBeUndefined()
   } finally { await view.cleanup() }
 })
@@ -255,16 +240,26 @@ test("command palette renders under a switched theme", async () => {
     expect(view.app.pickerEntries.length).toBeGreaterThan(100)
   } finally { await view.cleanup() }
 })
-test("scm_grow and scm_shrink move the panel through the shared clamp", async () => {
+test("toggle_scm opens the SCM modal, stages with s and closes with Esc", async () => {
   const view = await setup()
   try {
-    view.app.width = 100
-    await view.app.dispatch("scm_grow")
-    expect(view.app.config.scm.width).toBe(32)
-    await view.app.dispatch("scm_shrink")
-    expect(view.app.config.scm.width).toBe(30)
-    await view.app.dispatch("tree_grow")
-    expect(view.app.config.tree.width).toBe(30)
+    await execute("git", ["init", "-b", "main"], view.root)
+    await execute("git", ["config", "user.email", "test@example.invalid"], view.root)
+    await execute("git", ["config", "user.name", "Workbench Test"], view.root)
+    await Bun.write(join(view.root, "tracked.txt"), "first\n")
+    await execute("git", ["add", "-A"], view.root)
+    await execute("git", ["commit", "-m", "base"], view.root)
+    await Bun.write(join(view.root, "tracked.txt"), "second\n")
+    await view.app.dispatch("toggle_scm")
+    await waitFor(() => view.app.gitStatus.entries.length === 1)
+    await view.renderOnce()
+    const frame = view.captureCharFrame()
+    expect(frame).toContain("Git")
+    expect(frame).toContain("tracked.txt")
+    view.mockInput.pressKey("s"); await view.flush()
+    await waitFor(() => view.app.gitStatus.entries[0]?.index === "M")
+    view.mockInput.pressEscape(); await view.flush()
+    expect(view.app.overlay).toBeUndefined()
   } finally { await view.cleanup() }
 })
 test("dragging the panel divider resizes the terminal", async () => {

@@ -71,16 +71,13 @@ test("sessions restore active file and layout in compatible TOML", async () => {
     active_index: 1,
     scroll_y: 42,
     show_tree: false,
-    show_scm: true,
     tree_width: 32,
-    scm_width: 24,
     split: { orientation: "horizontal", secondary_file: join(root, "b"), ratio_percent: 60 }
   })
   const session = await loadSession(root)
   expect(session.files).toEqual([join(root, "a"), join(root, "b")])
   expect(session.show_tree).toBe(false)
   expect(session.scroll_y).toBe(42)
-  expect(session.scm_width).toBe(24)
   expect(session.split?.orientation).toBe("horizontal")
   expect(session.split?.secondary_file).toBe(join(root, "b"))
   expect(session.split?.ratio_percent).toBe(60)
