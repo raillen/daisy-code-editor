@@ -55,7 +55,7 @@ test("accent search retains original text offsets", () => {
 })
 test("all reference actions and bindings have handlers", () => {
   expect(Object.keys(commands).sort()).toEqual([...actionIds].sort())
-  expect(Object.keys(defaultBindings)).toHaveLength(99)
+  expect(Object.keys(defaultBindings)).toHaveLength(101)
   for (const action of Object.values(defaultBindings)) expect(commands[action].run).toBeFunction()
 })
 test("fuzzy finder scores subsequences and rejects nonmatches", () => {

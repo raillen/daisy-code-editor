@@ -12,7 +12,7 @@ import { languageOf, resolvePreviewImage, extractOpenableLink } from "../service
 import { offsetAt } from "../core/document"
 import { EditorPane } from "./editor"
 import { themeOf, resolveColor, type Theme } from "./theme"
-import { clampTreeWidth, clampSplitRatio, clampTerminalHeight } from "./dividers"
+import { clampTreeWidth, clampScmWidth, clampSplitRatio, clampTerminalHeight } from "../core/layout"
 import { fileGlyph, folderGlyph, gitBranch, lspGlyph, diagnosticError, diagnosticWarning, searchGlyph } from "../services/icons"
 import { menus } from "./menus"
 
@@ -32,7 +32,7 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
   const columns = () => dimensions().width
   const height = () => dimensions().height
   const treeWidth = () => state().tree && columns() >= 45 ? Math.min(app.config.tree.width, Math.floor(columns() * 0.35)) : 0
-  const scmWidth = () => state().scm && columns() >= 70 ? Math.min(30, Math.floor(columns() * 0.3)) : 0
+  const scmWidth = () => state().scm && columns() >= 70 ? Math.min(app.config.scm.width, Math.floor(columns() * 0.3)) : 0
   const bottomHeight = () => state().bottom ? Math.max(3, Math.min(app.terminalHeight, Math.floor(height() / 2))) : 0
   const contentHeight = () => Math.max(1, height() - 3 - bottomHeight())
   const treeStart = () => Math.max(0, app.tree.selected - contentHeight() + 2)
@@ -61,6 +61,7 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
   let poll: ReturnType<typeof setInterval> | undefined
   let quitting = false
   let treeDivider: BoxRenderable | undefined
+  let scmDivider: BoxRenderable | undefined
   let bottomDivider: BoxRenderable | undefined
   let splitDivider: BoxRenderable | undefined
   let terminalBox: BoxRenderable | undefined
@@ -257,6 +258,8 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
         </Show>
       </box>
       <Show when={scmWidth() > 0}>
+        <box ref={value => { scmDivider = value }} width={1} flexShrink={0} backgroundColor={theme().border}
+          onMouseDrag={event => { if (!app.overlay && !app.menu && scmDivider) { app.config.scm.width = clampScmWidth(event.x, columns()); app.changed() } }} />
         <box id="source-control" width={scmWidth()} flexShrink={0} minWidth={1} flexDirection="column" backgroundColor={theme().panel} overflow="hidden">
           <text height={1} fg={theme().accent} content={theme().isLain ? (app.focus === "scm" ? "▣ SCM // [S:STAGE U:UNSTAGE C:COMMIT]" : "□ SCM") : (app.focus === "scm" ? "▍Git  s:stage u:unstage c:commit" : " Git")} />
           <Show when={(app.gitStatus.entries?.length ?? 0) > 0} fallback={<text fg={theme().muted} content={app.gitStatus.branch ? "Working tree clean" : "Not a Git repository"} />}>

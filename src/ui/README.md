@@ -14,7 +14,6 @@ A camada **UI** implementa a interface de usuário baseada em terminal (TUI) uti
   - Camadas sobrepostas para modais, busca, paleta de comandos e ajuda (`OverlayView`).
   - Janela flutuante de autocompletação de código (`CompletionDropdown`).
 - **`editor.tsx`**: Componente de alta performance para renderização do editor de texto, números de linha, marcadores de Git no gutter, múltiplos cursores, seleções ativas, scrollbar visual e quebra suave de linha (`visualRows`).
-- **`dividers.ts`**: Lógica de cálculo geométrico e redimensionamento por arraste de divisores entre painéis.
 - **`theme.ts`**: Resolução de tokens semânticos de cores e estilos para OpenTUI com suporte a terminal sem cor (`no-color`).
 - **`menus.ts`**: Ponto de reexportação das definições de menu para a UI.
 

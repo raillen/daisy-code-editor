@@ -7,6 +7,7 @@ O módulo **Core** encapsula a lógica essencial de domínio do Daisy Code Edito
 - **`document.ts`**: Modelo de buffer de texto imutável/funcional, suporte a multicursor, transações atômicas de edição (`insert`, `delete`, `replace`), árvore de undo/redo histórico, cálculo determinístico de posições/linhas e tratamento de grafemas Unicode via `Intl.Segmenter`.
 - **`keymap.ts`**: Catálogo canônico de ações (`ActionId`), normalização e parsing de acordes de teclas (`chordOf`), resolução de atalhos e mapeamento de comandos como dados.
 - **`search.ts`**: Algoritmos de busca literal, regex com suporte a retrocompatibilidade de captura (`$0`, `$1`), folding de acentuação (`ignoreAccents`), cálculo de edições de substituição e pontuação difusa (`fuzzyScore`).
+- **`layout.ts`**: Geometria pura dos divisores arrastáveis (árvore, SCM, split, terminal): prende coordenadas de mouse/teclado em faixas, sem I/O.
 
 ## Invariantes Arquiteturais
 

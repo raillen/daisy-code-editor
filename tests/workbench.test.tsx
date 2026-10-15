@@ -6,7 +6,7 @@ import { testRender } from "@opentui/solid"
 import { Application } from "../src/app/application"
 import { defaultConfig } from "../src/services/config"
 import { Workbench } from "../src/ui/workbench"
-import { clampTreeWidth, clampSplitRatio, clampTerminalHeight } from "../src/ui/dividers"
+import { clampTreeWidth, clampScmWidth, clampSplitRatio, clampTerminalHeight } from "../src/core/layout"
 import { receiveKey } from "../src/app/input"
 
 async function waitFor(predicate: () => boolean, timeout = 3000): Promise<void> {
@@ -204,6 +204,34 @@ test("divider geometry clamps tree, split ratio and terminal height", () => {
   expect(clampTerminalHeight(12, 25)).toBe(12)
   expect(clampTerminalHeight(0, 25)).toBe(20)
   expect(clampTerminalHeight(24, 25)).toBe(3)
+  expect(clampScmWidth(69, 100)).toBe(31)
+  expect(clampScmWidth(95, 100)).toBe(15)
+  expect(clampScmWidth(0, 100)).toBe(60)
+  expect(clampScmWidth(50, 70)).toBe(20)
+})
+test("dragging the SCM divider resizes the source control panel", async () => {
+  const view = await setup()
+  try {
+    view.app.showScm = true; view.app.changed()
+    await view.renderOnce()
+    expect(view.app.config.scm.width).toBe(30)
+    await view.mockMouse.drag(70, 5, 64, 5)
+    expect(view.app.config.scm.width).toBe(36)
+    await view.renderOnce()
+    expect(view.captureCharFrame()).toContain("Git")
+  } finally { await view.cleanup() }
+})
+test("scm_grow and scm_shrink move the panel through the shared clamp", async () => {
+  const view = await setup()
+  try {
+    view.app.width = 100
+    await view.app.dispatch("scm_grow")
+    expect(view.app.config.scm.width).toBe(32)
+    await view.app.dispatch("scm_shrink")
+    expect(view.app.config.scm.width).toBe(30)
+    await view.app.dispatch("tree_grow")
+    expect(view.app.config.tree.width).toBe(30)
+  } finally { await view.cleanup() }
 })
 test("dragging the panel divider resizes the terminal", async () => {
   const view = await setup()

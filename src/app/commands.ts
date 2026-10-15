@@ -2,6 +2,7 @@ import { basename, dirname, join, relative } from "node:path"
 import { rename, unlink, rmdir, stat } from "node:fs/promises"
 import { actionIds, type ActionId } from "../core/keymap"
 import { offsetAt, lineRanges, type Direction } from "../core/document"
+import { clampTreeWidth, clampScmWidth } from "../core/layout"
 import { findMatches } from "../core/search"
 import { languageOf, commentDelimiters } from "../services/languages"
 import { readText } from "../services/files"
@@ -39,8 +40,10 @@ export const commands: Record<ActionId, Command> = {
   toggle_terminal: toggle("Toggle terminal", app => { if (app.bottom === "terminal") { app.bottom = undefined; app.focus = "editor" } else app.startTerminal() }),
   terminal_grow: toggle("Grow terminal", app => { app.terminalHeight = Math.min(app.height - 5, app.terminalHeight + 2) }),
   terminal_shrink: toggle("Shrink terminal", app => { app.terminalHeight = Math.max(3, app.terminalHeight - 2) }),
-  tree_grow: toggle("Grow tree", app => { app.config.tree.width = Math.min(app.width - 20, app.config.tree.width + 2) }),
-  tree_shrink: toggle("Shrink tree", app => { app.config.tree.width = Math.max(8, app.config.tree.width - 2) }),
+  tree_grow: toggle("Grow tree", app => { app.config.tree.width = clampTreeWidth(app.config.tree.width + 2, app.width) }),
+  tree_shrink: toggle("Shrink tree", app => { app.config.tree.width = clampTreeWidth(app.config.tree.width - 2, app.width) }),
+  scm_grow: toggle("Grow source control", app => { app.config.scm.width = clampScmWidth(app.width - app.config.scm.width - 2, app.width) }),
+  scm_shrink: toggle("Shrink source control", app => { app.config.scm.width = clampScmWidth(app.width - app.config.scm.width + 2, app.width) }),
   focus_tree: toggle("Focus tree", app => { app.showTree = true; app.focus = "tree" }),
   focus_editor: toggle("Focus editor", app => { app.focus = "editor" }),
   focus_terminal: toggle("Focus terminal", app => app.startTerminal()),

@@ -224,6 +224,7 @@ export class Application {
     app.showTree = previous.show_tree ?? true
     app.showScm = previous.show_scm ?? false
     app.config.tree.width = Math.max(8, previous.tree_width ?? app.config.tree.width)
+    app.config.scm.width = Math.max(15, previous.scm_width ?? app.config.scm.width)
     await app.refreshGit()
     return app
   }
@@ -533,6 +534,9 @@ export class Application {
         "[tree]",
         "width = 28",
         "show_hidden = false",
+        "",
+        "[scm]",
+        "width = 30",
         "",
         "[terminal]",
         "default_height = 10",
@@ -1653,6 +1657,7 @@ export class Application {
       show_tree: this.showTree,
       show_scm: this.showScm,
       tree_width: this.config.tree.width,
+      scm_width: this.config.scm.width,
       split,
     })
   }
