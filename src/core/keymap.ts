@@ -103,7 +103,12 @@ export const actionIds = ["quit",
 "run_tasks",
 "goto_line",
 "git_blame",
-"lsp_rename"] as const
+"lsp_rename",
+"debug_toggle_breakpoint",
+"debug_launch",
+"debug_stop",
+"debug_continue",
+"debug_step_over"] as const
 export type ActionId = typeof actionIds[number]
 export const defaultBindings: Record<string, ActionId> = {
 "alt+-": "terminal_shrink",

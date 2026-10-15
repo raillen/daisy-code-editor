@@ -10,6 +10,7 @@ import { Git, type GitStatus, type GutterKind } from "../services/git"
 import { highlight, languageOf, type HighlightToken } from "../services/languages"
 import { TerminalSession } from "../services/terminal"
 import { LspClient } from "../services/lsp"
+import { DebugAdapter } from "../services/dap"
 import { discoverPlugins, runPlugin, type Plugin, type PluginCommand } from "../services/plugins"
 import { loadUserSnippets } from "../services/snippets"
 import { commands, type Command } from "./commands"
@@ -99,6 +100,9 @@ export class Application {
   bottom: "terminal" | "problems" | undefined
   terminal: TerminalSession | undefined
   terminalHeight: number
+  debugBreakpoints = new Map<string, number[]>()
+  debug: DebugAdapter | undefined
+  debugStatus: string = "idle"
   focus: Focus = "editor"
   documents: Document[] = []
   activeId = 0
@@ -681,6 +685,7 @@ export class Application {
   async changeWorkspace(path: string): Promise<void> {
     const change = async () => {
       await this.terminal?.close(); this.terminal = undefined
+      await this.debug?.disconnect().catch(() => undefined); this.debug = undefined
       await Promise.all([...this.servers.values()].map(server => server.close())); this.servers.clear(); this.serverFailures.clear()
       this.workspace = path; this.config = await loadConfig(path); this.preferences = await loadPreferences(path); this.tree = new FileTree(path, this.config.tree.show_hidden)
       const { Git } = await import("../services/git"); this.git = new Git(path)
@@ -1400,11 +1405,86 @@ export class Application {
       split,
     })
   }
+  debugBreakpointLines(): number[] { return this.debugBreakpoints.get(this.document.path ?? "") ?? [] }
+
+  toggleBreakpoint(): void {
+    const path = this.document.path
+    if (!path) { this.status = this.config.locale === "pt-BR" ? "Salve o arquivo antes de usar breakpoint" : "Save the file before using breakpoints"; this.changed(); return }
+    const line = this.document.position.line + 1
+    const lines = this.debugBreakpoints.get(path) ?? []
+    const index = lines.indexOf(line)
+    if (index >= 0) lines.splice(index, 1); else lines.push(line)
+    this.debugBreakpoints.set(path, lines.sort((a, b) => a - b))
+    this.status = this.config.locale === "pt-BR" ? `Breakpoint ${index >= 0 ? "removido" : "adicionado"} da linha ${line}` : `Breakpoint ${index >= 0 ? "removed" : "added"} at line ${line}`
+    this.changed()
+  }
+
+  private debugAdapterCommand(language: string): string[] | undefined {
+    if (!this.config.debug.enabled) return undefined
+    return this.config.debug.adapters[language] ?? undefined
+  }
+
+  async startDebug(): Promise<void> {
+    const document = this.document
+    const path = document.path
+    if (!path) throw new Error("Debug requires a saved file")
+    if (this.debug && (this.debugStatus === "running" || this.debugStatus === "stopped")) {
+      this.status = this.config.locale === "pt-BR" ? "Debug já em execução" : "Debug already running"
+      this.changed(); return
+    }
+    await this.debug?.disconnect().catch(() => undefined)
+    const language = languageOf(path, this.config)
+    const command = this.debugAdapterCommand(language)
+    if (!command?.length) throw new Error(`No debug adapter configured for ${language}`)
+    const adapter = new DebugAdapter(command, this.workspace, (status, message) => { this.debugStatus = status; this.status = message ? `Debug ${status}: ${message}` : `Debug ${status}`; this.changed() })
+    try {
+      await adapter.initialize()
+      const lines = this.debugBreakpoints.get(path) ?? []
+      await adapter.setBreakpoints(path, lines)
+      await adapter.launch({ cwd: dirname(path), program: path })
+      this.debug = adapter
+      this.debugStatus = "running"
+      this.status = this.config.locale === "pt-BR" ? "Debug iniciado" : "Debug started"
+    } catch (error) {
+      await adapter.disconnect().catch(() => undefined)
+      this.debug = undefined
+      this.debugStatus = "failed"
+      throw error
+    }
+    this.changed()
+  }
+
+  async stopDebug(): Promise<void> {
+    await this.debug?.disconnect()
+    this.debug = undefined
+    this.debugStatus = "idle"
+    this.status = this.config.locale === "pt-BR" ? "Debug parado" : "Debug stopped"
+    this.changed()
+  }
+
+  async debugContinue(): Promise<void> {
+    if (!this.debug) return
+    const serverThreads = await (this.debug.request("threads").catch(() => ({ threads: [] })) as Promise<{ threads?: Array<{ id: number }> }>)
+    const thread = serverThreads.threads?.[0]?.id ?? 1
+    await this.debug.continue(thread)
+  }
+
+  async debugStepOver(): Promise<void> {
+    if (!this.debug) return
+    const serverThreads = await (this.debug.request("threads").catch(() => ({ threads: [] })) as Promise<{ threads?: Array<{ id: number }> }>)
+    const thread = serverThreads.threads?.[0]?.id ?? 1
+    await this.debug.request("next", { threadId: thread })
+    this.debugStatus = "stopped"
+    this.changed()
+  }
+
   async close(): Promise<void> {
     this.closed = true; clearTimeout(this.lspTimer); clearTimeout(this.completionTimer); clearTimeout(this.fuzzyTimer)
     try { this.fuzzyWorker?.terminate() } catch {}
     this.fuzzyWorker = undefined
     await this.terminal?.close()
+    await this.debug?.disconnect().catch(() => undefined)
+    this.debug = undefined
     await Promise.all([...this.servers.values()].map(server => server.close?.()))
     await Promise.allSettled(this.starting.values())
     this.listeners.clear()
