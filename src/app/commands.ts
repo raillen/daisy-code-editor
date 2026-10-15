@@ -480,11 +480,15 @@ export function buildPaletteEntries(app: Application): PickerEntry[] {
     })
   }
 
-  // 4. Any other non-menu actionIds
+  // 4. Any other non-menu actionIds, grouped under a fallback category.
+  // Movement and text-editing primitives stay keyboard-only: invoking them
+  // from a palette would move the cursor or mutate text without context.
+  const paletteHidden = new Set(["insert_newline", "insert_tab", "backspace", "delete", "page_up", "page_down"])
+  const fallbackCategory = isPt ? "Outros" : "Other"
   for (const id of actionIds) {
-    if (seenActions.has(id) || id.startsWith("move_") || ["backspace", "delete", "insert_newline", "insert_tab"].includes(id)) continue
+    if (seenActions.has(id) || paletteHidden.has(id) || id.startsWith("move_") || id.endsWith("_extend")) continue
     seenActions.add(id)
-    const label = app.label(id)
+    const label = `${fallbackCategory}: ${app.label(id)}`
     const chord = Object.entries(app.config.keys).find(([, action]) => action === id)?.[0]
     const synonyms = actionSynonyms(id)
     const detail = [chord, synonyms].filter(Boolean).join("  ·  ")

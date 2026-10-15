@@ -221,6 +221,36 @@ test("dragging the SCM divider resizes the source control panel", async () => {
     expect(view.captureCharFrame()).toContain("Git")
   } finally { await view.cleanup() }
 })
+test("command palette covers the background, filters and runs entries", async () => {
+  const view = await setup()
+  try {
+    await view.renderOnce()
+    expect(view.captureCharFrame()).toContain("PROJECT")
+    await view.app.dispatch("command_palette")
+    await view.renderOnce()
+    const covered = view.captureCharFrame()
+    expect(covered).toContain("Commands")
+    expect(covered).not.toContain("PROJECT")
+    await view.mockInput.typeText("grow source")
+    await view.flush()
+    expect(view.app.pickerEntries[0]?.label).toMatch(/grow source control/i)
+    view.mockInput.pressEnter()
+    await waitFor(() => view.app.config.scm.width === 32)
+    expect(view.app.overlay).toBeUndefined()
+  } finally { await view.cleanup() }
+})
+test("command palette renders under a switched theme", async () => {
+  const view = await setup()
+  try {
+    view.app.config.theme = "no-color"; view.app.changed()
+    await view.app.dispatch("command_palette")
+    await view.renderOnce()
+    const frame = view.captureCharFrame()
+    expect(frame).toContain("Commands")
+    expect(frame).not.toContain("PROJECT")
+    expect(view.app.pickerEntries.length).toBeGreaterThan(100)
+  } finally { await view.cleanup() }
+})
 test("scm_grow and scm_shrink move the panel through the shared clamp", async () => {
   const view = await setup()
   try {

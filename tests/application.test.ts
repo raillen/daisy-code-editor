@@ -352,3 +352,24 @@ test("interactive path browser navigates directories and confirms destination", 
     }
   } finally { await app.close() }
 })
+test("command palette lists unmenued actions and hides editing primitives", async () => {
+  const root = await fixture()
+  const app = new Application(root, defaultConfig())
+  try {
+    app.newDocument()
+    const { buildPaletteEntries } = await import("../src/app/commands")
+    const entries = buildPaletteEntries(app)
+    const labels = entries.map(entry => entry.label)
+    expect(labels.some(label => /rebase/i.test(label))).toBe(true)
+    expect(labels.some(label => /grow source control/i.test(label))).toBe(true)
+    expect(labels.some(label => /move_(left|right)$/i.test(label))).toBe(false)
+    expect(labels.some(label => /backspace$/i.test(label))).toBe(false)
+    const shrink = entries.find(entry => /shrink source control/i.test(entry.label))
+    expect(shrink?.detail).toContain("alt+[")
+    const labelsUnique = new Set(labels)
+    expect(labelsUnique.size).toBe(labels.length)
+    const grow = entries.find(entry => /grow source control/i.test(entry.label))
+    await grow!.run()
+    expect(app.config.scm.width).toBe(32)
+  } finally { await app.close() }
+})

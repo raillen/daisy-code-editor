@@ -450,7 +450,7 @@ function OverlayView(props: { app: Application; revision: () => number; theme: (
   const rows = () => Math.max(1, props.height() - 9)
   const entries = () => { props.revision(); const value = overlay(); return value?.kind === "picker" ? props.app.pickerEntries : [] }
   const start = () => { const value = overlay(); return Math.max(0, (value?.kind === "picker" || value?.kind === "search" ? value.selected : 0) - rows() + 1) }
-  return <box id="overlay-scrim" position="absolute" top={0} left={0} width="100%" height="100%" zIndex={100} alignItems="center" justifyContent="center"
+  return <box id="overlay-scrim" position="absolute" top={0} left={0} width="100%" height="100%" zIndex={100} alignItems="center" justifyContent="center" backgroundColor={props.theme().surface}
     onMouseDown={event => event.stopPropagation()} onMouseScroll={event => event.stopPropagation()}>
     <box id="overlay" width={Math.min(90, Math.max(20, props.width() - 4))} maxHeight={Math.max(3, props.height() - 2)} flexDirection="column" border borderStyle={props.theme().isLain ? "single" : "rounded"} borderColor={props.theme().accent} backgroundColor={props.theme().panel} paddingX={1} overflow="hidden">
       <text height={1} fg={props.theme().accent} content={props.theme().isLain ? `▣ DAISY://${title().toUpperCase()} _ □ ×` : `◈ ${title()}`} />
@@ -471,7 +471,7 @@ function OverlayView(props: { app: Application; revision: () => number; theme: (
             }
             return <text height={1} wrapMode="none" selectable={false}
               fg={isSelected() ? (props.theme().isLain ? props.theme().surface : props.theme().accent) : props.theme().text}
-              bg={isSelected() && props.theme().isLain ? props.theme().accent : undefined}
+              bg={isSelected() ? (props.theme().isLain ? props.theme().accent : props.theme().selection) : undefined}
               content={`${isSelected() ? (props.theme().isLain ? "▶ " : "▎") : " "}${entryIcon()}${entry.label}${entry.detail ? "  [" + entry.detail + "]" : ""}`}
               onMouseDown={() => { props.app.overlay = undefined; void props.app.guard(async () => { await entry.run(); props.app.afterEdit() }) }} />
           }}</For>
