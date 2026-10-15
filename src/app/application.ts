@@ -1,6 +1,6 @@
 import { stat, readdir, mkdir } from "node:fs/promises"
 import { dirname, join, resolve, basename } from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { Document, offsetAt, positionAt } from "../core/document"
 import { type ActionId } from "../core/keymap"
 import { fuzzyScore, findMatches, searchDefaults, replacementEdits, type SearchOptions, type Match } from "../core/search"
@@ -9,7 +9,7 @@ import { FileTree, atomicWrite, discoverFiles, readText, loadSession, saveSessio
 import { Git, type GitStatus, type GutterKind } from "../services/git"
 import { highlight, languageOf, type HighlightToken } from "../services/languages"
 import { TerminalSession } from "../services/terminal"
-import { LspClient } from "../services/lsp"
+import { LspClient, lspRetryAllowed } from "../services/lsp"
 import { DebugAdapter } from "../services/dap"
 import { discoverPlugins, runPlugin, type Plugin, type PluginCommand } from "../services/plugins"
 import { loadUserSnippets } from "../services/snippets"
@@ -154,6 +154,8 @@ export class Application {
   highlights = new Map<number, { version: number; path?: string; theme: string; tokens: HighlightToken[] }>()
   readonly servers = new Map<string, LspClient>()
   readonly serverFailures = new Map<string, string>()
+  readonly lspFailures = new Map<string, number>()
+  readonly lspRetryAt = new Map<string, number>()
   private starting = new Map<string, Promise<LspClient>>()
   private listeners = new Set<() => void>()
   private nextId = 1
@@ -937,7 +939,10 @@ export class Application {
     const language = languageOf(document.path, this.config)
     let server = this.servers.get(language)
     if (!server?.running) {
-      if (this.serverFailures.has(language)) return undefined
+      if (this.serverFailures.has(language)) {
+        if (!lspRetryAllowed(this.lspRetryAt.get(language) ?? 0, this.lspFailures.get(language) ?? 1)) return undefined
+        this.serverFailures.delete(language)
+      }
       let starting = this.starting.get(language)
       if (!starting) {
         const custom = this.config.languages.find(entry => entry.id === language)?.lsp_command
@@ -950,9 +955,14 @@ export class Application {
         })()
         this.starting.set(language, starting)
       }
-      try { server = await starting } catch (error) { this.serverFailures.set(language, String(error)); this.status = `LSP ${language}: ${String(error)}`; this.changed(); return undefined }
+      try { server = await starting } catch (error) {
+        this.lspFailures.set(language, (this.lspFailures.get(language) ?? 0) + 1)
+        this.lspRetryAt.set(language, Date.now())
+        this.serverFailures.set(language, String(error)); this.status = `LSP ${language}: ${String(error)}`; this.changed(); return undefined
+      }
       finally { this.starting.delete(language) }
     }
+    this.lspFailures.delete(language); this.lspRetryAt.delete(language)
     if (document.text.length > this.maxLspBytes()) {
       this.status = this.config.locale === "pt-BR"
         ? `LSP desabilitado para este arquivo (${Math.ceil(document.text.length / 1024)} KiB > 8192 KiB)`
@@ -1007,6 +1017,7 @@ export class Application {
     const language = this.currentLanguage()
     for (const server of this.servers.values()) await server.close().catch(() => undefined)
     this.servers.clear(); this.serverFailures.clear()
+    this.lspFailures.clear(); this.lspRetryAt.clear()
     this.starting.clear()
     if (language) await this.ensureLsp().catch(error => { this.status = String(error) })
     this.status = this.config.locale === "pt-BR" ? "Servidor LSP reiniciado" : "LSP restarted"
@@ -1425,6 +1436,55 @@ export class Application {
       label: location.label,
       run: () => { void this.openFile(fileURLToPath(location.uri)).then(() => { this.document.select(offsetAt(this.document.text, location.range.start.line, location.range.start.character)); this.changed() }) },
     })))
+  }
+  async signatureHelp(): Promise<void> {
+    const document = this.document, server = await this.ensureLsp()
+    if (!server || !document.path) throw new Error("No running LSP for this document")
+    const help = await server.signatureHelp(document.path, document.position)
+    const signatures = help?.signatures ?? []
+    if (!signatures.length) {
+      this.status = this.config.locale === "pt-BR" ? "Sem ajuda de assinatura" : "No signature help"
+      this.changed(); return
+    }
+    const active = help?.activeSignature ?? 0
+    const lines = signatures.map((signature, index) => {
+      const parameter = signature.parameters?.[help?.activeParameter ?? 0]
+      const detail = typeof signature.documentation === "string" ? signature.documentation : signature.documentation?.value
+      return `${index === active ? "▶ " : "  "}${signature.label}${parameter ? `  ← ${String(parameter.label)}` : ""}${detail ? `\n    ${detail}` : ""}`
+    })
+    let text = lines.join("\n")
+    if (text.length > 8000) text = `${text.slice(0, 8000)}\n… [signature help truncated]`
+    this.overlay = { kind: "read", title: "Signature help", text, scroll: 0 }
+    this.changed()
+  }
+  async codeActions(): Promise<void> {
+    const document = this.document, server = await this.ensureLsp()
+    if (!server || !document.path) throw new Error("No running LSP for this document")
+    const { anchor, head } = document.primary
+    const range = { start: positionAt(document.text, Math.min(anchor, head)), end: positionAt(document.text, Math.max(anchor, head)) }
+    const uri = pathToFileURL(document.path).href
+    const actions = await server.codeAction(document.path, range, server.diagnostics.get(uri) ?? [])
+    if (!actions?.length) {
+      this.status = this.config.locale === "pt-BR" ? "Sem ações de código" : "No code actions"
+      this.changed(); return
+    }
+    this.picker(this.config.locale === "pt-BR" ? "Ações de código (LSP)" : "Code actions (LSP)", actions.map(action => ({
+      label: action.title,
+      detail: "kind" in action && typeof action.kind === "string" ? action.kind : undefined,
+      run: () => { void this.applyCodeAction(action) },
+    })))
+  }
+  private async applyCodeAction(action: import("../services/lsp").CodeAction | import("../services/lsp").LspCommand): Promise<void> {
+    const document = this.document
+    if (!document.path) return
+    if (!("edit" in action) || !action.edit) { this.status = `Code action '${action.title}' has no local edit`; this.changed(); return }
+    const uri = pathToFileURL(document.path).href
+    const edits = Object.entries(action.edit?.changes ?? {}).filter(([changeUri]) => changeUri === uri).flatMap(([, changeEdits]) => changeEdits)
+    if (!edits.length) { this.status = `Code action has no edits for this file`; this.changed(); return }
+    const version = document.version
+    document.applyEdits(edits.map(edit => ({ start: offsetAt(document.text, edit.range.start.line, edit.range.start.character), end: offsetAt(document.text, edit.range.end.line, edit.range.end.character), text: edit.newText })), "code action")
+    if (document.version === version) { this.status = "Code action produced no changes"; this.changed(); return }
+    this.afterEdit()
   }
   async definition(): Promise<void> {
     const document = this.document, server = await this.ensureLsp()

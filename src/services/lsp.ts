@@ -1,7 +1,18 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
 import { pathToFileURL } from "node:url"
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter, CancellationTokenSource, type MessageConnection } from "vscode-languageserver-protocol/node"
-import { InitializeRequest, InitializedNotification, DidOpenTextDocumentNotification, DidChangeTextDocumentNotification, DidSaveTextDocumentNotification, DidCloseTextDocumentNotification, PublishDiagnosticsNotification, CompletionRequest, HoverRequest, DefinitionRequest, ReferencesRequest, DocumentFormattingRequest, RenameRequest, DocumentSymbolRequest, ShutdownRequest, ExitNotification, type Diagnostic, type Position, type TextEdit, type WorkspaceEdit, type DocumentSymbol, type SymbolInformation } from "vscode-languageserver-protocol/node"
+import { InitializeRequest, InitializedNotification, DidOpenTextDocumentNotification, DidChangeTextDocumentNotification, DidSaveTextDocumentNotification, DidCloseTextDocumentNotification, PublishDiagnosticsNotification, CompletionRequest, HoverRequest, DefinitionRequest, ReferencesRequest, SignatureHelpRequest, CodeActionRequest, DocumentFormattingRequest, RenameRequest, DocumentSymbolRequest, ShutdownRequest, ExitNotification, type Diagnostic, type Position, type Range, type TextEdit, type WorkspaceEdit, type DocumentSymbol, type SymbolInformation, type SignatureHelp, type CodeAction, type Command } from "vscode-languageserver-protocol/node"
+
+export type { CodeAction, Command as LspCommand, SignatureHelp } from "vscode-languageserver-protocol/node"
+
+export function lspBackoffDelay(consecutiveFailures: number): number {
+  if (!Number.isFinite(consecutiveFailures) || consecutiveFailures < 0) return 1000
+  return Math.min(30000, 1000 * 2 ** Math.min(10, Math.floor(consecutiveFailures)))
+}
+
+export function lspRetryAllowed(lastFailureAt: number, consecutiveFailures: number, now = Date.now()): boolean {
+  return now - lastFailureAt >= lspBackoffDelay(consecutiveFailures)
+}
 
 export class LspClient {
   private process: ChildProcessWithoutNullStreams
@@ -63,6 +74,8 @@ export class LspClient {
   hover(path: string, position: Position) { return this.deadline(source => this.connection.sendRequest(HoverRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position }, source.token)) }
   definition(path: string, position: Position) { return this.deadline(source => this.connection.sendRequest(DefinitionRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position }, source.token)) }
   references(path: string, position: Position, includeDeclaration = false) { return this.deadline(source => this.connection.sendRequest(ReferencesRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position, context: { includeDeclaration } }, source.token)) }
+  signatureHelp(path: string, position: Position): Promise<SignatureHelp | null> { return this.deadline(source => this.connection.sendRequest(SignatureHelpRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position }, source.token)) }
+  codeAction(path: string, range: Range, diagnostics: Diagnostic[]): Promise<Array<CodeAction | Command> | null> { return this.deadline(source => this.connection.sendRequest(CodeActionRequest.type, { textDocument: { uri: pathToFileURL(path).href }, range, context: { diagnostics } }, source.token)) }
   formatting(path: string, tabSize: number, insertSpaces: boolean): Promise<TextEdit[] | null> { return this.deadline(source => this.connection.sendRequest(DocumentFormattingRequest.type, { textDocument: { uri: pathToFileURL(path).href }, options: { tabSize, insertSpaces } }, source.token)) }
   rename(path: string, position: Position, newName: string): Promise<WorkspaceEdit | null> { return this.deadline(source => this.connection.sendRequest(RenameRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position, newName }, source.token)) }
   documentSymbols(path: string): Promise<Array<DocumentSymbol | SymbolInformation> | null> { return this.deadline(source => this.connection.sendRequest(DocumentSymbolRequest.type, { textDocument: { uri: pathToFileURL(path).href } }, source.token)) }

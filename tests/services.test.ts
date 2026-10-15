@@ -5,7 +5,7 @@ import { join, resolve } from "node:path"
 import { atomicWrite, FileTree, readText, saveSession, loadSession } from "../src/services/files"
 import { Git, execute, parsePorcelain, parseDiffHunks } from "../src/services/git"
 import { TerminalSession } from "../src/services/terminal"
-import { LspClient } from "../src/services/lsp"
+import { LspClient, lspBackoffDelay, lspRetryAllowed } from "../src/services/lsp"
 import { highlight, isMarkdownLanguage, resolvePreviewImage, resolvePreviewImageAsync, clearPreviewImageCache, extractOpenableLink } from "../src/services/languages"
 import { fileGlyph, folderGlyph, defaultFile } from "../src/services/icons"
 const roots: string[] = []
@@ -128,7 +128,21 @@ test("LSP stdio initialization, completion, hover, definitions and formatting", 
     expect((await server.hover(join(root, "test.ts"), { line: 0, character: 8 }))?.contents).toEqual({ kind: "plaintext", value: "hover from fixture" })
     expect(await server.definition(join(root, "test.ts"), { line: 0, character: 8 })).not.toBeNull()
     expect((await server.formatting(join(root, "test.ts"), 4, true))?.[0]?.newText).toBe("formatted")
+    expect((await server.references(join(root, "test.ts"), { line: 0, character: 7 }))?.length).toBe(1)
+    expect((await server.signatureHelp(join(root, "test.ts"), { line: 0, character: 8 }))?.signatures[0]?.label).toBe("foobar(arg: string): void")
+    expect((await server.codeAction(join(root, "test.ts"), { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }, []))?.[0]?.title).toBe("Fixture fix")
   } finally { await server.close() }
+})
+test("LSP retry backoff grows exponentially and caps at 30s", () => {
+  expect(lspBackoffDelay(0)).toBe(1000)
+  expect(lspBackoffDelay(1)).toBe(2000)
+  expect(lspBackoffDelay(3)).toBe(8000)
+  expect(lspBackoffDelay(100)).toBe(30000)
+  expect(lspBackoffDelay(-5)).toBe(1000)
+  expect(lspRetryAllowed(0, 0, 999)).toBe(false)
+  expect(lspRetryAllowed(0, 0, 1000)).toBe(true)
+  expect(lspRetryAllowed(0, 2, 3999)).toBe(false)
+  expect(lspRetryAllowed(0, 2, 4000)).toBe(true)
 })
 test("syntax engines cover reference languages, including Ori fallback", async () => {
   const typed = await highlight('const x = "hello"; // comment', "typescript", "default")
