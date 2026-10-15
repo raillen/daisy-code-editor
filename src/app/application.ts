@@ -86,6 +86,24 @@ export class JumpStack {
   }
 }
 
+export function flattenLspSymbols(app: import("./application").Application, symbols: Array<import("../services/lsp").DocumentSymbol | import("../services/lsp").SymbolInformation>, fallbackPath: string): Array<{ label: string; detail?: string; run: () => void | Promise<void> }> {
+  const entries: PickerEntry[] = []
+  const visit = (symbol: any, depth = 0) => {
+    const name = typeof symbol?.name === "string" ? symbol.name : "symbol"
+    const range = symbol?.selectionRange ?? symbol?.range
+    const uri = typeof symbol?.location?.uri === "string" ? symbol.location.uri : fallbackPath
+    const left = typeof uri === "string" && uri.startsWith("file://") ? fileURLToPath(uri) : String(uri)
+    if (range) entries.push({
+      label: `${"  ".repeat(depth)}${name}`,
+      detail: String(symbol.kind ?? symbol.kind ?? "symbol"),
+      run: () => { void (async () => { await app.openFile(left); app.document.select(offsetAt(app.document.text, range.start.line, range.start.character)); app.recordJump(); app.changed() })() },
+    })
+    for (const child of Array.isArray(symbol?.children) ? symbol.children : []) visit(child, depth + 1)
+  }
+  for (const symbol of symbols) visit(symbol)
+  return entries.length > 200 ? entries.slice(0, 200) : entries
+}
+
 export class Application {
   config: Config
   preferences: Preferences = { themes: new Map(Object.entries(builtInThemes)), locales: new Map(Object.entries(builtInLocales)) }
@@ -1506,6 +1524,23 @@ export class Application {
     await this.debug.request("next", { threadId: thread })
     this.debugStatus = "stopped"
     this.changed()
+  }
+
+  async lspSymbols(): Promise<void> {
+    const document = this.document
+    const path = document.path
+    if (!path) { this.status = this.config.locale === "pt-BR" ? "Salve o arquivo antes de símbolos" : "Save file before symbols"; this.changed(); return }
+    const server = await this.ensureLsp().catch(() => undefined)
+    if (!server) { this.status = this.config.locale === "pt-BR" ? "Sem LSP ativo" : "No LSP attached"; this.changed(); return }
+    try {
+      const symbols = await server.documentSymbols(path)
+      const entries: PickerEntry[] = symbols ? flattenLspSymbols(this, symbols, path) : []
+      if (!entries.length) {
+        this.status = this.config.locale === "pt-BR" ? "No LSP symbols (local?)" : "No LSP symbols"
+        this.changed(); return
+      }
+      this.picker(this.config.locale === "pt-BR" ? "Símbodo LSP" : "Symbols (LSP)", entries)
+    } catch (error) { this.status = String(error); this.changed() }
   }
 
   async close(): Promise<void> {
