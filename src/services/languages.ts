@@ -2,6 +2,7 @@ import { basename, extname, dirname, join, relative, resolve } from "node:path"
 import { realpathSync } from "node:fs"
 import { realpath } from "node:fs/promises"
 import { createHighlighter, bundledLanguages, type Highlighter, type ThemedToken } from "shiki"
+import { TreeSitterEngine } from "./treeSitter"
 import type { Config } from "./config"
 const extensions: Record<string, string> = { rs: "rust", c: "c", h: "c", cpp: "cpp", cc: "cpp", hpp: "cpp", sh: "bash", bash: "bash", md: "markdown", mdx: "mdx", orl: "ori", ori: "ori", oris: "ori", html: "html", htm: "html", css: "css", scss: "scss", js: "javascript", jsx: "jsx", ts: "typescript", tsx: "tsx", py: "python", d: "d", lua: "lua", nim: "nim", rb: "ruby", go: "go", json: "json", toml: "toml", yaml: "yaml", yml: "yaml", zig: "zig" }
 export function languageOf(path: string | undefined, config: Config): string {
@@ -97,8 +98,12 @@ export function extractOpenableLink(selection: string): string | undefined {
 let sharedHighlighter: Promise<Highlighter> | undefined
 let loading: Promise<void> = Promise.resolve()
 export type HighlightToken = { start: number; end: number; color?: string; fontStyle: number; role?: string }
-export async function highlight(text: string, language: string, theme: string): Promise<HighlightToken[]> {
+export async function highlight(text: string, language: string, theme: string, engineName = "shiki"): Promise<HighlightToken[]> {
   if (language === "text") return []
+  if (engineName === "tree-sitter") {
+    const tokens = sharedTreeSitter.tokenize(language, text)
+    if (tokens) return tokens.map(token => ({ start: token.start, end: token.end, fontStyle: 0, role: token.role }))
+  }
   if (language === "ori") return highlightOri(text)
   const loadedLanguage = Object.keys(bundledLanguages).find((loaded): loaded is keyof typeof bundledLanguages => loaded === language)
   if (!loadedLanguage) return []
@@ -118,7 +123,7 @@ export async function highlight(text: string, language: string, theme: string): 
   engine.codeToTokens(text, { lang: loadedLanguage, theme: resolvedTheme })
   const tokens = engine.codeToTokens(text, { lang: loadedLanguage, theme: resolvedTheme, includeExplanation: "scopeName" }).tokens
   const base = tokens.flatMap(line => line.map((token: ThemedToken) => ({ start: token.offset, end: token.offset + token.content.length, color: token.color, fontStyle: token.fontStyle ?? 0, role: syntaxRole(token.explanation?.flatMap(explanation => explanation.scopes.map(scope => scope.scopeName)) ?? []) })))
-  if (language === "markdown" || language === "mdx") return injectFenceTokens(text, base, theme)
+  if (language === "markdown" || language === "mdx") return injectFenceTokens(text, base, theme, engineName)
   return base
 }
 
@@ -141,14 +146,16 @@ export function parseFenceBlocks(text: string): FenceBlock[] {
   return blocks
 }
 
-async function injectFenceTokens(text: string, base: HighlightToken[], theme: string): Promise<HighlightToken[]> {
+const sharedTreeSitter = new TreeSitterEngine()
+
+async function injectFenceTokens(text: string, base: HighlightToken[], theme: string, engineName: string): Promise<HighlightToken[]> {
   const blocks = parseFenceBlocks(text)
   if (!blocks.length) return base
   let merged = base
   for (const block of blocks) {
     const language = extensions[block.language] ?? block.language
     if (language === "markdown" || language === "mdx") continue
-    const inner = await highlight(text.slice(block.codeStart, block.codeEnd), language, theme)
+    const inner = await highlight(text.slice(block.codeStart, block.codeEnd), language, theme, engineName)
     if (!inner.length) continue
     const shifted = inner.map(token => ({ ...token, start: token.start + block.codeStart, end: token.end + block.codeStart }))
     merged = [...merged.filter(token => token.end <= block.codeStart || token.start >= block.codeEnd), ...shifted]

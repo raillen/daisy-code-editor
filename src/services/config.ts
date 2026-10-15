@@ -10,6 +10,7 @@ export type Config = {
   tree: { width: number; show_hidden: boolean; git_status: boolean }
   terminal: { shell: string; default_height: number }
   markdown: { terminal_images: boolean }
+  highlighting: { engine: "shiki" | "tree-sitter" }
   lsp: { enabled: boolean; timeout_ms: number; servers: Record<string, string[]> }
   debug: { enabled: boolean; adapters: Record<string, string[]>; launches: Record<string, { adapter?: string[]; language: string; program: string; args: string[]; cwd?: string }> }
   ui: Record<string, string>; syntax: Record<string, string>; tokens: Record<string, string>
@@ -20,7 +21,7 @@ export const legacyUserConfigDir = join(process.env.XDG_CONFIG_HOME ?? join(home
 export const defaultConfig = (): Config => ({
   theme: "default", locale: "pt-BR", mouse: true, soft_wrap: true, show_line_numbers: true, icons: false,
   editor: { tab_size: 4, insert_spaces: true, format_on_save: false, use_editorconfig: true, modal_mode: false, completion_auto: true, completion_min_chars: 2, auto_pairs: true },
-  markdown: { terminal_images: false }, tree: { width: 28, show_hidden: false, git_status: true }, terminal: { shell: process.env.SHELL ?? "/bin/sh", default_height: 10 },
+  markdown: { terminal_images: false }, highlighting: { engine: "shiki" as const }, tree: { width: 28, show_hidden: false, git_status: true }, terminal: { shell: process.env.SHELL ?? "/bin/sh", default_height: 10 },
   debug: { enabled: true, adapters: { rust: ["rust-analyzer", "--dap"], c: ["clangd", "--dap"], python: ["debugpy-adapter"], typescript: ["typescript-debug-adapter"], go: ["dlv", "dap", "--listen=:4711"] }, launches: {} },
   lsp: { enabled: true, timeout_ms: 10000, servers: { rust: ["rust-analyzer"], c: ["clangd"], cpp: ["clangd"], bash: ["bash-language-server", "start"], ori: ["ori-lsp"], python: ["pylsp"], typescript: ["typescript-language-server", "--stdio"], javascript: ["typescript-language-server", "--stdio"], go: ["gopls"] } },
   ui: {}, syntax: {}, tokens: {}, keys: { ...defaultBindings }, languages: [],
@@ -83,5 +84,6 @@ if (typeof config.debug.launches !== "object" || config.debug.launches === null)
   config.tree.width = Math.max(8, config.tree.width)
   config.terminal.default_height = Math.max(3, config.terminal.default_height)
   config.lsp.timeout_ms = Math.max(500, config.lsp.timeout_ms)
+  if (config.highlighting.engine !== "shiki" && config.highlighting.engine !== "tree-sitter") throw new Error("Highlighting engine must be shiki or tree-sitter")
   return config
 }

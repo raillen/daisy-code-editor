@@ -7,6 +7,7 @@ import { Git, execute, parsePorcelain, parseDiffHunks, parseHunks, hunkSummary }
 import { TerminalSession } from "../src/services/terminal"
 import { DebugAdapter } from "../src/services/dap"
 import { LspClient, lspBackoffDelay, lspRetryAllowed, incrementalEdit } from "../src/services/lsp"
+import { TreeSitterEngine, type SyntaxNode, type TreeSitterLoader } from "../src/services/treeSitter"
 import { highlight, isMarkdownLanguage, parseFenceBlocks, resolvePreviewImage, resolvePreviewImageAsync, clearPreviewImageCache, extractOpenableLink } from "../src/services/languages"
 import { fileGlyph, folderGlyph, defaultFile } from "../src/services/icons"
 const roots: string[] = []
@@ -217,6 +218,39 @@ test("incremental edits cover prefix, suffix and multi-line spans", () => {
   expect(incrementalEdit("abcd", "ab")).toEqual({ start: 2, end: 4, text: "" })
   expect(incrementalEdit("a\nb\nc", "a\nB\nc")).toEqual({ start: 2, end: 3, text: "B" })
   expect(incrementalEdit("", "hi")).toEqual({ start: 0, end: 0, text: "hi" })
+})
+test("tree-sitter engine maps categories and degrades without dependencies", async () => {
+  const fake = (type: string, start: number, end: number, children: SyntaxNode[] = [], named = true): SyntaxNode => ({
+    type, startIndex: start, endIndex: end, childCount: children.length,
+    child: (index: number) => children[index] ?? null, isNamed: () => named,
+  })
+  const root = fake("source_file", 0, 30, [
+    fake("line_comment", 0, 7),
+    fake("function_item", 8, 30, [fake("fn", 8, 10, [], false), fake("identifier", 11, 12)]),
+    fake("string_literal", 13, 20, [fake("escape_sequence", 15, 17)]),
+    fake("integer_literal", 21, 23),
+  ])
+  const calls: string[] = []
+  const loader: TreeSitterLoader = (moduleName: string) => {
+    calls.push(moduleName)
+    if (moduleName === "tree-sitter") return class { setLanguage(_grammar: unknown): void { /* fixture */ } parse(): { rootNode: SyntaxNode } { return { rootNode: root } } }
+    return {}
+  }
+  const engine = new TreeSitterEngine(loader)
+  expect(engine.available("rust")).toBe(true)
+  expect(engine.tokenize("rust", "x".repeat(30))).toEqual([
+    { start: 0, end: 7, role: "comment" },
+    { start: 8, end: 10, role: "keyword" },
+    { start: 13, end: 20, role: "string" },
+    { start: 21, end: 23, role: "number" },
+  ])
+  expect(engine.available("cobol")).toBe(false)
+  expect(engine.tokenize("cobol", "x")).toBeUndefined()
+  const absent = new TreeSitterEngine(() => undefined)
+  expect(absent.available("rust")).toBe(false)
+  expect(absent.tokenize("rust", "fn x() {}")).toBeUndefined()
+  const shiki = await highlight("fn x() {}", "rust", "default")
+  expect(await highlight("fn x() {}", "rust", "default", "tree-sitter")).toEqual(shiki)
 })
 test("LSP retry backoff grows exponentially and caps at 30s", () => {
   expect(lspBackoffDelay(0)).toBe(1000)

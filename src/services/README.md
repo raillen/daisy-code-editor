@@ -11,6 +11,7 @@ A camada de **Services** provê adaptadores de infraestrutura e subsistemas espe
 - **`icons.ts`**: Mapeamento de Nerd Font icons e glifos por extensão e nome de arquivo, com fallback gracioso.
 - **`languageCatalog.ts`**: Inteligência offline de linguagens (palavras-chave, funções built-in e documentação contextual para TS, Rust, Go, Python, Ori).
 - **`languages.ts`**: Tokenizador de sintaxe para syntax highlighting e delimitadores de comentários (`//`, `#`, `<!-- -->`).
+- **`treeSitter.ts`**: Backend opcional de tree-sitter (zero dependências embutidas; carrega `tree-sitter` + gramáticas instaladas pelo usuário quando `highlighting.engine` é `"tree-sitter"`). Degrada para Shiki em qualquer falha.
 - **`lsp.ts`**: Cliente Language Server Protocol via stdio sobre binários no PATH (`rust-analyzer`, `typescript-language-server`, etc.). Fail-closed sem travar a edição caso o servidor caia ou não exista.
 - **`plugins.ts`**: Descoberta e execução isolada de plugins via argv puro (sem invocação de shell interpretado).
 - **`preferences.ts`**: Armazenamento e persistência de preferências de usuário e suporte a regras de indentação via `.editorconfig`.

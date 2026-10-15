@@ -595,7 +595,7 @@ export class Application {
     const previous = this.highlights.get(id)
     if (previous?.version === version && previous.path === path && previous.theme === theme) return
     try {
-      const tokens = await highlight(text, languageOf(path, this.config), theme)
+      const tokens = await highlight(text, languageOf(path, this.config), theme, this.config.highlighting.engine)
       if (document.version === version && document.path === path && this.config.theme === theme && !this.closed) {
         this.highlights.set(id, { version, path, theme, tokens }); this.changed()
       }
@@ -605,7 +605,7 @@ export class Application {
   async refreshAllHighlights(): Promise<void> {
     for (const doc of this.documents) {
       try {
-        const tokens = await highlight(doc.text, languageOf(doc.path, this.config), this.config.theme)
+        const tokens = await highlight(doc.text, languageOf(doc.path, this.config), this.config.theme, this.config.highlighting.engine)
         this.highlights.set(doc.id, { version: doc.version, path: doc.path, theme: this.config.theme, tokens })
       } catch (error) { this.report(error) }
     }
