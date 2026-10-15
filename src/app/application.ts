@@ -879,6 +879,12 @@ export class Application {
     if (hit) { this.recordJump(); await this.openFile(join(this.workspace, hit.path)); this.document.select(offsetAt(this.document.text, hit.line, hit.column)); this.changed() }
   }
 
+  async gitStash(): Promise<void> {
+    this.status = await this.git.stash(); this.changed(); await this.refreshGit()
+  }
+  async gitStashPop(): Promise<void> {
+    this.status = await this.git.stashPop(); this.changed(); await this.refreshGit()
+  }
   async refreshGit(): Promise<void> {
     if (this.gitReading || this.closed) return
     this.gitReading = true

@@ -196,6 +196,8 @@ test("menuLabel shows dynamic toggle state checkboxes", async () => {
 
 test("openUserConfig and openWorkspaceConfig open configuration TOML as tabs", async () => {
   const root = await fixture()
+  const previousXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = root
   const app = new Application(root, defaultConfig())
 
   // Open workspace config
@@ -210,6 +212,8 @@ test("openUserConfig and openWorkspaceConfig open configuration TOML as tabs", a
   expect(app.document.text).toContain("theme")
 
   await app.close()
+  if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME
+  else process.env.XDG_CONFIG_HOME = previousXdg
 })
 
 test("saving config.toml automatically triggers hot reload", async () => {

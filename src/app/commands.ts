@@ -131,6 +131,8 @@ export const commands: Record<ActionId, Command> = {
   toggle_scm: toggle("Source control", app => { app.showScm = !app.showScm; app.focus = app.showScm ? "scm" : "editor"; void app.refreshGit() }),
   focus_scm: toggle("Focus source control", app => { app.showScm = true; app.focus = "scm" }),
   git_pull: command("Git pull", app => confirmGit(app, "pull")), git_push: command("Git push", app => confirmGit(app, "push")),
+  git_stash: command("Git stash", async app => { await app.gitStash(); app.status = "Stashed" }),
+  git_stash_pop: command("Git stash pop", async app => { await app.gitStashPop(); app.status = "Stash applied" }),
   git_blame: command("Git blame line", async app => {
     if (!app.document.path) throw new Error("Untitled document")
     const line = app.document.position.line + 1

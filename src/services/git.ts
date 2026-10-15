@@ -72,6 +72,9 @@ export class Git {
       return `Not committed: ${error instanceof Error ? error.message : String(error)}`
     }
   }
+  stash(message = "Daisy stash"): Promise<string> { return execute("git", ["stash", "push", "-m", message], this.root, 60000) }
+  stashPop(): Promise<string> { return execute("git", ["stash", "pop"], this.root, 60000) }
+  stashList(): Promise<string> { return execute("git", ["stash", "list"], this.root, 10000) }
   async diffGutter(path: string): Promise<Map<number, GutterKind>> {
     try {
       const output = await execute("git", ["diff", "HEAD", "-U0", "--no-ext-diff", "--", path], this.root)
