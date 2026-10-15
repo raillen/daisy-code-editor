@@ -138,6 +138,9 @@ export const commands: Record<ActionId, Command> = {
   toggle_scm: toggle("Source control", app => { app.showScm = !app.showScm; app.focus = app.showScm ? "scm" : "editor"; void app.refreshGit() }),
   focus_scm: toggle("Focus source control", app => { app.showScm = true; app.focus = "scm" }),
   git_pull: command("Git pull", app => confirmGit(app, "pull")), git_push: command("Git push", app => confirmGit(app, "push")),
+  git_rebase: command("Git rebase onto branch…", app => app.prompt(app.config.locale === "pt-BR" ? "Rebase onto branch:" : "Rebase onto branch:", "", branch => confirmRebase(app, branch))),
+  git_rebase_continue: command("Git rebase continue", async app => { await app.guard(async () => { app.status = await app.git.rebaseContinue(); await app.refreshGit() }) }),
+  git_rebase_abort: command("Git rebase abort", async app => { await app.guard(async () => { app.status = await app.git.rebaseAbort(); await app.refreshGit() }) }),
   git_stash: command("Git stash", async app => { await app.gitStash(); app.status = "Stashed" }),
   git_stash_pop: command("Git stash pop", async app => { await app.gitStashPop(); app.status = "Stash applied" }),
   git_stage_hunk: command("Git stage current hunk", async app => { await app.gitStageHunk() }),
@@ -307,6 +310,9 @@ function copy(app: Application): void {
 }
 function confirmGit(app: Application, operation: "pull" | "push"): void {
   app.overlay = { kind: "confirm", title: app.t("dialogs", operation === "pull" ? "git_pull_confirm" : "git_push_confirm"), accept: async () => { app.status = await app.git.sync(operation); await app.refreshGit() } }
+}
+function confirmRebase(app: Application, branch: string): void {
+  app.overlay = { kind: "confirm", title: app.t("dialogs", "git_rebase_confirm", { branch }), accept: async () => { await app.guard(async () => { app.status = await app.git.rebase(branch); await app.refreshGit() }) } }
 }
 export async function renameTreeSelection(app: Application, name: string): Promise<void> {
   const row = app.tree.rows[app.tree.selected]

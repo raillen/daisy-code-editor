@@ -67,6 +67,12 @@ export class Git {
     return unstaged + staged || "No tracked changes"
   }
   sync(operation: "pull" | "push"): Promise<string> { return execute("git", [operation], this.root, 60000) }
+  async rebase(branch: string): Promise<string> {
+    if (!branch.trim() || branch.includes("..") || branch.includes(" ")) throw new Error("Invalid rebase target branch")
+    return execute("git", ["rebase", "--autostash", branch.trim()], this.root, 120000)
+  }
+  rebaseContinue(): Promise<string> { return execute("git", ["rebase", "--continue"], this.root, 120000) }
+  rebaseAbort(): Promise<string> { return execute("git", ["rebase", "--abort"], this.root, 60000) }
   async blame(path: string, line: number): Promise<string> {
     try {
       const output = await execute("git", ["blame", "-L", `${line},${line}`, "--", path], this.root)

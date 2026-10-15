@@ -77,6 +77,7 @@ export const builtInLocales = {
       "open_browser_link": "Abrir {url} no navegador? Enter confirma",
       "git_pull_confirm": "Executar git pull? Enter confirma",
       "git_push_confirm": "Executar git push? Enter confirma",
+      "git_rebase_confirm": "Executar git rebase --autostash em {branch}? Enter confirma",
       "run_task_confirm": "Executar tarefa {name}? Enter confirma"
     },
     "prompts": {
@@ -186,6 +187,7 @@ export const builtInLocales = {
       "open_browser_link": "Open {url} in browser? Enter confirms",
       "git_pull_confirm": "Run git pull? Enter confirms",
       "git_push_confirm": "Run git push? Enter confirms",
+      "git_rebase_confirm": "Run git rebase --autostash onto {branch}? Enter confirms",
       "run_task_confirm": "Run task {name}? Enter confirms"
     },
     "prompts": {
