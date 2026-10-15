@@ -79,6 +79,14 @@ export class DebugAdapter {
     this.status = "running"
     this.onChange(this.status)
   }
+  async threads(): Promise<Array<{ id: number; name: string }>> {
+    const response = await this.request<{ threads?: Array<{ id: number; name: string }> }>("threads")
+    return response?.threads ?? []
+  }
+  async stackTrace(threadId: number): Promise<Array<{ name: string; line?: number; source?: { path?: string; name?: string } }>> {
+    const response = await this.request<{ stackFrames?: Array<{ name: string; line?: number; source?: { path?: string; name?: string } }> }>("stackTrace", { threadId })
+    return response?.stackFrames ?? []
+  }
 
   async pause(): Promise<void> { await this.request("pause", {}) ; this.status = "stopped"; this.onChange(this.status) }
   async disconnect(): Promise<void> {

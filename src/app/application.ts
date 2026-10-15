@@ -1537,6 +1537,29 @@ export class Application {
     this.changed()
   }
 
+  async showDebugThreads(): Promise<void> {
+    if (!this.debug) {
+      this.status = this.config.locale === "pt-BR" ? "Sem debug ativo" : "No debug session"
+      this.changed(); return
+    }
+    try {
+      const threads = await this.debug.threads()
+      const thread = threads[0]?.id ?? 1
+      const frames = await this.debug.stackTrace(thread)
+      const lines = [
+        "Debug session:",
+        `status: ${this.debugStatus}`,
+        `thread: ${threads[0]?.name ?? thread}`,
+        "stack frames:",
+        ...frames.map((frame, index) => `  #${index + 1} ${frame.name} @ ${frame.source?.name ?? frame.source?.path ?? "?"}:${frame.line ?? 0}`),
+      ]
+      this.overlay = { kind: "read", title: "Debug threads", text: lines.join("\n"), scroll: 0 }
+    } catch (error) {
+      this.status = String(error)
+    }
+    this.changed()
+  }
+
   async stopDebug(): Promise<void> {
     await this.debug?.disconnect()
     this.debug = undefined
