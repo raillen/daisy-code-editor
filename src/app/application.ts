@@ -1534,6 +1534,18 @@ export class Application {
     await this.gotoJump(jump)
     this.status = "jump back"; this.changed()
   }
+  showUndoHistory(): void {
+    const labels = this.document.historyLabels()
+    if (!labels.length) {
+      this.status = this.config.locale === "pt-BR" ? "Sem histórico de undo" : "No undo history"
+      this.changed(); return
+    }
+    const window = labels.map((label, index) => ({ label, index })).slice(-200)
+    this.picker(this.config.locale === "pt-BR" ? "Histórico de undo" : "Undo history", window.map(({ label, index }) => ({
+      label: `↩ ${labels.length - index} · ${label || "edit"}`,
+      run: () => { if (this.document.restoreHistory(index)) this.afterEdit() },
+    })))
+  }
   async jumpForward(): Promise<void> {
     const jump = this.jumpStack.forward()
     if (!jump) { this.status = "sem jump forward"; this.changed(); return }

@@ -16,6 +16,18 @@ test("multicursor insert, backspace, undo and redo are atomic", () => {
   document.redo(); expect(document.text).toBe("aXb\naXb\naXb")
   document.remove(true); expect(document.text).toBe("ab\nab\nab")
 })
+test("undo history restores labeled snapshots and keeps redo", () => {
+  const document = new Document(1, "a")
+  document.select(1); document.insert("b")
+  document.select(2); document.insert("c")
+  expect(document.text).toBe("abc")
+  expect(document.historyLabels()).toHaveLength(2)
+  expect(document.restoreHistory(0)).toBe(true)
+  expect(document.text).toBe("a")
+  expect(document.restoreHistory(9)).toBe(false)
+  document.redo(); expect(document.text).toBe("ab")
+  document.redo(); expect(document.text).toBe("abc")
+})
 test("Unicode movement and deletion never split graphemes", () => {
   const document = new Document(1, "a👩‍💻é界")
   document.move("doc_end"); document.remove(true)

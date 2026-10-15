@@ -132,6 +132,17 @@ export class Document {
 
   commit(): void { this.grouping = false }
 
+  historyLabels(): string[] {
+    return this.history.map(snapshot => snapshot.label)
+  }
+
+  restoreHistory(index: number): boolean {
+    if (!Number.isInteger(index) || index < 0 || index >= this.history.length) return false
+    const steps = this.history.length - index
+    for (let step = 0; step < steps; step++) this.undo()
+    return true
+  }
+
   select(anchor: number, head = anchor, add = false): void {
     const points = boundaries(this.text)
     const clamp = (value: number) => binarySearchFloor(points, Math.max(0, Math.min(value, this.text.length)))

@@ -24,6 +24,7 @@ export const commands: Record<ActionId, Command> = {
   save_as: command("Save as…", app => app.openPathBrowser("save_as", app.document.path ? dirname(app.document.path) : app.workspace, app.document.path ? basename(app.document.path) : "untitled.txt")),
   save_all: command("Save all", async app => { for (const document of app.documents) if (document.dirty) { if (!document.path) throw new Error("Save untitled buffers with Save as first"); await app.save(document) } }),
   undo: command("Undo", app => app.document.undo()), redo: command("Redo", app => app.document.redo()),
+  undo_history: command("Undo history…", app => app.showUndoHistory()),
   insert_newline: command("Insert newline", app => app.document.insert("\n")),
   insert_tab: command("Indent", app => app.document.insert((app.document.indent?.insertSpaces ?? app.config.editor.insert_spaces) ? " ".repeat(app.document.indent?.tabSize ?? app.config.editor.tab_size) : "\t")),
   backspace: command("Backspace", app => app.backspace()), delete: command("Delete", app => app.document.remove(false)),
