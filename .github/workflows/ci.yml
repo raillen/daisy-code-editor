@@ -17,5 +17,9 @@ jobs:
       - run: bun run typecheck
       - run: bun test
       - run: bun run build
-      - run: bun dist/cli.js --version
-      - run: bun dist/cli.js --print-frame 80x20
+      - name: Validate installer syntax
+        run: bash -n scripts/install.sh
+      - name: CLI smoke test
+        run: |
+          bun dist/cli.js --version
+          bun dist/cli.js --print-frame 80x20

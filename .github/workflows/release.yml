@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Type check
+        run: bun run typecheck
+      - name: Build standalone CLI
+        run: bun run build
+      - name: Smoke test
+        run: |
+          bun dist/cli.js --version
+          bun dist/cli.js --print-frame 80x20
+      - name: Generate checksums
+        run: |
+          sha256sum dist/cli.js > dist/daisy-cli.sha256.txt
+          sha256sum scripts/install.sh > dist/install.sha256.txt
+      - name: Upload release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/cli.js
+            dist/daisy-cli.sha256.txt
+            dist/install.sha256.txt
+          body: |
+            Daisy Code Editor release.
+            Verify `dist/cli.js` against `dist/daisy-cli.sha256.txt`.
