@@ -116,7 +116,8 @@ export const actionIds = ["quit",
 "debug_stop",
 "debug_continue",
 "debug_step_over",
-"debug_show_threads"] as const
+"debug_show_threads",
+"debug_variables"] as const
 export type ActionId = typeof actionIds[number]
 export const defaultBindings: Record<string, ActionId> = {
 "alt+-": "terminal_shrink",

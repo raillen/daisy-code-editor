@@ -1507,24 +1507,39 @@ export class Application {
     return this.config.debug.adapters[language] ?? undefined
   }
 
-  async startDebug(): Promise<void> {
+  async startDebug(name?: string): Promise<void> {
     const document = this.document
     const path = document.path
-    if (!path) throw new Error("Debug requires a saved file")
+    const requestedLaunches = Object.keys(this.config.debug.launches)
+    if (!name && requestedLaunches.length > 1) {
+      this.picker(this.config.locale === "pt-BR" ? "Config de debug" : "Debug launch configs", requestedLaunches.map(launch => ({
+        label: launch,
+        detail: this.config.debug.launches[launch]?.language ?? "launch",
+        run: () => { void this.startDebug(launch) },
+      })))
+      return
+    }
+    const launch = name ? this.config.debug.launches[name] : requestedLaunches.length === 1 ? this.config.debug.launches[requestedLaunches[0]!] : undefined
+    if (launch && !path && !launch.program) throw new Error("Debug requires a saved file")
+    const language = launch?.language ?? languageOf(path ?? launch?.program, this.config)
+    const command = launch?.adapter?.length ? launch.adapter : this.debugAdapterCommand(language)
+    if (!command?.length) throw new Error(`No debug adapter configured for ${language}`)
     if (this.debug && (this.debugStatus === "running" || this.debugStatus === "stopped")) {
       this.status = this.config.locale === "pt-BR" ? "Debug já em execução" : "Debug already running"
       this.changed(); return
     }
-    await this.debug?.disconnect().catch(() => undefined)
-    const language = languageOf(path, this.config)
-    const command = this.debugAdapterCommand(language)
-    if (!command?.length) throw new Error(`No debug adapter configured for ${language}`)
+    if (this.debug) { await this.debug?.disconnect().catch(() => undefined); this.debug = undefined }
+    const program = launch?.program ?? path
+    if (!program) throw new Error("Debug requires a program")
+    const args = launch?.args ?? []
+    const cwd = launch?.cwd ? resolve(this.workspace, launch.cwd) : dirname(program)
+    const debugBreakpointsPath = path ?? program
     const adapter = new DebugAdapter(command, this.workspace, (status, message) => { this.debugStatus = status; this.status = message ? `Debug ${status}: ${message}` : `Debug ${status}`; this.changed() })
     try {
       await adapter.initialize()
-      const lines = this.debugBreakpoints.get(path) ?? []
-      await adapter.setBreakpoints(path, lines)
-      await adapter.launch({ cwd: dirname(path), program: path })
+      const lines = this.debugBreakpoints.get(debugBreakpointsPath) ?? []
+      await adapter.setBreakpoints(debugBreakpointsPath, lines)
+      await adapter.launch({ cwd, program, args })
       this.debug = adapter
       this.debugStatus = "running"
       this.status = this.config.locale === "pt-BR" ? "Debug iniciado" : "Debug started"
@@ -1554,6 +1569,35 @@ export class Application {
         ...frames.map((frame, index) => `  #${index + 1} ${frame.name} @ ${frame.source?.name ?? frame.source?.path ?? "?"}:${frame.line ?? 0}`),
       ]
       this.overlay = { kind: "read", title: "Debug threads", text: lines.join("\n"), scroll: 0 }
+    } catch (error) {
+      this.status = String(error)
+    }
+    this.changed()
+  }
+
+  async showDebugVariables(): Promise<void> {
+    if (!this.debug) {
+      this.status = this.config.locale === "pt-BR" ? "Sem debug ativo" : "No debug session"
+      this.changed(); return
+    }
+    try {
+      const threadId = (await this.debug.threads())[0]?.id ?? 1
+      const frames = await this.debug.stackTrace(threadId)
+      const frameId = frames[0]?.id
+      let variables: Array<{ name: string; value: string; type?: string }> = []
+      if (frameId !== undefined) {
+        const scopes = await this.debug.request<{ scopes?: Array<{ variablesReference: number }> }>("scopes", { frameId })
+        const variablesReference = scopes?.scopes?.[0]?.variablesReference
+        if (variablesReference) {
+          const response = await this.debug.request<{ variables?: Array<{ name: string; value: string; type?: string }> }>("variables", { variablesReference })
+          variables = response?.variables ?? []
+        }
+      }
+      const lines = [
+        "Debug variables:",
+        ...variables.map(v => `  ${v.name}: ${v.value}${v.type ? ` (${v.type})` : ""}`),
+      ]
+      this.overlay = { kind: "read", title: "Debug variables", text: lines.join("\n"), scroll: 0 }
     } catch (error) {
       this.status = String(error)
     }

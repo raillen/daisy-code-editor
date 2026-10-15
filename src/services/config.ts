@@ -11,7 +11,7 @@ export type Config = {
   terminal: { shell: string; default_height: number }
   markdown: { terminal_images: boolean }
   lsp: { enabled: boolean; timeout_ms: number; servers: Record<string, string[]> }
-  debug: { enabled: boolean; adapters: Record<string, string[]> }
+  debug: { enabled: boolean; adapters: Record<string, string[]>; launches: Record<string, { adapter?: string[]; language: string; program: string; args: string[]; cwd?: string }> }
   ui: Record<string, string>; syntax: Record<string, string>; tokens: Record<string, string>
   keys: Record<string, ActionId>; languages: Language[]
 }
@@ -21,7 +21,7 @@ export const defaultConfig = (): Config => ({
   theme: "default", locale: "pt-BR", mouse: true, soft_wrap: true, show_line_numbers: true, icons: false,
   editor: { tab_size: 4, insert_spaces: true, format_on_save: false, use_editorconfig: true, modal_mode: false, completion_auto: true, completion_min_chars: 2, auto_pairs: true },
   markdown: { terminal_images: false }, tree: { width: 28, show_hidden: false, git_status: true }, terminal: { shell: process.env.SHELL ?? "/bin/sh", default_height: 10 },
-  debug: { enabled: true, adapters: { rust: ["rust-analyzer", "--dap"], c: ["clangd", "--dap"], python: ["debugpy-adapter"], typescript: ["typescript-debug-adapter"], go: ["dlv", "dap", "--listen=:4711"] } },
+  debug: { enabled: true, adapters: { rust: ["rust-analyzer", "--dap"], c: ["clangd", "--dap"], python: ["debugpy-adapter"], typescript: ["typescript-debug-adapter"], go: ["dlv", "dap", "--listen=:4711"] }, launches: {} },
   lsp: { enabled: true, timeout_ms: 10000, servers: { rust: ["rust-analyzer"], c: ["clangd"], cpp: ["clangd"], bash: ["bash-language-server", "start"], ori: ["ori-lsp"], python: ["pylsp"], typescript: ["typescript-language-server", "--stdio"], javascript: ["typescript-language-server", "--stdio"], go: ["gopls"] } },
   ui: {}, syntax: {}, tokens: {}, keys: { ...defaultBindings }, languages: [],
 })
@@ -60,6 +60,15 @@ export async function loadConfig(workspace: string): Promise<Config> {
   if (typeof config.debug !== "object" || config.debug === null) throw new Error("Debug configuration must be a table")
   if (typeof config.debug.enabled !== "boolean") throw new Error("Debug enabled flag must be boolean")
   for (const command of Object.values(config.debug.adapters ?? {})) if (!Array.isArray(command) || !command.every(argument => typeof argument === "string")) throw new Error("Debug adapters must be arrays of strings")
+if (typeof config.debug.launches !== "object" || config.debug.launches === null) throw new Error("Debug launches must be a table")
+  for (const launch of Object.values(config.debug.launches ?? {})) {
+    const entry = record(launch)
+    if (typeof entry.language !== "string") throw new Error("Launch language is required")
+    if (typeof entry.program !== "string" || !entry.program.trim()) throw new Error("Launch program is required")
+    if (entry.args !== undefined && (!Array.isArray(entry.args) || !entry.args.every(argument => typeof argument === "string"))) throw new Error("Launch args must be string arrays")
+    if (entry.cwd !== undefined && typeof entry.cwd !== "string") throw new Error("Launch cwd must be string")
+    if (entry.adapter !== undefined && (!Array.isArray(entry.adapter) || !entry.adapter.every(argument => typeof argument === "string"))) throw new Error("Launch adapter must be string array")
+  }
   config.languages = config.languages.map(raw => {
     const language = record(raw)
     if (typeof language.id !== "string") throw new Error("Language requires id")

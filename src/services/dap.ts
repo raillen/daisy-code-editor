@@ -83,7 +83,7 @@ export class DebugAdapter {
     const response = await this.request<{ threads?: Array<{ id: number; name: string }> }>("threads")
     return response?.threads ?? []
   }
-  async stackTrace(threadId: number): Promise<Array<{ name: string; line?: number; source?: { path?: string; name?: string } }>> {
+  async stackTrace(threadId: number): Promise<Array<{ id?: number; name: string; line?: number; source?: { path?: string; name?: string } }>> {
     const response = await this.request<{ stackFrames?: Array<{ name: string; line?: number; source?: { path?: string; name?: string } }> }>("stackTrace", { threadId })
     return response?.stackFrames ?? []
   }
