@@ -98,6 +98,26 @@ export class Git {
     const output = await this.applyPatch(patch)
     return output.trim() || "Staged hunk"
   }
+  async stageHunkAt(path: string, index: number): Promise<string> {
+    const diff = await this.diffUnstaged(path)
+    const { meta, hunks } = parseHunks(diff)
+    const hunk = hunks[index]
+    if (!hunk) throw new Error("Hunk index out of range")
+    const output = await this.applyPatch(hunkPatch(meta, hunk))
+    return output.trim() || `Staged hunk ${index + 1}`
+  }
+  async unstageHunkAt(path: string, index: number): Promise<string> {
+    const diff = await this.diffStaged(path)
+    const { meta, hunks } = parseHunks(diff)
+    const hunk = hunks[index]
+    if (!hunk) throw new Error("Hunk index out of range")
+    const output = await this.applyPatch(hunkPatch(meta, hunk), true)
+    return output.trim() || `Unstaged hunk ${index + 1}`
+  }
+  async hunks(path: string, staged: boolean): Promise<GitHunk[]> {
+    const diff = staged ? await this.diffStaged(path) : await this.diffUnstaged(path)
+    return parseHunks(diff).hunks
+  }
   async unstageHunk(path: string, cursorLine: number): Promise<string> {
     const diff = await this.diffStaged(path)
     const patch = selectHunkPatch(diff, cursorLine)
@@ -120,10 +140,12 @@ export class Git {
   }
 }
 
-export function selectHunkPatch(diffText: string, cursorLine: number): string {
+export type GitHunk = { header: string; body: string[]; newStart: number; newCount: number }
+
+export function parseHunks(diffText: string): { meta: string[]; hunks: GitHunk[] } {
   const lines = diffText.split("\n")
   const meta: string[] = []
-  const hunks: { header: string; body: string[]; newStart: number; newCount: number }[] = []
+  const hunks: GitHunk[] = []
   let current: string[] | null = null
   let header = ""
   let newStart = 0, newCount = 0
@@ -139,6 +161,23 @@ export function selectHunkPatch(diffText: string, cursorLine: number): string {
     else meta.push(line)
   }
   if (current !== null) hunks.push({ header, body: current, newStart, newCount })
+  return { meta, hunks }
+}
+
+export function hunkPatch(meta: string[], hunk: GitHunk): string {
+  const body = hunk.body.filter((line, index) => !(index === hunk.body.length - 1 && line.trim() === ""))
+  return [...meta, hunk.header, ...body].join("\n")
+}
+
+export function hunkSummary(hunk: GitHunk): string {
+  const added = hunk.body.filter(line => line.startsWith("+") && !line.startsWith("+++")).length
+  const removed = hunk.body.filter(line => line.startsWith("-") && !line.startsWith("---")).length
+  const preview = hunk.body.find(line => (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---"))?.slice(1, 81) ?? ""
+  return `${hunk.header} (+${added}/-${removed})${preview ? ` ${preview}` : ""}`
+}
+
+export function selectHunkPatch(diffText: string, cursorLine: number): string {
+  const { meta, hunks } = parseHunks(diffText)
   if (!hunks.length) throw new Error("No changed hunks")
   let best = hunks[0]!, bestDistance = Infinity
   for (const hunk of hunks) {
@@ -150,8 +189,7 @@ export function selectHunkPatch(diffText: string, cursorLine: number): string {
     else distance = 0
     if (distance < bestDistance) { best = hunk; bestDistance = distance }
   }
-  const body = best.body.filter((line, index) => !(index === best.body.length - 1 && line.trim() === ""))
-  return [...meta, best.header, ...body].join("\n")
+  return hunkPatch(meta, best)
 }
 
 export type GutterKind = "added" | "modified" | "deleted"

@@ -6,7 +6,7 @@ import { type ActionId } from "../core/keymap"
 import { fuzzyScore, findMatches, searchDefaults, replacementEdits, type SearchOptions, type Match } from "../core/search"
 import { loadConfig, userConfigDir, type Config } from "../services/config"
 import { FileTree, atomicWrite, discoverFiles, readText, loadSession, saveSession, type SplitSession } from "../services/files"
-import { Git, type GitStatus, type GutterKind } from "../services/git"
+import { Git, hunkSummary, type GitStatus, type GutterKind, type GitHunk } from "../services/git"
 import { highlight, languageOf, type HighlightToken } from "../services/languages"
 import { TerminalSession } from "../services/terminal"
 import { LspClient, lspRetryAllowed } from "../services/lsp"
@@ -910,6 +910,28 @@ export class Application {
     } catch (error) {
       this.report(error)
     } finally { this.changed() }
+  }
+  async showHunks(staged: boolean): Promise<void> {
+    const path = this.document.path
+    if (!path) { this.status = this.config.locale === "pt-BR" ? "Sem arquivo ativo" : "No active file"; this.changed(); return }
+    let hunks: GitHunk[]
+    try {
+      hunks = await this.git.hunks(path, staged)
+    } catch (error) { this.report(error); return }
+    if (!hunks.length) {
+      this.status = this.config.locale === "pt-BR" ? (staged ? "Sem hunks staged" : "Sem hunks para stage") : (staged ? "No staged hunks" : "No hunks to stage")
+      this.changed(); return
+    }
+    const action = staged
+      ? (this.config.locale === "pt-BR" ? "Remover da stage" : "Unstage")
+      : (this.config.locale === "pt-BR" ? "Adicionar à stage" : "Stage")
+    this.picker(`${action}: ${basename(path)}`, hunks.map((hunk, index) => ({
+      label: `#${index + 1} ${hunkSummary(hunk)}`,
+      run: () => { void this.guard(async () => {
+        this.status = staged ? await this.git.unstageHunkAt(path, index) : await this.git.stageHunkAt(path, index)
+        await this.refreshGit(); this.changed()
+      }) },
+    })))
   }
   async refreshGit(): Promise<void> {
     if (this.gitReading || this.closed) return

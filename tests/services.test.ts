@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, symlink, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { atomicWrite, FileTree, readText, saveSession, loadSession } from "../src/services/files"
-import { Git, execute, parsePorcelain, parseDiffHunks } from "../src/services/git"
+import { Git, execute, parsePorcelain, parseDiffHunks, parseHunks, hunkSummary } from "../src/services/git"
 import { TerminalSession } from "../src/services/terminal"
 import { DebugAdapter } from "../src/services/dap"
 import { LspClient, lspBackoffDelay, lspRetryAllowed } from "../src/services/lsp"
@@ -133,6 +133,29 @@ test("LSP stdio initialization, completion, hover, definitions and formatting", 
     expect((await server.signatureHelp(join(root, "test.ts"), { line: 0, character: 8 }))?.signatures[0]?.label).toBe("foobar(arg: string): void")
     expect((await server.codeAction(join(root, "test.ts"), { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }, []))?.[0]?.title).toBe("Fixture fix")
   } finally { await server.close() }
+})
+test("Git hunk parser summarizes and stages hunks by index", async () => {
+  const root = await fixture(); await execute("git", ["init", "-b", "main"], root)
+  await execute("git", ["config", "user.email", "test@example.invalid"], root)
+  await execute("git", ["config", "user.name", "Hunk Test"], root)
+  const file = join(root, "b.txt")
+  await Bun.write(file, Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n") + "\n")
+  const git = new Git(root)
+  await git.stage("b.txt"); await git.commit("base")
+  const modified = (await readFile(file, "utf8")).replace("line 2\n", "LINE 2\n").replace("line 28\n", "LINE 28\n")
+  await Bun.write(file, modified)
+  const hunks = await git.hunks("b.txt", false)
+  expect(hunks.length).toBe(2)
+  expect(hunkSummary(hunks[0]!)).toContain("(+1/-1)")
+  expect(hunkSummary(hunks[1]!).startsWith("@@ -")).toBe(true)
+  expect(hunkSummary(hunks[1]!)).toContain("(+1/-1)")
+  expect(parseHunks("no diff here").hunks).toEqual([])
+  expect(await git.stageHunkAt("b.txt", 0)).toContain("Staged hunk 1")
+  expect((await git.hunks("b.txt", true)).length).toBe(1)
+  expect((await git.hunks("b.txt", false)).length).toBe(1)
+  expect(await git.unstageHunkAt("b.txt", 0)).toContain("Unstaged hunk 1")
+  expect((await git.hunks("b.txt", true)).length).toBe(0)
+  expect(git.stageHunkAt("b.txt", 9)).rejects.toThrow("out of range")
 })
 test("DAP adapter runs a full session against the fixture", async () => {
   const root = await fixture(), capture = join(root, "dap-requests.json")

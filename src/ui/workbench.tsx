@@ -213,7 +213,7 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
     <box id="main-region" flexGrow={1} minHeight={1} flexDirection="row" overflow="hidden">
       <Show when={treeWidth() > 0}>
         <box id="file-tree" width={treeWidth()} minWidth={1} flexShrink={0} flexDirection="column" overflow="hidden" backgroundColor={theme().panel}>
-          <text content={theme().isLain ? (app.focus === "tree" ? "▣ PROJECT // [N:NEW R:REN D:DEL]" : "□ PROJECT // [N:NEW R:REN D:DEL]") : (app.focus === "tree" ? "▍PROJECT  n:new r:ren d:del" : " PROJECT  n:new r:ren d:del")} fg={app.focus === "tree" ? theme().accent : theme().muted} height={1} selectable={false} />
+          <text content={(theme().isLain ? (app.focus === "tree" ? "▣ PROJECT // [N:NEW R:REN D:DEL]" : "□ PROJECT // [N:NEW R:REN D:DEL]") : (app.focus === "tree" ? "▍PROJECT  n:new r:ren d:del" : " PROJECT  n:new r:ren d:del")) + (app.tree.truncated ? ` ${app.tree.rows.length}+` : "")} fg={app.focus === "tree" ? theme().accent : theme().muted} height={1} selectable={false} />
           <For each={(revision(), app.tree.rows.slice(treeStart(), treeStart() + contentHeight() - 1))}>{(row, index) => {
             const isSelected = () => app.tree.selected === treeStart() + index()
             const gitBadge = () => {
