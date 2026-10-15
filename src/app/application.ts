@@ -1194,6 +1194,7 @@ export class Application {
 
     const items: CompletionItem[] = []
     const seenLabels = new Set<string>()
+    const resolvables: Array<{ item: CompletionItem; raw: import("../services/lsp").LspCompletionItem }> = []
 
     // 1. LSP completion items (se disponível)
     const suggestions = (Array.isArray(response) ? response : response?.items ?? [])
@@ -1201,7 +1202,7 @@ export class Application {
     for (const suggestion of suggestions) {
       if (!seenLabels.has(suggestion.label)) {
         seenLabels.add(suggestion.label)
-        items.push({
+        const item: CompletionItem = {
           label: suggestion.label,
           detail: suggestion.detail,
           kind: suggestion.kind ? String(suggestion.kind) : "lsp",
@@ -1217,7 +1218,9 @@ export class Application {
             }
             this.afterEdit()
           }
-        })
+        }
+        items.push(item)
+        resolvables.push({ item, raw: suggestion })
       }
     }
 
@@ -1376,6 +1379,20 @@ export class Application {
       offset: document.primary.head,
       selected: 0,
       items
+    }
+    // Manual completion enriches the top LSP items via completionItem/resolve.
+    // Automatic completion skips this to stay latency-free while typing.
+    if (!automatic && server) {
+      const pending = resolvables.slice(0, 3)
+      const enriched = await Promise.all(pending.map(entry => server.resolveCompletion(entry.raw).catch(() => null)))
+      if (document.version !== version || this.closed) return
+      for (const [index, resolved] of enriched.entries()) {
+        const target = pending[index]?.item
+        if (!target || !resolved) continue
+        target.detail ??= resolved.detail
+        const doc = typeof resolved.documentation === "string" ? resolved.documentation : resolved.documentation?.value
+        if (doc && !target.doc) target.doc = doc
+      }
     }
     const firstItem = items[0]
     if (firstItem?.doc) {

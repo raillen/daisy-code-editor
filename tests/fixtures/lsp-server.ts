@@ -11,6 +11,7 @@ connection.onNotification("textDocument/didChange", (params: unknown) => {
   if (changeCapture) void Bun.write(changeCapture, JSON.stringify(params))
 })
 connection.onRequest("textDocument/completion", () => [{ label: "foobar", insertText: "foobar" }])
+connection.onRequest("completionItem/resolve", (params: { label?: string }) => ({ ...params, detail: "resolved detail", documentation: "resolved doc" }))
 connection.onRequest("textDocument/hover", () => ({ contents: { kind: "plaintext", value: "hover from fixture" } }))
 connection.onRequest("textDocument/definition", () => ({ uri, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } }))
 connection.onRequest("textDocument/formatting", () => [{ range: { start: { line: 0, character: 0 }, end: { line: 0, character: 13 } }, newText: "formatted" }])

@@ -145,6 +145,7 @@ test("LSP stdio initialization, completion, hover, definitions and formatting", 
     expect((await server.references(join(root, "test.ts"), { line: 0, character: 7 }))?.length).toBe(1)
     expect((await server.signatureHelp(join(root, "test.ts"), { line: 0, character: 8 }))?.signatures[0]?.label).toBe("foobar(arg: string): void")
     expect((await server.codeAction(join(root, "test.ts"), { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }, []))?.[0]?.title).toBe("Fixture fix")
+    expect(await server.resolveCompletion({ label: "foobar" })).toMatchObject({ label: "foobar", detail: "resolved detail" })
     expect(server.supports("hoverProvider")).toBe(true)
     expect(server.supports("renameProvider")).toBe(false)
     await server.sync(join(root, "test.ts"), "typescript", "const foo = 2", 1)

@@ -2,9 +2,9 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
 import { pathToFileURL } from "node:url"
 import { positionAt } from "../core/document"
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter, CancellationTokenSource, type MessageConnection } from "vscode-languageserver-protocol/node"
-import { InitializeRequest, InitializedNotification, DidOpenTextDocumentNotification, DidChangeTextDocumentNotification, DidSaveTextDocumentNotification, DidCloseTextDocumentNotification, PublishDiagnosticsNotification, CompletionRequest, HoverRequest, DefinitionRequest, ReferencesRequest, SignatureHelpRequest, CodeActionRequest, DocumentFormattingRequest, RenameRequest, DocumentSymbolRequest, ShutdownRequest, ExitNotification, type Diagnostic, type Position, type Range, type TextEdit, type WorkspaceEdit, type DocumentSymbol, type SymbolInformation, type SignatureHelp, type CodeAction, type Command, type ServerCapabilities } from "vscode-languageserver-protocol/node"
+import { InitializeRequest, InitializedNotification, DidOpenTextDocumentNotification, DidChangeTextDocumentNotification, DidSaveTextDocumentNotification, DidCloseTextDocumentNotification, PublishDiagnosticsNotification, CompletionRequest, CompletionResolveRequest, HoverRequest, DefinitionRequest, ReferencesRequest, SignatureHelpRequest, CodeActionRequest, DocumentFormattingRequest, RenameRequest, DocumentSymbolRequest, ShutdownRequest, ExitNotification, type Diagnostic, type Position, type Range, type TextEdit, type WorkspaceEdit, type DocumentSymbol, type SymbolInformation, type SignatureHelp, type CodeAction, type Command, type ServerCapabilities, type CompletionItem } from "vscode-languageserver-protocol/node"
 
-export type { CodeAction, Command as LspCommand, SignatureHelp, ServerCapabilities } from "vscode-languageserver-protocol/node"
+export type { CodeAction, Command as LspCommand, SignatureHelp, ServerCapabilities, CompletionItem as LspCompletionItem } from "vscode-languageserver-protocol/node"
 
 // Minimal single-span diff (offsets in UTF-16 code units, matching the
 // negotiated `utf-16` position encoding). Returns null when texts match.
@@ -103,6 +103,7 @@ export class LspClient {
     await this.connection.sendNotification(DidCloseTextDocumentNotification.type, { textDocument: { uri } })
   }
   completion(path: string, position: Position) { return this.deadline(source => this.connection.sendRequest(CompletionRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position }, source.token)) }
+  resolveCompletion(item: CompletionItem): Promise<CompletionItem> { return this.deadline(source => this.connection.sendRequest(CompletionResolveRequest.type, item, source.token)) }
   hover(path: string, position: Position) { return this.deadline(source => this.connection.sendRequest(HoverRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position }, source.token)) }
   definition(path: string, position: Position) { return this.deadline(source => this.connection.sendRequest(DefinitionRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position }, source.token)) }
   references(path: string, position: Position, includeDeclaration = false) { return this.deadline(source => this.connection.sendRequest(ReferencesRequest.type, { textDocument: { uri: pathToFileURL(path).href }, position, context: { includeDeclaration } }, source.token)) }
