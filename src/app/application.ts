@@ -937,6 +937,35 @@ export class Application {
     return this.document.path ? languageOf(this.document.path, this.config) : undefined
   }
   private maxLspBytes(): number { return 8 * 1024 * 1024 }
+  async nextDiagnostic(delta = 1): Promise<void> {
+    const items = [...this.diagnostics].sort((left, right) => {
+      const leftPath = fileURLToPath(left.uri), rightPath = fileURLToPath(right.uri)
+      if (leftPath !== rightPath) return leftPath.localeCompare(rightPath)
+      const c = left.diagnostic.range.start.line - right.diagnostic.range.start.line
+      return c !== 0 ? c : left.diagnostic.range.start.character - right.diagnostic.range.start.character
+    })
+    if (!items.length) { this.status = this.config.locale === "pt-BR" ? "Nenhum problema" : "No problems"; this.changed(); return }
+    const activePath = this.document.path
+    const pos = this.document.position
+    const isForward = delta >= 0
+    let index = items.findIndex(item => {
+      const itemPath = fileURLToPath(item.uri)
+      if (itemPath !== activePath) return itemPath > (activePath ?? "")
+      const l = item.diagnostic.range.start.line, c = item.diagnostic.range.start.character
+      return isForward ? (l > pos.line || (l === pos.line && c >= pos.character)) : (l < pos.line || (l === pos.line && c <= pos.character))
+    })
+    if (index < 0) index = isForward ? 0 : items.length - 1
+    const item = items[index]!
+    const targetPath = fileURLToPath(item.uri)
+    this.recordJump()
+    await this.openFile(targetPath)
+    this.document.select(offsetAt(this.document.text, item.diagnostic.range.start.line, item.diagnostic.range.start.character))
+    this.recordJump()
+    const sev = item.diagnostic.severity === 1 ? (this.config.locale === "pt-BR" ? "erro" : "error") : (this.config.locale === "pt-BR" ? "aviso" : "warning")
+    this.status = `${sev.toUpperCase()}: ${item.diagnostic.message}`
+    this.changed()
+  }
+
   lspHealth(): void {
     const servers = [...this.servers.entries()].map(([language, server]) => `${language}:${server.running ? "running" : "failed"}`)
     this.status = this.config.locale === "pt-BR"

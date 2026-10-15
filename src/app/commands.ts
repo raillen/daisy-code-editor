@@ -112,6 +112,8 @@ export const commands: Record<ActionId, Command> = {
   lsp_goto_definition: command("Go to definition", app => app.definition()), lsp_format: command("Format document", app => app.format()),
   lsp_rename: command("Rename symbol…", async app => { await app.rename() }),
   lsp_symbols: command("Document symbols (LSP)", async app => { await app.lspSymbols() }),
+  lsp_next_problem: command("Next problem", app => { void app.nextDiagnostic(1) }),
+  lsp_prev_problem: command("Previous problem", app => { void app.nextDiagnostic(-1) }),
   lsp_health: command("LSP health", app => app.lspHealth()),
   lsp_restart: command("Restart LSP", async app => { await app.restartLsp() }),
   debug_toggle_breakpoint: command("Toggle breakpoint", app => app.toggleBreakpoint()),
