@@ -905,9 +905,37 @@ export class Application {
       try { server = await starting } catch (error) { this.serverFailures.set(language, String(error)); this.status = `LSP ${language}: ${String(error)}`; this.changed(); return undefined }
       finally { this.starting.delete(language) }
     }
+    if (document.text.length > this.maxLspBytes()) {
+      this.status = this.config.locale === "pt-BR"
+        ? `LSP desabilitado para este arquivo (${Math.ceil(document.text.length / 1024)} KiB > 8192 KiB)`
+        : `LSP skipped for this file (${Math.ceil(document.text.length / 1024)} KiB > 8192 KiB)`
+      this.changed()
+      return undefined
+    }
     await server.sync(document.path, language, document.text, document.version)
     return server
   }
+  private currentLanguage(): string | undefined {
+    return this.document.path ? languageOf(this.document.path, this.config) : undefined
+  }
+  private maxLspBytes(): number { return 8 * 1024 * 1024 }
+  lspHealth(): void {
+    const servers = [...this.servers.entries()].map(([language, server]) => `${language}:${server.running ? "running" : "failed"}`)
+    this.status = this.config.locale === "pt-BR"
+      ? `Status LSP · ${this.servers.size} server(s) · ${servers.join(", ") || "none"} · failures: ${this.serverFailures.size}`
+      : `LSP health · ${this.servers.size} server(s) · ${servers.join(", ") || "none"} · failures: ${this.serverFailures.size}`
+    this.changed()
+  }
+  async restartLsp(): Promise<void> {
+    const language = this.currentLanguage()
+    for (const server of this.servers.values()) await server.close().catch(() => undefined)
+    this.servers.clear(); this.serverFailures.clear()
+    this.starting.clear()
+    if (language) await this.ensureLsp().catch(error => { this.status = String(error) })
+    this.status = this.config.locale === "pt-BR" ? "Servidor LSP reiniciado" : "LSP restarted"
+    this.afterEdit()
+  }
+
   async format(): Promise<void> {
     const document = this.document, server = await this.ensureLsp()
     if (!server || !document.path) throw new Error("No running LSP for this document")
@@ -1051,7 +1079,8 @@ export class Application {
     const seenLabels = new Set<string>()
 
     // 1. LSP completion items (se disponível)
-    const suggestions = Array.isArray(response) ? response : response?.items ?? []
+    const suggestions = (Array.isArray(response) ? response : response?.items ?? [])
+      .slice(0, this.config.lsp.enabled ? 100 : 100)
     for (const suggestion of suggestions) {
       if (!seenLabels.has(suggestion.label)) {
         seenLabels.add(suggestion.label)
@@ -1261,6 +1290,7 @@ export class Application {
             : Array.isArray(contents)
             ? contents.map(v => typeof v === "string" ? v : v.value).join("\n\n")
             : contents.value
+          if (hoverText && hoverText.length > 8000) hoverText = `${hoverText.slice(0, 8000)}\n… [hover truncated]`
           hoverTitle = `LSP: ${word}`
         }
       } catch {
