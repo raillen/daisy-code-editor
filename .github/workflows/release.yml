@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build-and-release:
@@ -31,6 +32,12 @@ jobs:
         run: |
           sha256sum dist/cli.js > dist/daisy-cli.sha256.txt
           sha256sum scripts/install.sh > dist/install.sha256.txt
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+      - name: Sign artifacts (keyless OIDC)
+        run: |
+          cosign sign-blob --yes dist/cli.js --output-signature dist/daisy-cli.sig --output-certificate dist/daisy-cli.pem
+          cosign sign-blob --yes dist/install.sha256.txt --output-signature dist/install.sha256.sig --output-certificate dist/install.sha256.pem
       - name: Upload release
         uses: softprops/action-gh-release@v2
         with:
@@ -38,6 +45,13 @@ jobs:
             dist/cli.js
             dist/daisy-cli.sha256.txt
             dist/install.sha256.txt
+            dist/daisy-cli.sig
+            dist/daisy-cli.pem
+            dist/install.sha256.sig
+            dist/install.sha256.pem
           body: |
             Daisy Code Editor release.
-            Verify `dist/cli.js` against `dist/daisy-cli.sha256.txt`.
+            Verify `dist/cli.js` against `dist/daisy-cli.sha256.txt` and
+            `dist/daisy-cli.sig` (`cosign verify-blob --certificate dist/daisy-cli.pem
+            --signature dist/daisy-cli.sig dist/cli.js --certificate-identity-regexp '.*'
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com`).
