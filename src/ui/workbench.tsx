@@ -12,7 +12,7 @@ import { languageOf, resolvePreviewImage, extractOpenableLink } from "../service
 import { offsetAt } from "../core/document"
 import { EditorPane } from "./editor"
 import { themeOf, resolveColor, type Theme } from "./theme"
-import { clampTreeWidth, clampSplitRatio, clampTerminalHeight } from "../core/layout"
+import { clampTreeWidth, clampAgentsWidth, clampSplitRatio, clampTerminalHeight } from "../core/layout"
 import { fileGlyph, folderGlyph, gitBranch, lspGlyph, diagnosticError, diagnosticWarning, searchGlyph } from "../services/icons"
 import { menus } from "./menus"
 
@@ -32,6 +32,32 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
   const columns = () => dimensions().width
   const height = () => dimensions().height
   const treeWidth = () => state().tree && columns() >= 45 ? Math.min(app.config.tree.width, Math.floor(columns() * 0.35)) : 0
+  const agentsWidth = () => { revision(); return app.agentsWidth() }
+  const agentTab = () => { revision(); return app.agentTabs[app.agentTab] }
+  const agentWindow = () => {
+    revision()
+    const rows = app.agentRows()
+    const visible = app.agentVisibleRows()
+    const start = Math.max(0, rows.length - visible - Math.min(Math.max(0, app.agentScroll), app.maxAgentScroll()))
+    return rows.slice(start, start + visible)
+  }
+  const agentsHeader = () => {
+    const tab = agentTab()
+    const focused = app.focus === "agents"
+    if (theme().isLain) {
+      if (!tab) return `□ AGENTS // [NO PROVIDER]`
+      const status = tab.status === "busy" ? " // ANSWERING…" : tab.status === "error" ? " // ERROR" : ""
+      return `${focused ? "▣" : "□"} AGENTS // ${tab.providerLabel.toUpperCase()}${status}`
+    }
+    if (!tab) return `${focused ? "▍" : " "}Agents · no provider`
+    const status = tab.status === "busy" ? " · answering…" : tab.status === "error" ? " · error" : ""
+    return `${focused ? "▍" : " "}Agents · ${tab.providerLabel}${status}`
+  }
+  const agentsTabLine = () => { revision(); return app.agentTabs.map((tab, index) => `${index === app.agentTab ? "▍" : " "}${index + 1} ${tab.provider}:${tab.model}`).join("  ") }
+  const agentsTabCount = () => { revision(); return app.agentTabs.length }
+  const agentsHint = () => app.focus === "agents"
+    ? (theme().isLain ? "ENTER SEND · CTRL+N NEW · ESC BACK" : "Enter send · Ctrl+N new · Esc back")
+    : "Ctrl+Shift+A focuses · Enter sends"
   const bottomHeight = () => state().bottom ? Math.max(3, Math.min(app.terminalHeight, Math.floor(height() / 2))) : 0
   const contentHeight = () => Math.max(1, height() - 3 - bottomHeight())
   const treeStart = () => Math.max(0, app.tree.selected - contentHeight() + 2)
@@ -59,6 +85,7 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
   let poll: ReturnType<typeof setInterval> | undefined
   let quitting = false
   let treeDivider: BoxRenderable | undefined
+  let agentsDivider: BoxRenderable | undefined
   let bottomDivider: BoxRenderable | undefined
   let splitDivider: BoxRenderable | undefined
   let terminalBox: BoxRenderable | undefined
@@ -254,6 +281,23 @@ export function Workbench(props: { app: Application; live?: boolean; onQuit?: ()
           </>}</For>
         </Show>
       </box>
+      <Show when={agentsWidth() > 0}>
+        <box ref={value => { agentsDivider = value }} width={1} flexShrink={0} backgroundColor={theme().border}
+          onMouseDrag={event => { if (!app.overlay && !app.menu && agentsDivider) { app.config.agents.width = clampAgentsWidth(event.x, columns()); app.changed() } }} />
+        <box id="agents" width={agentsWidth()} minWidth={1} flexShrink={0} flexDirection="column" overflow="hidden" backgroundColor={theme().panel}
+          onMouseDown={() => { if (!app.overlay && !app.menu) { app.focus = "agents"; app.changed() } }}
+          onMouseScroll={event => { if (!app.overlay && !app.menu) app.scrollAgent(event.scroll?.direction === "up" ? 3 : -3) }}>
+          <text height={1} wrapMode="none" selectable={false} content={agentsHeader()} fg={app.focus === "agents" ? theme().accent : theme().muted} />
+          <Show when={agentsTabCount() > 1}><text height={1} wrapMode="none" selectable={false} content={agentsTabLine()} fg={theme().muted} /></Show>
+          <box flexGrow={1} />
+          <Show when={agentWindow().length === 0}><text height={1} wrapMode="none" selectable={false} fg={theme().muted}
+            content={agentTab() ? (app.focus === "agents" ? "Type a prompt and press Enter" : "Click or Ctrl+Shift+A to focus") : "No agent provider available"} /></Show>
+          <For each={(revision(), agentWindow())}>{row => <text height={1} wrapMode="none" selectable={false} content={row.text}
+            fg={row.role === "user" ? theme().text : row.role === "notice" ? theme().warning : theme().accent} />}</For>
+          <text height={1} wrapMode="none" selectable={false} content={`${app.focus === "agents" ? "❯" : " "} ${app.agentInput}${app.focus === "agents" ? "▏" : ""}`} fg={theme().text} />
+          <text height={1} wrapMode="none" selectable={false} content={agentsHint()} fg={theme().muted} />
+        </box>
+      </Show>
     </box>
     <Show when={state().bottom}>
       <box ref={value => { bottomDivider = value }} id="panel-tabs" height={1} flexShrink={0} flexDirection="row" backgroundColor={theme().panel}

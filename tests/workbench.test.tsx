@@ -6,7 +6,7 @@ import { testRender } from "@opentui/solid"
 import { Application } from "../src/app/application"
 import { defaultConfig } from "../src/services/config"
 import { Workbench } from "../src/ui/workbench"
-import { clampTreeWidth, clampSplitRatio, clampTerminalHeight } from "../src/core/layout"
+import { clampTreeWidth, clampAgentsWidth, clampSplitRatio, clampTerminalHeight } from "../src/core/layout"
 import { execute } from "../src/services/git"
 import { receiveKey } from "../src/app/input"
 
@@ -202,6 +202,10 @@ test("divider geometry clamps tree, split ratio and terminal height", () => {
   expect(clampTreeWidth(34, 100)).toBe(34)
   expect(clampTreeWidth(2, 100)).toBe(8)
   expect(clampTreeWidth(95, 100)).toBe(80)
+  expect(clampAgentsWidth(69, 100)).toBe(31)
+  expect(clampAgentsWidth(95, 100)).toBe(15)
+  expect(clampAgentsWidth(0, 100)).toBe(60)
+  expect(clampAgentsWidth(50, 70)).toBe(20)
   expect(clampSplitRatio(36, 72)).toBe(50)
   expect(clampSplitRatio(1000, 72)).toBe(85)
   expect(clampSplitRatio(-5, 72)).toBe(15)
@@ -260,6 +264,71 @@ test("toggle_scm opens the SCM modal, stages with s and closes with Esc", async 
     await waitFor(() => view.app.gitStatus.entries[0]?.index === "M")
     view.mockInput.pressEscape(); await view.flush()
     expect(view.app.overlay).toBeUndefined()
+  } finally { await view.cleanup() }
+})
+test("agents panel streams a reply and Esc returns focus to the editor", async () => {
+  const view = await setup()
+  try {
+    await view.app.dispatch("toggle_agents")
+    expect(view.app.showAgents).toBe(true)
+    expect(view.app.focus).toBe("agents")
+    await view.renderOnce()
+    expect(view.captureCharFrame()).toContain("Agents")
+    await view.mockInput.typeText("hello")
+    view.mockInput.pressEnter(); await view.flush()
+    await waitFor(() => view.app.agentTabs[0]?.messages.some(message => message.role === "assistant" && message.text.includes("hello")) === true)
+    await view.renderOnce()
+    expect(view.captureCharFrame()).toContain("Echo")
+    view.mockInput.pressEscape(); await view.flush()
+    expect(view.app.focus).toBe("editor")
+    expect(view.app.showAgents).toBe(true)
+    await view.mockInput.typeText("z")
+    expect(view.app.document.text).toContain("z")
+  } finally { await view.cleanup() }
+})
+test("dragging the agents divider resizes the panel through the shared clamp", async () => {
+  const view = await setup()
+  try {
+    await view.app.dispatch("toggle_agents")
+    await view.renderOnce()
+    expect(view.app.config.agents.width).toBe(34)
+    await view.mockMouse.drag(65, 5, 64, 5)
+    expect(view.app.config.agents.width).toBe(36)
+    await view.app.dispatch("agents_shrink")
+    expect(view.app.config.agents.width).toBe(34)
+    await view.app.dispatch("agents_grow")
+    expect(view.app.config.agents.width).toBe(36)
+    await view.renderOnce()
+    expect(view.captureCharFrame()).toContain("Agents")
+  } finally { await view.cleanup() }
+})
+test("agent conversations live in tabs", async () => {
+  const view = await setup()
+  try {
+    await view.app.dispatch("toggle_agents")
+    await view.app.dispatch("agent_new_tab")
+    expect(view.app.agentTabs).toHaveLength(2)
+    expect(view.app.agentTab).toBe(1)
+    await view.app.dispatch("agent_next_tab")
+    expect(view.app.agentTab).toBe(0)
+    await view.app.dispatch("agent_prev_tab")
+    expect(view.app.agentTab).toBe(1)
+    await view.renderOnce()
+    expect(view.captureCharFrame()).toContain("2 echo:default")
+    await view.app.dispatch("agent_close_tab")
+    expect(view.app.agentTabs).toHaveLength(1)
+    expect(view.app.agentTab).toBe(0)
+  } finally { await view.cleanup() }
+})
+test("agents panel fails closed when no provider is available", async () => {
+  const view = await setup()
+  try {
+    view.app.agentProviders = []
+    await view.app.dispatch("toggle_agents")
+    expect(view.app.agentTabs).toHaveLength(0)
+    expect(view.app.status).toBe("No agent provider available")
+    await view.renderOnce()
+    expect(view.captureCharFrame()).toContain("No agent provider available")
   } finally { await view.cleanup() }
 })
 test("dragging the panel divider resizes the terminal", async () => {

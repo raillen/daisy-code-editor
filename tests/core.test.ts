@@ -4,6 +4,7 @@ import { findMatches, replacementEdits, searchDefaults, fuzzyScore } from "../sr
 import { actionIds, defaultBindings } from "../src/core/keymap"
 import { commands } from "../src/app/commands"
 import { sessionName } from "../src/services/files"
+import { wrapText } from "../src/core/wrap"
 
 test("multicursor insert, backspace, undo and redo are atomic", () => {
   const document = new Document(1, "ab\nab\nab")
@@ -55,7 +56,7 @@ test("accent search retains original text offsets", () => {
 })
 test("all reference actions and bindings have handlers", () => {
   expect(Object.keys(commands).sort()).toEqual([...actionIds].sort())
-  expect(Object.keys(defaultBindings)).toHaveLength(99)
+  expect(Object.keys(defaultBindings)).toHaveLength(102)
   for (const action of Object.values(defaultBindings)) expect(commands[action].run).toBeFunction()
 })
 test("fuzzy finder scores subsequences and rejects nonmatches", () => {
@@ -84,4 +85,11 @@ test("toggle comment toggles line comments and block comments for web formats", 
   expect(cssDoc.text).toBe("  /* body { margin: 0; } */\n")
   cssDoc.toggleComment({ open: "/*", close: "*/" })
   expect(cssDoc.text).toBe("  body { margin: 0; }\n")
+})
+test("wrapText breaks prose on words and long tokens on characters", () => {
+  expect(wrapText("the quick brown fox", 11)).toEqual(["the quick", "brown fox"])
+  expect(wrapText("abcdefghij", 4)).toEqual(["abcd", "efgh", "ij"])
+  expect(wrapText("first\n\nthird", 10)).toEqual(["first", "", "third"])
+  expect(wrapText("a  b", 10)).toEqual(["a  b"])
+  expect(wrapText("中文中文中文", 4)).toEqual(["中文", "中文", "中文"])
 })

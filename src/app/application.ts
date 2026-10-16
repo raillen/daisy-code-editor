@@ -9,6 +9,8 @@ import { FileTree, atomicWrite, discoverFiles, readText, loadSession, saveSessio
 import { Git, hunkSummary, type GitStatus, type GutterKind, type GitHunk } from "../services/git"
 import { highlight, languageOf, type HighlightToken } from "../services/languages"
 import { TerminalSession } from "../services/terminal"
+import { defaultProviders, type AgentConversation, type AgentMessage, type AgentProvider, type AgentRole, type AgentTab } from "../services/agents"
+import { wrapText } from "../core/wrap"
 import { LspClient, lspRetryAllowed } from "../services/lsp"
 import { DebugAdapter } from "../services/dap"
 import { discoverPlugins, runPlugin, type Plugin, type PluginCommand } from "../services/plugins"
@@ -20,7 +22,7 @@ import { extractBufferWords, suggestBufferWords, wordAtOffset, extractDocumentSy
 import { getLanguageCatalog, lookupCatalogItem } from "../services/languageCatalog"
 import type { FuzzyWorkerRequest, FuzzyWorkerResponse } from "../workers/fuzzy"
 
-export type Focus = "editor" | "tree" | "terminal"
+export type Focus = "editor" | "tree" | "terminal" | "agents"
 export type PickerEntry = { label: string; detail?: string; run: () => void | Promise<void> }
 export type Overlay =
   | { kind: "picker"; title: string; query: string; selected: number; entries: PickerEntry[]; onSelect?: (entry: PickerEntry, index: number) => void; onCancel?: () => void; filtered?: PickerEntry[]; generation?: number }
@@ -117,6 +119,18 @@ export class Application {
   bottom: "terminal" | "problems" | undefined
   terminal: TerminalSession | undefined
   terminalHeight: number
+  // Painel de agentes: abas de conversa, input inline e scroll do transcript.
+  // O app fala só com `AgentProvider` (services/agents) — o provedor nativo do
+  // OpenCode e os adapters ACP entram atrás do contrato, sem tocar no painel.
+  showAgents = false
+  agentTabs: AgentTab[] = []
+  agentTab = 0
+  agentInput = ""
+  agentScroll = 0
+  agentProviders: AgentProvider[] = defaultProviders()
+  private conversations = new Map<number, AgentConversation>()
+  private agentTabSeq = 0
+  private agentRenderTimer: ReturnType<typeof setTimeout> | undefined
   debugBreakpoints = new Map<string, Array<{ line: number; condition?: string }>>()
   debug: DebugAdapter | undefined
   debugStatus: string = "idle"
@@ -221,7 +235,10 @@ export class Application {
       }
     }
     app.showTree = previous.show_tree ?? true
+    app.showAgents = previous.show_agents ?? false
     app.config.tree.width = Math.max(8, previous.tree_width ?? app.config.tree.width)
+    app.config.agents.width = Math.max(15, previous.agents_width ?? app.config.agents.width)
+    if (app.showAgents) await app.ensureAgentTab()
     await app.refreshGit()
     return app
   }
@@ -953,6 +970,124 @@ export class Application {
     if (!this.terminal) this.terminal = new TerminalSession(this.config.terminal.shell, this.workspace, this.width, Math.max(3, this.terminalHeight - 1), () => this.changed())
     this.bottom = "terminal"; this.focus = "terminal"; this.changed()
   }
+  // --- Painel de agentes -------------------------------------------------
+  /** Largura efetiva do painel; 0 quando fechado ou sem espaço. */
+  agentsWidth(): number {
+    return this.showAgents && this.width >= 70 ? Math.min(this.config.agents.width, Math.floor(this.width * 0.35)) : 0
+  }
+  /** Linhas de transcript visíveis: o corpo do painel menos chrome fixo. */
+  agentVisibleRows(): number { return Math.max(1, this.editorHeight - 4) }
+  /** Transcript já com quebra e marcador de papel, do mais antigo ao mais novo. */
+  agentRows(): { text: string; role: AgentRole }[] {
+    const tab = this.agentTabs[this.agentTab]
+    if (!tab) return []
+    const width = Math.max(12, this.agentsWidth() - 3)
+    const rows: { text: string; role: AgentRole }[] = []
+    for (const message of tab.messages) {
+      const marker = message.role === "user" ? "❯ " : message.role === "notice" ? "! " : "∙ "
+      const lines = wrapText(message.text, Math.max(4, width - 2))
+      if (!lines.length) lines.push("")
+      lines.forEach((line, index) => rows.push({ text: (index === 0 ? marker : "  ") + line, role: message.role }))
+    }
+    if (tab.status === "busy" && rows.length) rows[rows.length - 1]!.text += "▏"
+    return rows
+  }
+  maxAgentScroll(): number { return Math.max(0, this.agentRows().length - this.agentVisibleRows()) }
+  scrollAgent(delta: number): void { this.agentScroll = Math.max(0, Math.min(this.maxAgentScroll(), this.agentScroll + delta)); this.changed() }
+  private requestAgentRender(): void {
+    if (this.agentRenderTimer) return
+    this.agentRenderTimer = setTimeout(() => { this.agentRenderTimer = undefined; this.changed() }, 33)
+  }
+  async availableAgentProviders(): Promise<AgentProvider[]> {
+    const available: AgentProvider[] = []
+    for (const provider of this.agentProviders) if (await provider.available().catch(() => false)) available.push(provider)
+    return available
+  }
+  async newAgentTab(): Promise<AgentTab | undefined> {
+    const provider = (await this.availableAgentProviders())[0]
+    if (!provider) {
+      this.status = "No agent provider available"
+      this.changed()
+      return undefined
+    }
+    const model = provider.models()[0] ?? "default"
+    const tab: AgentTab = { id: ++this.agentTabSeq, provider: provider.id, providerLabel: provider.label, model, messages: [], status: "idle" }
+    try { this.conversations.set(tab.id, await provider.open(model)) }
+    catch (error) { tab.status = "error"; tab.error = String(error); this.status = `Agent provider failed: ${error}` }
+    this.agentTabs.push(tab)
+    this.agentTab = this.agentTabs.length - 1
+    this.agentScroll = 0
+    this.changed()
+    return tab
+  }
+  async ensureAgentTab(): Promise<AgentTab | undefined> {
+    return this.agentTabs[this.agentTab] ?? this.newAgentTab()
+  }
+  async startAgents(): Promise<void> {
+    // Painel e foco primeiro: a aba de conversa pode falhar (nenhum provedor
+    // disponível) e o painel ainda deve abrir com o motivo no lugar da
+    // conversa. Sem isso, o foco ficaria preso no editor enquanto o painel
+    // aparece — e a primeira tecla digitada iria para o buffer errado.
+    this.showAgents = true
+    this.focus = "agents"
+    this.changed()
+    await this.ensureAgentTab()
+  }
+  async sendAgentPrompt(): Promise<void> {
+    const tab = this.agentTabs[this.agentTab]
+    if (!tab) return
+    const prompt = this.agentInput.trim()
+    if (!prompt) { this.status = "Type a prompt first"; this.changed(); return }
+    if (tab.status === "busy") { this.status = "Agent is still answering (Ctrl+C cancels)"; this.changed(); return }
+    const conversation = this.conversations.get(tab.id)
+    if (!conversation) { this.status = "Agent conversation is not open"; this.changed(); return }
+    this.agentInput = ""
+    this.agentScroll = 0
+    tab.messages.push({ role: "user", text: prompt, at: Date.now() })
+    const reply: AgentMessage = { role: "assistant", text: "", at: Date.now() }
+    tab.messages.push(reply)
+    tab.status = "busy"
+    tab.error = undefined
+    this.changed()
+    try {
+      const turn = await conversation.send(prompt, chunk => { reply.text += chunk; this.requestAgentRender() })
+      if (turn.cancelled) {
+        reply.text += `${reply.text.endsWith("\n") ? "" : "\n"}(cancelled)`
+        this.status = "Agent turn cancelled"
+      }
+      if (!reply.text) tab.messages = tab.messages.filter(message => message !== reply)
+      tab.status = "idle"
+    } catch (error) {
+      tab.status = "error"
+      tab.error = String(error)
+      this.status = `Agent error: ${error}`
+    }
+    if (this.agentRenderTimer) { clearTimeout(this.agentRenderTimer); this.agentRenderTimer = undefined }
+    this.changed()
+  }
+  async cancelAgent(): Promise<void> {
+    const tab = this.agentTabs[this.agentTab]
+    if (!tab || tab.status !== "busy") return
+    await this.conversations.get(tab.id)?.cancel().catch(() => undefined)
+    this.changed()
+  }
+  async closeAgentTab(index = this.agentTab): Promise<void> {
+    const tab = this.agentTabs[index]
+    if (!tab) return
+    await this.conversations.get(tab.id)?.close().catch(() => undefined)
+    this.conversations.delete(tab.id)
+    this.agentTabs.splice(index, 1)
+    this.agentTab = Math.max(0, Math.min(this.agentTab, this.agentTabs.length - 1))
+    this.agentScroll = 0
+    this.status = "Agent conversation closed"
+    this.changed()
+  }
+  nextAgentTab(step: number): void {
+    if (this.agentTabs.length < 2) return
+    this.agentTab = (this.agentTab + step + this.agentTabs.length) % this.agentTabs.length
+    this.agentScroll = 0
+    this.changed()
+  }
   async ensureLsp(): Promise<LspClient | undefined> {
     const document = this.document
     if (!document.path || !this.config.lsp.enabled) return undefined
@@ -1649,7 +1784,9 @@ export class Application {
       active_index: Math.max(0, files.indexOf(this.document.path ?? "")),
       scroll_y: this.panes[0]?.scroll ?? 0,
       show_tree: this.showTree,
+      show_agents: this.showAgents,
       tree_width: this.config.tree.width,
+      agents_width: this.config.agents.width,
       split,
     })
   }
@@ -1830,6 +1967,9 @@ export class Application {
 
   async close(): Promise<void> {
     this.closed = true; clearTimeout(this.lspTimer); clearTimeout(this.completionTimer); clearTimeout(this.fuzzyTimer)
+    if (this.agentRenderTimer) { clearTimeout(this.agentRenderTimer); this.agentRenderTimer = undefined }
+    await Promise.allSettled([...this.conversations.values()].map(conversation => conversation.close()))
+    this.conversations.clear()
     try { this.fuzzyWorker?.terminate() } catch {}
     this.fuzzyWorker = undefined
     await this.terminal?.close()

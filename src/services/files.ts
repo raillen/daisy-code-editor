@@ -155,7 +155,9 @@ export type Session = {
   active_index: number
   scroll_y?: number
   show_tree: boolean
+  show_agents: boolean
   tree_width: number
+  agents_width: number
   split?: SplitSession
 }
 
@@ -173,7 +175,9 @@ export async function loadSession(workspace: string): Promise<Partial<Session>> 
     active_index: typeof source.active_index === "number" ? source.active_index : 0,
     scroll_y: typeof source.scroll_y === "number" ? Math.max(0, source.scroll_y) : 0,
     show_tree: typeof source.show_tree === "boolean" ? source.show_tree : true,
+    show_agents: typeof source.show_agents === "boolean" ? source.show_agents : false,
     tree_width: typeof source.tree_width === "number" ? source.tree_width : 28,
+    agents_width: typeof source.agents_width === "number" ? source.agents_width : 34,
     split,
   }
 }

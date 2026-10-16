@@ -79,10 +79,15 @@
 
 ### [ 🖧 ] [GIT.SCM] Controle de Versão & Git Gutter em Tempo Real
 - Marcadores de Git Gutter em tempo real na margem de numeração (`+` adicionado, `~` modificado, `-` removido).
-- Painel SCM dedicado (`Ctrl+Shift+G`) exibindo nome da branch, commits à frente/atrás e arquivos em stage.
+- Modal SCM dedicado (`Ctrl+Shift+G`) exibindo nome da branch, commits à frente/atrás e arquivos em stage (`s` adiciona, `u` tira, `d` diff, `c` commit).
 - **Git Blame na Linha (`Alt+B`)**: Exibe autor, hash do commit, data relativa e mensagem da linha atual.
 - **Visualizador de Diff (`show_diff`)**: Overlay formatado com o diff do Git para alterações no arquivo ativo.
 - Sincronização segura de `git pull` e `git push` com diálogos de confirmação.
+
+### [ 🤖 ] [AI.AGENTS] Painel de Agentes (Slot Direito)
+- Painel no lado direito para conversas com agentes de IA (`Ctrl+Shift+A`): input inline (`Enter` envia, `Esc` devolve o foco), abas por conversa (`Ctrl+N` nova, `Ctrl+W` fecha, `Ctrl+Tab` alterna) e divisor redimensionável persistido por workspace.
+- Agnóstico de provedor por contrato: adapters implementam `AgentProvider` (`src/services/agents.ts`) — o provedor nativo do OpenCode e os agentes ACP entram neste slot em seguida.
+- Traz um provedor `echo` de demonstração para o painel funcionar offline (testes e demos) e falha fechado com mensagem de status quando nenhum provedor está disponível.
 
 ### [ 🗎 ] [DOC.VIEW] Pré-visualização de Markdown ao Vivo
 - Visualização em split dedicada para documentos Markdown e MDX (`Alt+P`).
@@ -193,7 +198,8 @@ bun run build
 │ Ctrl+Shift+P        Barra de Comandos Global (Busca fuzzy de comandos)     │
 │ Ctrl+P              Localizador Rápido de Arquivos                         │
 │ Ctrl+`              Alterna Terminal POSIX Embutido (PTY)                  │
-│ Ctrl+Shift+G        Alterna Painel Git / SCM do Workspace                  │
+│ Ctrl+Shift+G        Alterna Modal Git / SCM do Workspace                   │
+│ Ctrl+Shift+A        Alterna Painel de Agentes IA (Ctrl+N nova · Enter)     │
 │ Alt+P               Alterna Pré-visualização de Markdown em Split          │
 │ Ctrl+F              Localizar no Buffer Atual                              │
 │ Ctrl+H              Localizar e Substituir no Buffer                       │

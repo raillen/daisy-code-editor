@@ -79,10 +79,15 @@
 
 ### [ 🖧 ] [GIT.SCM] Version Control & Real-time Gutter
 - Real-time Git Gutter status indicators in the line number margin (`+` added, `~` modified, `-` deleted).
-- Dedicated SCM panel (`Ctrl+Shift+G`) displaying branch name, commits ahead/behind, and staged/unstaged files.
+- Dedicated SCM modal (`Ctrl+Shift+G`) displaying branch name, commits ahead/behind, and staged/unstaged files (`s` stage, `u` unstage, `d` diff, `c` commit).
 - **Inline Git Blame (`Alt+B`)**: Displays author, commit hash, date, and message for the current line.
 - **Diff Viewer (`show_diff`)**: Formatted git diff overlay for modified working tree files.
 - `git pull` and `git push` synchronization with safe confirmation dialogs.
+
+### [ 🤖 ] [AI.AGENTS] Agent Panel (Right Slot)
+- Right-hand panel for AI pair-programmer conversations (`Ctrl+Shift+A`): inline prompt input (`Enter` sends, `Esc` returns focus), per-conversation tabs (`Ctrl+N` new, `Ctrl+W` close, `Ctrl+Tab` cycle) and a resizable divider persisted per workspace.
+- Provider-agnostic by contract: adapters implement `AgentProvider` (`src/services/agents.ts`) — the native OpenCode provider and ACP agents land on this slot next.
+- Ships an `echo` demo provider so the panel works offline (tests and demos), and fails closed with a status message when no provider is available.
 
 ### [ 🗎 ] [DOC.VIEW] Live Markdown Preview
 - Real-time split preview for Markdown and MDX documents (`Alt+P`).
@@ -193,7 +198,8 @@ bun run build
 │ Ctrl+Shift+P        Global Command Palette (Fuzzy command search)          │
 │ Ctrl+P              Quick File Finder                                      │
 │ Ctrl+`              Toggle Embedded POSIX Terminal (PTY)                   │
-│ Ctrl+Shift+G        Toggle Git / SCM Workspace Panel                       │
+│ Ctrl+Shift+G        Toggle Git / SCM Overlay                               │
+│ Ctrl+Shift+A        Toggle AI Agents Panel (Ctrl+N new · Enter send)       │
 │ Alt+P               Toggle Live Markdown Preview Split                     │
 │ Ctrl+F              Find in Current Buffer                                 │
 │ Ctrl+H              Find and Replace in Buffer                             │

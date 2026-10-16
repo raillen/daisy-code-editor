@@ -5,40 +5,8 @@ import { lineRanges } from "../core/document"
 import { themeOf, resolveColor } from "./theme"
 import { selectedTheme } from "../services/preferences"
 
-type Cell = { text: string; start: number; end: number; column: number; width: number }
-export type VisualRow = { line: number; start: number; end: number; first: boolean; cells: Cell[]; width: number }
-const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" })
-export function visualRows(text: string, width: number, wrap: boolean, tabSize: number): VisualRow[] {
-  const rows: VisualRow[] = []
-  for (const [line, range] of lineRanges(text).entries()) {
-    const offset = range.start, value = text.slice(range.start, range.end)
-    let cells: Cell[] = [], column = 0, start = offset, first = true
-    const flush = () => { rows.push({ line, start, end: cells.at(-1)?.end ?? start, first, cells, width: column }); cells = []; column = 0; first = false }
-    const hasComplexChars = /[^\x20-\x7e\t]/.test(value)
-    if (!hasComplexChars) {
-      for (let i = 0; i < value.length; i++) {
-        const at = offset + i
-        const char = value[i]!
-        const glyph = char === "\t" ? " ".repeat(tabSize - (column % tabSize)) : char
-        const size = glyph.length
-        if (wrap && column > 0 && column + size > width) { flush(); start = at }
-        cells.push({ text: glyph, start: at, end: at + 1, column, width: size })
-        column += size
-      }
-    } else {
-      for (const segment of segmenter.segment(value)) {
-        const at = offset + segment.index
-        const glyph = segment.segment === "\t" ? " ".repeat(tabSize - column % tabSize) : /[\x00-\x1f\x7f]/.test(segment.segment) ? "" : segment.segment
-        const size = Bun.stringWidth(glyph)
-        if (wrap && column > 0 && column + size > width) { flush(); start = at }
-        cells.push({ text: glyph, start: at, end: at + segment.segment.length, column, width: size })
-        column += size
-      }
-    }
-    flush()
-  }
-  return rows
-}
+export { visualRows, type VisualRow } from "../core/wrap"
+import { visualRows, type VisualRow } from "../core/wrap"
 function caretRow(rows: VisualRow[], offset: number): number {
   const next = rows.findIndex(row => offset >= row.start && offset < row.end)
   return next >= 0 ? next : rows.findLastIndex(row => offset >= row.start && offset <= row.end)

@@ -2,7 +2,7 @@ import { basename, dirname, join, relative } from "node:path"
 import { rename, unlink, rmdir, stat } from "node:fs/promises"
 import { actionIds, type ActionId } from "../core/keymap"
 import { offsetAt, lineRanges, type Direction } from "../core/document"
-import { clampTreeWidth } from "../core/layout"
+import { clampTreeWidth, clampAgentsWidth } from "../core/layout"
 import { findMatches } from "../core/search"
 import { languageOf, commentDelimiters } from "../services/languages"
 import { readText } from "../services/files"
@@ -137,6 +137,23 @@ export const commands: Record<ActionId, Command> = {
   add_cursor_above: command("Add cursor above", app => app.document.addCursor(-1)), add_cursor_below: command("Add cursor below", app => app.document.addCursor(1)),
   clear_extra_cursors: command("Clear extra cursors", app => app.document.clearExtraCursors()),
   toggle_scm: toggle("Source control", app => { app.overlay = app.overlay?.kind === "scm" ? undefined : { kind: "scm", selected: 0 }; void app.refreshGit() }),
+  toggle_agents: toggle("Toggle agents panel", app => {
+    if (app.showAgents) {
+      app.showAgents = false
+      if (app.focus === "agents") app.focus = "editor"
+      app.changed()
+      return
+    }
+    return app.guard(() => app.startAgents())
+  }),
+  focus_agents: toggle("Focus agents panel", app => app.guard(() => app.startAgents())),
+  agents_grow: toggle("Grow agents panel", app => { app.config.agents.width = clampAgentsWidth(app.width - app.config.agents.width - 2, app.width) }),
+  agents_shrink: toggle("Shrink agents panel", app => { app.config.agents.width = clampAgentsWidth(app.width - app.config.agents.width + 2, app.width) }),
+  agent_new_tab: command("New agent conversation", async app => { app.showAgents = true; await app.newAgentTab() }),
+  agent_close_tab: command("Close agent conversation", app => app.closeAgentTab()),
+  agent_next_tab: command("Next agent conversation", app => app.nextAgentTab(1)),
+  agent_prev_tab: command("Previous agent conversation", app => app.nextAgentTab(-1)),
+  agent_cancel: command("Cancel agent turn", app => app.cancelAgent()),
   git_pull: command("Git pull", app => confirmGit(app, "pull")), git_push: command("Git push", app => confirmGit(app, "push")),
   git_rebase: command("Git rebase onto branch…", app => app.prompt(app.config.locale === "pt-BR" ? "Rebase onto branch:" : "Rebase onto branch:", "", branch => confirmRebase(app, branch))),
   git_rebase_continue: command("Git rebase continue", async app => { await app.guard(async () => { app.status = await app.git.rebaseContinue(); await app.refreshGit() }) }),
@@ -350,6 +367,21 @@ function actionSynonyms(actionId: string): string {
       return "terminal pty shell bash zsh console linha de comando"
     case "toggle_scm":
       return "git scm controle versao diff commit stage"
+    case "toggle_agents":
+    case "focus_agents":
+      return "agente agents ia ai assistente assistant chat copilot opencode acp prompt"
+    case "agent_new_tab":
+      return "agente agents nova conversa new chat"
+    case "agent_close_tab":
+      return "agente agents fechar conversa close"
+    case "agent_cancel":
+      return "agente agents cancelar interromper stop"
+    case "agents_grow":
+    case "agents_shrink":
+      return "agente agents painel largura resize"
+    case "agent_next_tab":
+    case "agent_prev_tab":
+      return "agente agents trocar aba tab"
     case "toggle_md_preview":
       return "markdown preview visualizar render doc"
     case "toggle_modal":

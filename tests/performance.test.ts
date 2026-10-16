@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { extractBufferWords, suggestBufferWords, extractDocumentSymbols } from "../src/services/symbols"
-import { visualRows } from "../src/ui/editor"
+import { visualRows } from "../src/core/wrap"
 import { findMatches, searchDefaults } from "../src/core/search"
 
 test("performance: extractBufferWords and suggestBufferWords with 10,000 lines completes in < 50ms", () => {

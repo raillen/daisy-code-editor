@@ -92,6 +92,26 @@ export function receiveKey(app: Application, key: KeyEvent): void {
     }
     return
   }
+  if (app.focus === "agents" && app.showAgents) {
+    if (key.name === "escape") { app.focus = "editor"; app.changed() }
+    else if (chord === "alt+]" || chord === "alt+[") void app.dispatch(chord === "alt+]" ? "agents_grow" : "agents_shrink")
+    else if (key.name === "return" || key.name === "enter") void app.guard(() => app.sendAgentPrompt())
+    else if (key.name === "backspace") { app.agentInput = app.agentInput.slice(0, -1); app.changed() }
+    else if (key.name === "up") app.scrollAgent(1)
+    else if (key.name === "down") app.scrollAgent(-1)
+    else if (key.name === "pageup") app.scrollAgent(app.agentVisibleRows())
+    else if (key.name === "pagedown") app.scrollAgent(-app.agentVisibleRows())
+    else if (chord === "ctrl+c") void app.dispatch("agent_cancel")
+    else if (chord === "ctrl+n") void app.dispatch("agent_new_tab")
+    else if (chord === "ctrl+w") void app.dispatch("agent_close_tab")
+    else if (chord === "ctrl+tab") void app.dispatch("agent_next_tab")
+    else if (chord === "ctrl+shift+tab") void app.dispatch("agent_prev_tab")
+    else {
+      const text = printable(key)
+      if (text) { app.agentInput += text; app.changed() }
+    }
+    return
+  }
   if (app.preview && app.focus === "editor") { previewKey(app, key, chord); return }
   if (app.completion && app.focus === "editor") {
     if (key.name === "escape") { app.cancelCompletion(); return }
@@ -144,6 +164,7 @@ export function receivePaste(app: Application, text: string): void {
     const field = overlay.field === 0 ? "query" : overlay.field === 1 ? "replacement" : "glob"
     overlay[field] += text.replace(/[\r\n]/g, ""); void app.updateSearch()
   } else if (app.focus === "terminal") app.terminal?.write(text)
+  else if (app.focus === "agents" && app.showAgents) app.agentInput += text.replace(/[\r\n]+/g, " ")
   else if (!overlay && !app.preview) app.insert(text)
   app.changed()
 }
