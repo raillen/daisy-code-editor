@@ -21,6 +21,7 @@ import { Application } from "../src/app/application"
 import { defaultConfig } from "../src/services/config"
 import { Workbench } from "../src/ui/workbench"
 import { execute } from "../src/services/git"
+import { echoProvider } from "../src/services/agents"
 
 const enabled = !!process.env.DAISY_GOLDEN
 const update = !!process.env.DAISY_GOLDEN_UPDATE
@@ -43,6 +44,8 @@ async function setup() {
   const root = await mkdtemp(join(tmpdir(), "oride-golden-"))
   const config = defaultConfig(); config.lsp.enabled = false; config.locale = "en"
   const app = new Application(root, config)
+  // Goldens determinísticos: provedor echo pinado (ver workbench.test.tsx).
+  app.agentProviders = [echoProvider()]
   await Bun.write(join(root, "main.ts"), 'const answer = 42\nconsole.log(answer)\n')
   await app.tree.refresh(); app.newDocument()
   const renderer = await testRender(() => <Workbench app={app} />, { width: WIDTH, height: HEIGHT, kittyKeyboard: true })

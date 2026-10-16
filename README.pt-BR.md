@@ -86,7 +86,7 @@
 
 ### [ 🤖 ] [AI.AGENTS] Painel de Agentes (Slot Direito)
 - Painel no lado direito para conversas com agentes de IA (`Ctrl+Shift+A`): input inline (`Enter` envia, `Esc` devolve o foco), abas por conversa (`Ctrl+N` nova, `Ctrl+W` fecha, `Ctrl+Tab` alterna) e divisor redimensionável persistido por workspace.
-- Agnóstico de provedor por contrato: adapters implementam `AgentProvider` (`src/services/agents.ts`) — o provedor nativo do OpenCode e os agentes ACP entram neste slot em seguida.
+- Agnóstico de provedor por contrato: adapters implementam `AgentProvider` (`src/services/agents.ts`) — o OpenCode responde nativamente quando está no `PATH` (padrão seguro sem `--auto`: lê e sugere, edições com permissão recusadas com feedback); os agentes ACP entram neste slot em seguida.
 - Traz um provedor `echo` de demonstração para o painel funcionar offline (testes e demos) e falha fechado com mensagem de status quando nenhum provedor está disponível.
 
 ### [ 🗎 ] [DOC.VIEW] Pré-visualização de Markdown ao Vivo

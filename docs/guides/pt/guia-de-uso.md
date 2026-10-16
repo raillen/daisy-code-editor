@@ -47,7 +47,7 @@ A interface do Oride foi desenhada para eficiência máxima no terminal, aprovei
 - **Árvore de Arquivos (Project Tree):** Painel lateral esquerdo com navegação recursiva, ícones Nerd Fonts e status Git (`M`, `A`, `?`).
 - **Área de Edição de Texto:** Suporta números de linha (gutter), múltiplos cursores, quebra de linha suave (`Alt+Z`) e realce sintático Tree-Sitter.
 - **Modal Git / SCM:** `Ctrl+Shift+G` abre um modal listando os arquivos modificados na working tree. Dentro dele: `↑`/`↓` navegam, `Enter` abre o arquivo, `s` adiciona ao índice, `u` tira do índice, `d` mostra o diff, `c` faz o commit, `r` relê o disco, `P`/`p` fazem push/pull e `Esc` fecha.
-- **Painel de Agentes:** `Ctrl+Shift+A` abre o painel de IA no lado direito. Digite um prompt e pressione `Enter` para enviar; `Ctrl+N` começa uma conversa nova, `Ctrl+W` fecha, `Ctrl+Tab` alterna as abas, `Alt+]`/`Alt+[` redimensionam o painel e `Esc` devolve o foco ao editor.
+- **Painel de Agentes:** `Ctrl+Shift+A` abre o painel de IA no lado direito. Ele usa o OpenCode quando o binário está no `PATH` (primeiro provedor disponível) e a demo echo offline caso contrário. Digite um prompt e pressione `Enter` para enviar; `Ctrl+N` começa uma conversa nova, `Ctrl+W` fecha, `Ctrl+Tab` alterna as abas, `Alt+]`/`Alt+[` redimensionam o painel e `Esc` devolve o foco ao editor. Sem `--auto`, o agente responde e lê, mas ações com permissão (edições, shell) são recusadas com feedback.
 - **Terminal Embutido (PTY):** Terminal interativo colapsável na parte inferior (`Ctrl+\`` ou `Ctrl+"`).
 - **Linha de Status:** Rodapé exibindo posição do cursor (linha, coluna), codificação, linguagem detectada, modo de edição ativo e mensagens do sistema.
 

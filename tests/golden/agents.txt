@@ -22,9 +22,9 @@
                                                                   ❯ hello                           
                                                                   ∙ Echo: hello                     
                                                                     Demo provider — no model is     
-                                                                    called. Native OpenCode and     
-                                                                    ACP providers land in the       
-                                                                    next steps.                     
+                                                                    called. OpenCode answers here   
+                                                                    when it is on PATH; ACP         
+                                                                    providers land next.            
                                                                   ❯ ▏                               
                                                                   Enter send · Ctrl+N new · Esc back
  DAISY  agents    Ctrl+P files · Ctrl+Shift+P commands    LSP off │ text │ Spaces: 4 │  Ln 1, Col 1 

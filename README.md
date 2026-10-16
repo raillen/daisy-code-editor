@@ -86,7 +86,7 @@
 
 ### [ 🤖 ] [AI.AGENTS] Agent Panel (Right Slot)
 - Right-hand panel for AI pair-programmer conversations (`Ctrl+Shift+A`): inline prompt input (`Enter` sends, `Esc` returns focus), per-conversation tabs (`Ctrl+N` new, `Ctrl+W` close, `Ctrl+Tab` cycle) and a resizable divider persisted per workspace.
-- Provider-agnostic by contract: adapters implement `AgentProvider` (`src/services/agents.ts`) — the native OpenCode provider and ACP agents land on this slot next.
+- Provider-agnostic by contract: adapters implement `AgentProvider` (`src/services/agents.ts`) — OpenCode answers natively when on `PATH` (safe default without `--auto`: reads and suggests, permission-gated edits declined with feedback); ACP agents land on this slot next.
 - Ships an `echo` demo provider so the panel works offline (tests and demos), and fails closed with a status message when no provider is available.
 
 ### [ 🗎 ] [DOC.VIEW] Live Markdown Preview

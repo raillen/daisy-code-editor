@@ -158,8 +158,10 @@ All features below are implemented, tested (97 automated tests passing), and ava
   - Conversation pane with inline prompt input (`Enter` sends, `Esc` returns focus) and per-conversation tabs (`Ctrl+N` new, `Ctrl+W` close, `Ctrl+Tab` cycle).
   - `AgentProvider` contract (`src/services/agents.ts`): adapters plug in without touching app/UI. Until the real providers land, an `echo` demo provider keeps the panel drivable offline — tests, demos and machines with no agent on `$PATH`.
   - Resizable (divider drag or `Alt+]` / `Alt+[`) and restored per workspace (`[agents] width`, session `show_agents` / `agents_width`); fail-closed when no provider is available.
-- [ ] **Native OpenCode provider**:
-  - Drive `opencode` (`run --format json`, session/agent/model/permission) behind `AgentProvider`; transcript refetch after completion.
+- [x] **Native OpenCode provider** (`src/services/opencode.ts`):
+  - Drives `opencode run --format json` behind `AgentProvider` (protocol read from the v2.0.29 CLI source: `text` parts stream as unseen suffixes, `sessionID` captured for multi-turn `--session`, `error` fails the turn).
+  - Fail-closed without the binary on PATH (echo demo covers); no `--auto` — permission prompts auto-reject with feedback, so the panel answers/reads/suggests but never edits or executes unattended. Stdin closed, argv spawn, bounded stderr, cancel kills the run.
+  - Tested against a fake binary speaking the same JSONL protocol (`tests/helpers/fake-opencode.sh`); `models()` stays empty (no cheap list) and `--model` passes through non-default ids.
 - [ ] **ACP adapters**:
   - `claude-acp`, `codex-acp` and generic ACP agents over stdio: `initialize` → `session/new|load` → `prompt` → `session/update` → `cancel`, with `request_permission` mapped to the existing confirm overlay.
 - [ ] **Inline AI Diff Generation**:

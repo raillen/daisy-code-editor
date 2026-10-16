@@ -10,6 +10,7 @@ import { Git, hunkSummary, type GitStatus, type GutterKind, type GitHunk } from 
 import { highlight, languageOf, type HighlightToken } from "../services/languages"
 import { TerminalSession } from "../services/terminal"
 import { defaultProviders, type AgentConversation, type AgentMessage, type AgentProvider, type AgentRole, type AgentTab } from "../services/agents"
+import { opencodeProvider } from "../services/opencode"
 import { wrapText } from "../core/wrap"
 import { LspClient, lspRetryAllowed } from "../services/lsp"
 import { DebugAdapter } from "../services/dap"
@@ -127,7 +128,7 @@ export class Application {
   agentTab = 0
   agentInput = ""
   agentScroll = 0
-  agentProviders: AgentProvider[] = defaultProviders()
+  agentProviders: AgentProvider[]
   private conversations = new Map<number, AgentConversation>()
   private agentTabSeq = 0
   private agentRenderTimer: ReturnType<typeof setTimeout> | undefined
@@ -188,6 +189,10 @@ export class Application {
 
   constructor(workspace: string, config: Config) {
     this.workspace = workspace; this.config = config
+    // OpenCode nativo primeiro, demo por último: a escolha do painel é o
+    // primeiro provedor disponível. (No campo, `workspace` ainda seria
+    // `undefined` — inicializador roda antes do corpo do construtor.)
+    this.agentProviders = [opencodeProvider(workspace), ...defaultProviders()]
     this.tree = new FileTree(workspace, config.tree.show_hidden)
     this.git = new Git(workspace)
     this.terminalHeight = config.terminal.default_height

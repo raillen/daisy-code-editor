@@ -9,6 +9,7 @@ import { Workbench } from "../src/ui/workbench"
 import { clampTreeWidth, clampAgentsWidth, clampSplitRatio, clampTerminalHeight } from "../src/core/layout"
 import { execute } from "../src/services/git"
 import { receiveKey } from "../src/app/input"
+import { echoProvider } from "../src/services/agents"
 
 async function waitFor(predicate: () => boolean, timeout = 3000): Promise<void> {
   const deadline = performance.now() + timeout
@@ -20,6 +21,10 @@ async function setup(width = 100, height = 25) {
   const root = await mkdtemp(join(tmpdir(), "oride-workbench-"))
   const config = defaultConfig(); config.lsp.enabled = false; config.locale = "en"
   const app = new Application(root, config)
+  // Painel de agentes determinístico: o opencode real (se estiver no PATH da
+  // máquina) falaria com modelo de verdade. Os testes do provedor nativo
+  // moram em tests/opencode.test.ts, com fake no PATH.
+  app.agentProviders = [echoProvider()]
   await Bun.write(join(root, "main.ts"), 'const answer = 42\nconsole.log(answer)\n')
   await Bun.write(join(root, "notes.md"), "# Notes\nhello answer\n")
   await app.tree.refresh(); app.newDocument()

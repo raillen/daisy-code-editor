@@ -57,7 +57,7 @@ class EchoConversation implements AgentConversation {
   async send(prompt: string, onChunk: (chunk: string) => void): Promise<AgentTurn> {
     if (this.closed) throw new Error("agent conversation is closed")
     this.cancelled = false
-    const text = `Echo: ${prompt}\nDemo provider — no model is called. Native OpenCode and ACP providers land in the next steps.`
+    const text = `Echo: ${prompt}\nDemo provider — no model is called. OpenCode answers here when it is on PATH; ACP providers land next.`
     for (const chunk of text.match(/[\s\S]{1,12}/g) ?? []) {
       if (this.cancelled) return { cancelled: true }
       onChunk(chunk)
