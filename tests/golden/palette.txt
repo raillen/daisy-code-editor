@@ -1,0 +1,31 @@
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+     ╭────────────────────────────────────────────────────────────────────────────────────────╮     
+     │ ◈ Commands                                                                             │     
+     │ > agents▏                                                                              │     
+     │ ▎Other: Grow agents panel  [alt+]  ·  agente agents painel largura resize]             │     
+     │  Other: Focus agents panel  [agente agents ia ai assistente assistant chat copilot ope │     
+     │  View: Toggle agents panel  [ctrl+shift+a  ·  agente agents ia ai assistente assistant │     
+     │  Other: Shrink agents panel  [alt+[  ·  agente agents painel largura resize]           │     
+     │  Other: New agent conversation  [agente agents nova conversa new chat]                 │     
+     │  Other: Next agent conversation  [agente agents trocar aba tab]                        │     
+     │  Other: Close agent conversation  [agente agents fechar conversa close]                │     
+     │  Other: Previous agent conversation  [agente agents trocar aba tab]                    │     
+     │  Other: Cancel agent turn  [agente agents cancelar interromper stop]                   │     
+     │  View: Display Language (Idioma)…  [idioma language locale tradução pt-br en-us]       │     
+     │ ↑↓ preview/select · Enter open · Esc close                                             │     
+     ╰────────────────────────────────────────────────────────────────────────────────────────╯     
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+

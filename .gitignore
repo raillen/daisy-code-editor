@@ -31,3 +31,12 @@ coverage.out
 /dist/
 /daisy-bin
 /release-dist/
+
+# Demos VHS: GIFs nunca entram; só o config pinado dos fixtures é tracked
+# (a session.toml que o app escreve ao sair é lixo de gravação).
+demos/out/
+demos/*/.daisy/session.toml
+!demos/fixture-agents/.daisy/
+!demos/fixture-agents/.daisy/config.toml
+!demos/fixture-scm/.daisy/
+!demos/fixture-scm/.daisy/config.toml

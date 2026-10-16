@@ -1,0 +1,4 @@
+# Config do fixture das demos: LSP desligado para boot rápido e determinístico
+# (nenhum servidor é spawnado durante a gravação).
+[lsp]
+enabled = false

@@ -102,6 +102,7 @@ export function receiveKey(app: Application, key: KeyEvent): void {
     else if (key.name === "pageup") app.scrollAgent(app.agentVisibleRows())
     else if (key.name === "pagedown") app.scrollAgent(-app.agentVisibleRows())
     else if (chord === "ctrl+c") void app.dispatch("agent_cancel")
+    else if (chord === "ctrl+q") void app.dispatch("quit")
     else if (chord === "ctrl+n") void app.dispatch("agent_new_tab")
     else if (chord === "ctrl+w") void app.dispatch("agent_close_tab")
     else if (chord === "ctrl+tab") void app.dispatch("agent_next_tab")

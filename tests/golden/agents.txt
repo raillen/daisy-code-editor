@@ -1,0 +1,31 @@
+ File  Edit  View  Settings  Go  Git  Help                                            Daisy / Solid 
+ ▍untitled ×                                                                    <ws> 
+ PROJECT  n:new r:ren d:del     1                                 ▍Agents · Echo (demo)             
+>▾ <ws>                                                                              
+     main.ts                                                                                        
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                  ❯ hello                           
+                                                                  ∙ Echo: hello                     
+                                                                    Demo provider — no model is     
+                                                                    called. Native OpenCode and     
+                                                                    ACP providers land in the       
+                                                                    next steps.                     
+                                                                  ❯ ▏                               
+                                                                  Enter send · Ctrl+N new · Esc back
+ DAISY  agents    Ctrl+P files · Ctrl+Shift+P commands    LSP off │ text │ Spaces: 4 │  Ln 1, Col 1 
+

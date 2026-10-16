@@ -331,6 +331,15 @@ test("agents panel fails closed when no provider is available", async () => {
     expect(view.captureCharFrame()).toContain("No agent provider available")
   } finally { await view.cleanup() }
 })
+test("agents panel quits with Ctrl+Q without stranding focus", async () => {
+  const view = await setup()
+  try {
+    await view.app.dispatch("toggle_agents")
+    expect(view.app.focus).toBe("agents")
+    view.mockInput.pressKey("q", { ctrl: true }); await view.flush()
+    expect(view.app.quit).toBe(true)
+  } finally { await view.cleanup() }
+})
 test("dragging the panel divider resizes the terminal", async () => {
   const view = await setup()
   try {

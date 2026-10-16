@@ -1,0 +1,31 @@
+ File  Edit  View  Settings  Go  Git  Help                                            Daisy / Solid 
+ ▍untitled ×                                                                    <ws> 
+ PROJECT  n:new r:ren d:del     1>                                                                  
+>▾ <ws>                                                                              
+     main.ts                                                                                        
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ DAISY  editor    Ctrl+P files · Ctrl+Shift+P commands    LSP off │ text │ Spaces: 4 │  Ln 1, Col 1 
+
